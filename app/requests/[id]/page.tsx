@@ -6,6 +6,10 @@ import { Access } from "../../../src/access";
 import { requireBusinessPage } from "../../../src/guard";
 import { duplicateHintsForRequest, formatAge, getRequest, REQUEST_STATUS_LABEL, REQUEST_TRANSITIONS, requestAgeHours } from "../../../src/domain/requests";
 import { formatSite, listClients } from "../../../src/domain/clients";
+import { listQuotes } from "../../../src/domain/quotes";
+import { formatMoney } from "../../../src/lib/money";
+import { Button } from "@kabosh-digital/m-street-kit/ui/button";
+import { QuoteStatusChip } from "../../../src/ui/chips";
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { listStaff, staffLabelMap } from "../../../src/domain/shared/staff";
 import {
@@ -25,6 +29,7 @@ export default async function RequestPage(props: { params: Promise<{ id: string 
   const { id } = await props.params;
   const request = await getRequest(id);
   if (!request) notFound();
+  const quotes = await listQuotes({ requestId: id });
   const [timeline, staff, labels, hints, clients] = await Promise.all([
     listEntityTimeline("request", id),
     listStaff(),
@@ -110,6 +115,26 @@ export default async function RequestPage(props: { params: Promise<{ id: string 
         </div>
 
         <div className="flex flex-col gap-5">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Quote</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 text-sm">
+              {quotes.map((q) => (
+                <Link key={q.id} href={`/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md border p-2.5 hover:bg-muted">
+                  <span><span className="font-medium">{q.number}</span> {q.title}</span>
+                  <span className="flex items-center gap-2"><QuoteStatusChip status={q.effectiveStatus} /><span className="tabular-nums text-xs">{formatMoney(q.totalCents)}</span></span>
+                </Link>
+              ))}
+              {quotes.length === 0 ? <p className="text-muted-foreground">No quote yet.</p> : null}
+              {request.clientId ? (
+                <div><Button asChild variant="outline"><Link href={`/quotes/new?requestId=${request.id}`}>Create a quote</Link></Button></div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Link this enquiry to a client first, then create the quote.</p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Follow-up</CardTitle>

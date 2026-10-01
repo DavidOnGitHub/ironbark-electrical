@@ -1,6 +1,7 @@
 import { appDb } from "../src/db/app";
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { DEMO_PASSWORD, DEMO_USERS, seedBusiness, seedUsers } from "./seedData";
+import { seedPriceList, seedQuotesAndJobs } from "./seedPhase2";
 
 const existing = await appDb.client.count();
 if (existing > 0) {
@@ -8,7 +9,9 @@ if (existing > 0) {
 } else {
   const ids = await seedUsers();
   const counts = await seedBusiness(ids);
-  console.log("Seeded:", counts);
+const items = await seedPriceList();
+const phase2 = await seedQuotesAndJobs(ids, items);
+  console.log("Seeded:", counts, phase2);
   console.log(`Demo accounts (password ${DEMO_PASSWORD}): ${DEMO_USERS.map((u) => u.email).join(", ")}`);
 }
 await appDb.$disconnect();

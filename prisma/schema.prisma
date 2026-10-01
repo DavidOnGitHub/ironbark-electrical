@@ -57,6 +57,36 @@ enum RequestStatus {
   LOST
 }
 
+enum PriceKind {
+  LABOUR
+  CALL_OUT
+  STANDARD_JOB
+  MATERIAL
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  DECLINED
+  EXPIRED
+}
+
+enum JobStatus {
+  UNSCHEDULED
+  SCHEDULED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  INVOICED
+  PAID
+}
+
+enum JobNoteKind {
+  NOTE
+  VARIATION
+}
+
 enum ActorType {
   USER
   WORKFLOW
@@ -83,6 +113,8 @@ model Client {
   sites    Site[]
   requests Request[]
   activity ActivityEvent[]
+  quotes   Quote[]
+  jobs     Job[]
 
   @@index([emailNorm])
   @@index([phoneNorm])
@@ -104,6 +136,8 @@ model Site {
   createdAt        DateTime @default(now())
 
   requests Request[]
+  quotes   Quote[]
+  jobs     Job[]
 
   @@index([clientId])
 }
@@ -134,6 +168,8 @@ model Request {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  quotes Quote[]
+
   @@index([status, receivedAt])
   @@index([clientId])
 }
@@ -160,4 +196,128 @@ model ActivityEvent {
 
   @@index([clientId, at(sort: Desc)])
   @@index([entityType, entityId, at(sort: Desc)])
+}
+
+/// Human-readable numbering (Q-1001, J-2001): one counter row per sequence.
+model Sequence {
+  key   String @id
+  value Int    @default(0)
+}
+
+/// The price list: labour rates, call-out fee, standard jobs and materials.
+/// Amounts are integer cents, ex GST. Technicians never see this table.
+model PriceItem {
+  id          String    @id @default(cuid())
+  kind        PriceKind
+  name        String
+  description String?
+  unit        String    @default("each")
+  /// Materials only: what it costs us, and the markup that produces priceCents.
+  costCents   Int?
+  markupPct   Int?
+  priceCents  Int
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lines QuoteLine[]
+
+  @@index([kind, active])
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  number          String      @unique
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  siteId          String?
+  site            Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  requestId       String?
+  request         Request?    @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  status          QuoteStatus @default(DRAFT)
+  title           String
+  notes           String?
+  /// A SENT quote past this moment reads as expired (see effectiveQuoteStatus).
+  validUntil      DateTime
+  depositRequired Boolean     @default(false)
+  depositPct      Int         @default(0)
+  subtotalCents   Int         @default(0)
+  gstCents        Int         @default(0)
+  totalCents      Int         @default(0)
+  depositCents    Int         @default(0)
+  sentAt          DateTime?
+  decidedAt       DateTime?
+  decisionNote    String?
+  createdByUserId String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  lines QuoteLine[]
+  job   Job?
+
+  @@index([status])
+  @@index([clientId])
+}
+
+model QuoteLine {
+  id             String     @id @default(cuid())
+  quoteId        String
+  quote          Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  position       Int
+  priceItemId    String?
+  priceItem      PriceItem? @relation(fields: [priceItemId], references: [id], onDelete: SetNull)
+  description    String
+  quantity       Decimal    @db.Decimal(10, 2)
+  unit           String     @default("each")
+  unitPriceCents Int
+  /// Ex GST: round(quantity x unitPriceCents).
+  lineTotalCents Int
+
+  @@index([quoteId, position])
+}
+
+model Job {
+  id                  String    @id @default(cuid())
+  number              String    @unique
+  clientId            String
+  client              Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  siteId              String?
+  site                Site?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  quoteId             String?   @unique
+  quote               Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  title               String
+  scope               String?
+  status              JobStatus @default(UNSCHEDULED)
+  /// Platform user id of the technician.
+  assignedUserId      String?
+  scheduledStart      DateTime?
+  scheduledEnd        DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  /// What was quoted, ex GST (the invoice starts from this plus approved variations).
+  quotedSubtotalCents Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  notes JobNote[]
+
+  @@index([assignedUserId, scheduledStart])
+  @@index([status])
+}
+
+model JobNote {
+  id               String      @id @default(cuid())
+  jobId            String
+  job              Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  authorUserId     String
+  authorLabel      String
+  kind             JobNoteKind @default(NOTE)
+  text             String
+  /// A variation's extra labour/parts, ex GST. Counts toward the invoice only once approved.
+  extraCents       Int?
+  approved         Boolean     @default(false)
+  approvedByUserId String?
+  createdAt        DateTime    @default(now())
+
+  @@index([jobId, createdAt])
 }

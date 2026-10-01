@@ -7,6 +7,8 @@ export interface ActionState {
   /** Possible duplicate clients; the form shows them and offers "create anyway". */
   duplicates?: DuplicateMatch[];
   ok?: boolean;
+  /** A scheduling clash: the form offers "Book anyway". */
+  conflict?: boolean;
 }
 
 export const initialActionState: ActionState = { error: null };

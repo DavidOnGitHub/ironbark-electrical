@@ -14,7 +14,7 @@ with Joystep (its own database, its own Temporal namespace).
 ```
 app/                  Next.js routes: business pages + one-line re-exports of the console's
 src/domain/           business modules, each with one public API (index.ts)
-  clients/ requests/ activity/ shared/
+  clients/ requests/ pricing/ quotes/ jobs/ activity/ shared/
 src/actions/          server actions (role check -> module API -> revalidate)
 src/ui/               business UI pieces on top of the kit's components
 src/access.ts         who may do what (Owner/Office/Technician/Bookkeeper)
@@ -64,6 +64,14 @@ hosted demo).
 
 ## Status
 
-Phase 1 (foundation): users and roles, clients and sites with a history
-timeline, the enquiry pipeline, seed data. Quotes, jobs, invoices and the four
-automations follow (see the plan).
+- **Phase 1 (foundation):** users and roles, clients and sites with a history
+  timeline, the enquiry pipeline, seed data.
+- **Phase 2 (quotes and jobs):** the price list; the quote builder (live GST and
+  the 30% deposit rule over $1,500); the draft -> sent -> approved/declined/
+  expired lifecycle; approving a quote creates the job and marks the enquiry Won;
+  the job flow, week schedule with clash warnings, and the technician's own
+  "My day" (own jobs only, never prices); notes and variations with office approval.
+- Next: invoices and payments (Stripe test mode) and the four automations (Phase 3).
+
+All money is integer cents; business time is Sydney time (`src/lib/tz.ts`).
+Quotes are marked as sent by a person; emailing them arrives with the workflows.

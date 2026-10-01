@@ -14,3 +14,12 @@ export async function staffLabelMap(): Promise<Map<string, string>> {
   const users = await prisma.user.findMany({ select: { id: true, name: true, email: true } });
   return new Map(users.map((u) => [u.id, u.name?.trim() || u.email]));
 }
+
+/** Technicians (platform users with the Technician role), for the schedule. */
+export async function listTechnicians() {
+  return prisma.user.findMany({
+    where: { roles: { has: UserRole.OPERATOR } },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+  });
+}

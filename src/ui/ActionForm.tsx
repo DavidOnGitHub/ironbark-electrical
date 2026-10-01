@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, type ReactNode } from "react";
+import { startTransition, useActionState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { cn } from "@kabosh-digital/m-street-kit/format";
 import type { ActionState } from "../actions/shared";
@@ -35,9 +35,20 @@ export function ActionForm({
     { error: null } as ActionState,
   );
 
+  // React 19 resets uncontrolled fields after every form action - including ones that
+  // return an error, which would wipe what the person typed (and make "Book anyway" /
+  // "Create anyway" submit empty fields). Submitting manually keeps the values; forms
+  // that should clear on success do so explicitly through the `key` below.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+    const data = new FormData(event.currentTarget, submitter);
+    startTransition(() => formAction(data));
+  };
+
   return (
     <form
-      action={formAction}
+      onSubmit={onSubmit}
       key={resetOnSuccess && state.ok ? "done" : "form"}
       className={cn("flex flex-col gap-3", className)}
     >
@@ -57,6 +68,13 @@ export function ActionForm({
           </ul>
           <Button type="submit" name="ignoreDuplicates" value="yes" variant="outline" size="sm" className="mt-2" disabled={pending}>
             Create anyway
+          </Button>
+        </div>
+      ) : null}
+      {state.conflict ? (
+        <div>
+          <Button type="submit" name="allowConflict" value="yes" variant="outline" size="sm" disabled={pending}>
+            Book anyway
           </Button>
         </div>
       ) : null}

@@ -8,6 +8,10 @@ import { dashboardAccess } from "../src/guard";
 import { listRecentActivity } from "../src/domain/activity";
 import { countByStatus, formatAge, listRequests, requestAgeHours } from "../src/domain/requests";
 import { appDb } from "../src/db/app";
+import { openQuoteStats } from "../src/domain/quotes";
+import { countJobsByStatus, weekSchedule } from "../src/domain/jobs";
+import { dayKey, weekStartKey } from "../src/lib/tz";
+import { formatMoney } from "../src/lib/money";
 import { PageHeader } from "../src/ui/fields";
 import { RequestStatusChip, UrgencyChip } from "../src/ui/chips";
 
@@ -16,11 +20,15 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { user, roles } = await dashboardAccess();
   const canSeeRequests = hasAnyRole(roles, Access.REQUESTS);
-  const [clientCount, byStatus, waiting, activity] = await Promise.all([
+  const canSeeWork = hasAnyRole(roles, Access.QUOTES_READ);
+  const [clientCount, byStatus, waiting, activity, quoteStats, jobCounts, week] = await Promise.all([
     appDb.client.count({ where: { archivedAt: null } }),
     canSeeRequests ? countByStatus() : null,
     canSeeRequests ? listRequests({ status: "NEW", limit: 5 }) : [],
     listRecentActivity(8),
+    canSeeWork ? openQuoteStats() : null,
+    canSeeWork ? countJobsByStatus() : null,
+    canSeeWork ? weekSchedule(weekStartKey(dayKey(new Date()))) : null,
   ]);
   const open = byStatus ? byStatus.NEW + byStatus.CONTACTED + byStatus.SITE_VISIT_BOOKED + byStatus.QUOTED : 0;
   const oldestNew = waiting.length ? Math.max(...waiting.map((r) => requestAgeHours(r.receivedAt))) : 0;
@@ -36,6 +44,10 @@ export default async function DashboardPage() {
             <StatTile href="/requests" label="Won / lost" value={`${byStatus.WON} / ${byStatus.LOST}`} sub="all time" />
           </>
         ) : null}
+        {quoteStats ? <StatTile href="/quotes?status=SENT" label="Open quotes" value={quoteStats.count} sub={`${formatMoney(quoteStats.totalCents)} incl GST waiting on customers`} /> : null}
+        {jobCounts && week ? <StatTile href="/schedule" label="Jobs this week" value={week.scheduled.length} sub={`${jobCounts.IN_PROGRESS} in progress`} /> : null}
+        {jobCounts ? <StatTile href="/schedule" label="To schedule" value={jobCounts.UNSCHEDULED} sub="approved, no time yet" tone={jobCounts.UNSCHEDULED > 0 ? "warn" : "default"} /> : null}
+        {jobCounts ? <StatTile href="/jobs?status=COMPLETED" label="Completed, to invoice" value={jobCounts.COMPLETED} sub="invoicing arrives next" /> : null}
         <StatTile href="/clients" label="Clients" value={clientCount} sub="active" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">

@@ -8,3 +8,7 @@ export const appDb: PrismaClient = (globalForPrisma.__ironSparkPrisma ??= new Pr
 
 export type { PrismaClient };
 export { Prisma } from "iron-spark-client";
+
+/** A client or an open transaction - what module functions run their queries on. */
+import type { Prisma as PrismaNs, PrismaClient as PrismaClientT } from "iron-spark-client";
+export type Db = PrismaClientT | PrismaNs.TransactionClient;

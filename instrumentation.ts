@@ -12,7 +12,16 @@ export async function register() {
           { href: "/requests", label: "Requests", icon: "inbox", roles: ["ADMIN", "EDITOR"] },
         ],
       },
+      {
+        title: "Work",
+        items: [
+          { href: "/quotes", label: "Quotes", icon: "file-text", roles: ["ADMIN", "EDITOR", "VIEWER"] },
+          { href: "/jobs", label: "Jobs", icon: "briefcase", roles: ["ADMIN", "EDITOR", "VIEWER"] },
+          { href: "/schedule", label: "Schedule", icon: "calendar", roles: ["ADMIN", "EDITOR", "VIEWER"] },
+        ],
+      },
       { title: "Field", items: [{ href: "/my-day", label: "My day", icon: "wrench", roles: ["OPERATOR"] }] },
+      { title: "Setup", items: [{ href: "/pricing", label: "Price list", icon: "banknote", roles: ["ADMIN", "EDITOR"] }] },
     ],
     roleLabels: { ADMIN: "Owner", EDITOR: "Office", OPERATOR: "Technician", VIEWER: "Bookkeeper" },
     // Workflows, connected apps and users are the Owner's (requirements section 7).

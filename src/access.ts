@@ -20,6 +20,14 @@ export const Access = {
   REQUESTS: [OWNER, OFFICE],
   /** The dashboard of the business. */
   DASHBOARD: [OWNER, OFFICE, BOOKKEEPER],
+  /** The price list. Technicians never see prices. */
+  PRICING: [OWNER, OFFICE],
+  QUOTES_READ: [OWNER, OFFICE, BOOKKEEPER],
+  QUOTES_WRITE: [OWNER, OFFICE],
+  JOBS_READ: [OWNER, OFFICE, BOOKKEEPER],
+  JOBS_WRITE: [OWNER, OFFICE],
+  /** The field: a technician's own jobs. */
+  FIELD: [TECHNICIAN],
   /** A technician's own day. */
   MY_DAY: [TECHNICIAN, OWNER, OFFICE],
 } satisfies Record<string, UserRole[]>;

@@ -10,6 +10,10 @@ import { requireBusinessPage } from "../../../src/guard";
 import { formatSite, getClient } from "../../../src/domain/clients";
 import { listClientTimeline } from "../../../src/domain/activity";
 import { formatAge, requestAgeHours } from "../../../src/domain/requests";
+import { listQuotes } from "../../../src/domain/quotes";
+import { listJobs } from "../../../src/domain/jobs";
+import { formatMoney } from "../../../src/lib/money";
+import { JobStatusChip, QuoteStatusChip } from "../../../src/ui/chips";
 import { addNoteAction, addSiteAction, archiveClientAction, updateClientAction, updateSiteAction } from "../../../src/actions/clients";
 import { ActionForm } from "../../../src/ui/ActionForm";
 import { ClientFields, SiteFields } from "../../../src/ui/ClientFields";
@@ -26,6 +30,9 @@ export default async function ClientPage(props: { params: Promise<{ id: string }
   const timeline = await listClientTimeline(id);
   const canWrite = hasAnyRole(user.roles, Access.CLIENTS_WRITE);
   const canSeeRequests = hasAnyRole(user.roles, Access.REQUESTS);
+  const canSeeQuotes = hasAnyRole(user.roles, Access.QUOTES_READ);
+  const canWriteQuotes = hasAnyRole(user.roles, Access.QUOTES_WRITE);
+  const [quotes, jobs] = await Promise.all([canSeeQuotes ? listQuotes({ clientId: id }) : Promise.resolve([]), hasAnyRole(user.roles, Access.JOBS_READ) ? listJobs({ clientId: id }) : Promise.resolve([])]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -130,6 +137,38 @@ export default async function ClientPage(props: { params: Promise<{ id: string }
                       <RequestStatusChip status={r.status} />
                       <span className="text-xs text-muted-foreground">{formatAge(requestAgeHours(r.receivedAt))}</span>
                     </span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+          {canSeeQuotes ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-base">
+                  <span>Quotes ({quotes.length})</span>
+                  {canWriteQuotes ? <Button asChild size="sm" variant="outline"><Link href={`/quotes/new?clientId=${client.id}`}>New quote</Link></Button> : null}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {quotes.length === 0 ? <p className="text-sm text-muted-foreground">No quotes yet.</p> : null}
+                {quotes.map((q) => (
+                  <Link key={q.id} href={`/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md border p-2.5 text-sm hover:bg-muted">
+                    <span className="truncate"><span className="font-medium">{q.number}</span> {q.title}</span>
+                    <span className="flex shrink-0 items-center gap-2"><QuoteStatusChip status={q.effectiveStatus} /><span className="tabular-nums text-xs">{formatMoney(q.totalCents)}</span></span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+          {jobs.length > 0 ? (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Jobs ({jobs.length})</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {jobs.map((j) => (
+                  <Link key={j.id} href={`/jobs/${j.id}`} className="flex items-center justify-between gap-3 rounded-md border p-2.5 text-sm hover:bg-muted">
+                    <span className="truncate"><span className="font-medium">{j.number}</span> {j.title}</span>
+                    <JobStatusChip status={j.status} />
                   </Link>
                 ))}
               </CardContent>

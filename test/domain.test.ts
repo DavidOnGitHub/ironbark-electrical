@@ -4,12 +4,13 @@ import { addNote, addSite, createClient, findPossibleDuplicates, listClients, li
 import { changeStatus, countByStatus, createClientFromRequest, createRequest, duplicateHintsForRequest, getRequest, InvalidTransitionError, linkClient, listRequests } from "../src/domain/requests";
 import { listClientTimeline, listEntityTimeline } from "../src/domain/activity";
 import type { Actor } from "../src/domain/shared/actor";
+import { truncateAll } from "./helpers";
 
 const priya: Actor = { type: "USER", userId: "u_priya", label: "Priya Nair" };
 const flow: Actor = { type: "WORKFLOW", label: "Enquiry to reply", workflowInstanceId: "wf_1" };
 
 beforeEach(async () => {
-  await appDb.$executeRawUnsafe('TRUNCATE TABLE "ActivityEvent","Request","Site","Client" RESTART IDENTITY CASCADE');
+  await truncateAll();
 });
 afterAll(async () => {
   await appDb.$disconnect();
