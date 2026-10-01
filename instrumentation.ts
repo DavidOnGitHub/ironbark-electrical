@@ -3,6 +3,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { configureKit } = await import("@kabosh-digital/m-street-kit/config");
+  const { registerStepMetadata } = await import("@kabosh-digital/workflow-temporal/catalog");
+  const { ironSparkStepDefs, ironSparkAssistantSteps } = await import("./src/steps/defs");
+  registerStepMetadata(ironSparkStepDefs);
   configureKit({
     nav: [
       {
@@ -26,6 +29,7 @@ export async function register() {
     ],
     roleLabels: { ADMIN: "Owner", EDITOR: "Office", OPERATOR: "Technician", VIEWER: "Bookkeeper" },
     // Workflows, connected apps and users are the Owner's (requirements section 7).
+    assistantSteps: ironSparkAssistantSteps,
     policy: { DEFINITIONS_AND_INSTANCES: ["ADMIN"], CONNECTORS: ["ADMIN"] },
   });
 }

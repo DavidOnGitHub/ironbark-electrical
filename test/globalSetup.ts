@@ -6,5 +6,7 @@ export default function setup() {
   const base = process.env.APP_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/iron_spark?schema=iron-spark";
   const url = /schema=[^&]+/.test(base) ? base.replace(/schema=[^&]+/, "schema=iron-spark-test") : `${base}${base.includes("?") ? "&" : "?"}schema=iron-spark-test`;
   process.env.APP_DATABASE_URL = url;
+  // The platform tables (workflow definitions) live in the same database's public schema.
+  process.env.DATABASE_URL ??= "postgresql://postgres:postgres@localhost:5432/iron_spark?schema=public";
   execSync("pnpm exec prisma migrate deploy --schema prisma/schema.prisma", { env: { ...process.env, APP_DATABASE_URL: url }, stdio: "inherit" });
 }

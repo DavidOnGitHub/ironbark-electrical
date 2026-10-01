@@ -7,7 +7,8 @@ import { requireBusinessPage } from "../../../src/guard";
 import { getInvoice, GST_RATE_PCT } from "../../../src/domain/invoicing";
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { formatSite } from "../../../src/domain/clients";
-import { issueInvoiceAction, recordPaymentAction, saveInvoiceLinesAction, voidInvoiceAction } from "../../../src/actions/invoicing";
+import { createPaymentLinkAction, issueInvoiceAction, recordPaymentAction, saveInvoiceLinesAction, voidInvoiceAction } from "../../../src/actions/invoicing";
+import { stripeConfigured } from "../../../src/integrations/payments";
 import { centsToInput, formatMoney } from "../../../src/lib/money";
 import { formatDayTime } from "../../../src/lib/tz";
 import { ActionForm } from "../../../src/ui/ActionForm";
@@ -117,6 +118,24 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
                 <ActionForm action={issueInvoiceAction} submitLabel="Issue invoice" successMessage="Issued.">
                   <input type="hidden" name="invoiceId" value={invoice.id} />
                 </ActionForm>
+              </CardContent>
+            </Card>
+          ) : null}
+          {canTakePayment ? (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Card payment link</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-3 text-sm" data-testid="pay-link">
+                {invoice.payUrl ? (
+                  <input readOnly aria-label="Payment link" value={invoice.payUrl} className="w-full rounded-lg border bg-muted/30 px-2.5 py-1.5 font-mono text-xs" />
+                ) : (
+                  <p className="text-muted-foreground">{stripeConfigured() ? "No link yet." : "Card payments are not set up on this server (no Stripe key)."}</p>
+                )}
+                {stripeConfigured() ? (
+                  <ActionForm action={createPaymentLinkAction} submitLabel={invoice.payUrl ? "Refresh link" : "Create payment link"} variant="outline" successMessage="Done.">
+                    <input type="hidden" name="invoiceId" value={invoice.id} />
+                  </ActionForm>
+                ) : null}
+                <p className="text-xs text-muted-foreground">Links last at most 24 hours; the automation makes a fresh one before each reminder.</p>
               </CardContent>
             </Card>
           ) : null}

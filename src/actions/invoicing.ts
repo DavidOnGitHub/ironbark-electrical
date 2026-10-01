@@ -8,6 +8,8 @@ import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
 import { createInvoiceFromJob, InvoiceLineSchema, issueInvoice, recordDeposit, recordPayment, replaceInvoiceLines, voidInvoice } from "../domain/invoicing";
 import { parseMoney } from "../lib/money";
+import { afterInvoiceIssued, afterInvoicePaid } from "../automation";
+import { ensurePaymentLink } from "../integrations/payments";
 import { errorMessage, text, type ActionState } from "./shared";
 
 function refresh(invoiceId?: string, jobId?: string) {
@@ -51,7 +53,10 @@ export async function issueInvoiceAction(_prev: ActionState, formData: FormData)
   const invoiceId = text(formData, "invoiceId");
   if (!invoiceId) return { error: "Missing invoice." };
   try {
-    await issueInvoice(invoiceId, userActor(user));
+    const issued = await issueInvoice(invoiceId, userActor(user));
+    // An invoice already covered by a deposit is paid at once: skip chasing, go straight to the review request.
+    if (issued.status === "PAID") await afterInvoicePaid(invoiceId);
+    else await afterInvoiceIssued(invoiceId);
   } catch (err) {
     return { error: errorMessage(err) };
   }
@@ -66,7 +71,8 @@ export async function recordPaymentAction(_prev: ActionState, formData: FormData
   const amount = parseMoney(text(formData, "amount"));
   if (amount === null) return { error: "Enter the amount received, like 250 or 250.50." };
   try {
-    await recordPayment(invoiceId, { amountCents: amount, method: (text(formData, "method") ?? "BANK") as "BANK", reference: text(formData, "reference") }, userActor(user));
+    const invoice = await recordPayment(invoiceId, { amountCents: amount, method: (text(formData, "method") ?? "BANK") as "BANK", reference: text(formData, "reference") }, userActor(user));
+    if (invoice.status === "PAID") await afterInvoicePaid(invoiceId);
   } catch (err) {
     return { error: errorMessage(err) };
   }
@@ -99,5 +105,19 @@ export async function recordDepositAction(_prev: ActionState, formData: FormData
     return { error: errorMessage(err) };
   }
   refresh(undefined, jobId);
+  return { error: null, ok: true };
+}
+
+export async function createPaymentLinkAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole(Access.INVOICES_WRITE);
+  const invoiceId = text(formData, "invoiceId");
+  if (!invoiceId) return { error: "Missing invoice." };
+  try {
+    const link = await ensurePaymentLink(invoiceId, userActor(user));
+    if (!link.created) return { error: "No payment link: the invoice is not awaiting payment, or Stripe is not set up (add STRIPE_SECRET_KEY)." };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+  refresh(invoiceId);
   return { error: null, ok: true };
 }

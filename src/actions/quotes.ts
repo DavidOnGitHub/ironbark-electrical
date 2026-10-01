@@ -15,6 +15,7 @@ import {
   replaceQuoteLines,
   updateQuoteDetails,
 } from "../domain/quotes";
+import { afterQuoteSent } from "../automation";
 import { errorMessage, text, type ActionState } from "./shared";
 
 export async function createQuoteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -66,6 +67,8 @@ export async function markQuoteSentAction(_prev: ActionState, formData: FormData
   } catch (err) {
     return { error: errorMessage(err) };
   }
+  // The quote-and-chase workflow (if published) takes it from here; a failure to start it never undoes the send.
+  await afterQuoteSent(quoteId);
   revalidatePath(`/quotes/${quoteId}`);
   revalidatePath("/quotes");
   revalidatePath("/requests");

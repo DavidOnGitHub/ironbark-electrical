@@ -294,3 +294,12 @@ export async function invoicesCsv(): Promise<string> {
 }
 
 export type { Prisma };
+
+/** Saves the payment link a provider issued for this invoice (idempotent: the same link is kept). */
+export async function setPaymentLink(invoiceId: string, link: { payUrl: string; providerRef: string }, actor: Actor) {
+  return appDb.$transaction(async (tx) => {
+    const invoice = await tx.invoice.update({ where: { id: invoiceId }, data: { payUrl: link.payUrl, stripeInvoiceId: link.providerRef } });
+    await recordActivity(tx, { actor, entityType: "invoice", entityId: invoiceId, clientId: invoice.clientId, kind: "UPDATED", summary: `Payment link created for ${invoice.number}` });
+    return invoice;
+  });
+}

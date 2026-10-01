@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { KitRootLayout } from "@kabosh-digital/m-street-kit/layout";
 import packageJson from "../package.json";
+import { StepCatalogSetup } from "./StepCatalogSetup";
 import "./globals.css";
 
 export { generateMetadata } from "@kabosh-digital/m-street-kit/layout";
@@ -9,5 +10,10 @@ export { generateMetadata } from "@kabosh-digital/m-street-kit/layout";
 export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <KitRootLayout appVersion={packageJson.version}>{children}</KitRootLayout>;
+  return (
+    <KitRootLayout appVersion={packageJson.version}>
+      <StepCatalogSetup />
+      {children}
+    </KitRootLayout>
+  );
 }

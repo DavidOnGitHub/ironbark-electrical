@@ -15,6 +15,10 @@ with Joystep (its own database, its own Temporal namespace).
 app/                  Next.js routes: business pages + one-line re-exports of the console's
 src/domain/           business modules, each with one public API (index.ts)
   clients/ requests/ pricing/ quotes/ jobs/ invoicing/ activity/ shared/
+src/steps/            the workflow steps (defs = what the builder shows, impl = what runs in the worker)
+src/workflows/        the four automations as workflow definitions
+src/automation/       starts them from quote sent / invoice issued / invoice paid
+src/integrations/     Stripe (payment links, signed webhook)
 src/actions/          server actions (role check -> module API -> revalidate)
 src/ui/               business UI pieces on top of the kit's components
 src/access.ts         who may do what (Owner/Office/Technician/Bookkeeper)
@@ -76,7 +80,34 @@ hosted demo).
   part and full payments, void and re-invoice, overdue status on the chasing
   cadence (day 1 / 7 / 14 / 30), deposits tracked against the job, the money
   position on the dashboard, and a CSV export for the bookkeeper.
-- Next: Stripe test-mode payment links and the four automations (Phase 3b).
+- **Phase 3b (automations and payments):** four workflows built from our own steps -
+  *Enquiry to reply* (AI sorts the inbox, logs the enquiry, acknowledges at once, a
+  person approves the reply, emergencies alert the owner first), *Quote and chase*
+  (email, remind after a day, owner calls after three more), *Invoice and payment chase*
+  (email with a card pay link, then day 1 / 7 / 14 / 30 overdue), *Review request*
+  (a day after payment, one reminder, unhappy replies to the owner). Stripe test-mode
+  pay links and a signed webhook that records the payment. Every automated email except the
+  acknowledgement waits for a person or is a fixed, reviewed wording; everything an
+  automation does lands on the client's history.
+
+## Automations
+
+```bash
+pnpm workflows:seed              # the four workflows as drafts (re-run after connecting Gmail)
+pnpm worker                      # the worker that runs them
+pnpm workflows:try quoteChase    # walk one through Temporal in TEST mode (mock email, 5 s waits)
+pnpm workflows:try enquiry emergency   # enquiry | invoiceChase | reviewRequest; variants: emergency, noise, reject
+pnpm workflows:seed --publish    # publish them: they then start for real on business events
+```
+
+A published workflow starts by itself when a quote is marked sent, an invoice is issued, or an
+invoice is paid (`AUTOMATIONS=off` stops that). Drafts never run for real. Real emails need a
+connected Gmail account (Connected apps, as the Owner); until then an email step falls back to a
+task for a person. Test runs never contact anyone or change business data.
+
+Setup you need once: connect a demo Google account in the console (the redirect URI
+`<app>/connectors/oauth/callback` must be on the Google OAuth client), and add Stripe test keys to
+the environment (see `.env.example`).
 
 All money is integer cents; business time is Sydney time (`src/lib/tz.ts`).
 Quotes are marked as sent by a person; emailing them arrives with the workflows.

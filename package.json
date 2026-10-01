@@ -21,7 +21,9 @@
     "app:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "app:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "seed": "tsx --env-file=.env scripts/seed.ts",
-    "reset": "tsx --env-file=.env scripts/reset.ts"
+    "reset": "tsx --env-file=.env scripts/reset.ts",
+    "workflows:seed": "tsx --env-file=.env scripts/seedWorkflows.ts",
+    "workflows:try": "tsx --env-file=.env scripts/tryWorkflow.ts"
   },
   "dependencies": {
     "@kabosh-digital/m-street-kit": "0.2.0",
