@@ -1,0 +1,163 @@
+// Iron Spark business data (Ironbark Electrical). Lives in its own Postgres
+// schema ("iron-spark") next to the platform's tables, with its own client and
+// migration history. Business tables reference platform users by plain id
+// strings (Prisma cannot relate across two schemas) - validated in code.
+//
+// The client is generated into node_modules under an ordinary package name, so
+// every tool (TypeScript, Vite, tsx, Next) resolves it like a dependency and Next
+// treats it as external (a client generated inside src/ gets bundled and loses its
+// query engine). `pnpm install` regenerates it (postinstall).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/iron-spark-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("APP_DATABASE_URL")
+}
+
+enum ClientType {
+  PERSON
+  COMPANY
+}
+
+enum ContactMethod {
+  EMAIL
+  PHONE
+}
+
+enum RequestSource {
+  EMAIL
+  PHONE
+  MANUAL
+  WEB
+}
+
+enum RequestCategory {
+  NEW_INSTALL
+  FAULT_REPAIR
+  QUOTE_REQUEST
+  OTHER
+}
+
+enum Urgency {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+enum RequestStatus {
+  NEW
+  CONTACTED
+  SITE_VISIT_BOOKED
+  QUOTED
+  WON
+  LOST
+}
+
+enum ActorType {
+  USER
+  WORKFLOW
+  SYSTEM
+}
+
+model Client {
+  id               String        @id @default(cuid())
+  type             ClientType    @default(PERSON)
+  name             String
+  email            String?
+  phone            String?
+  /// Lower-cased, trimmed email / digits-only phone (AU numbers normalised to
+  /// the national form) - used for matching and duplicate hints, never shown.
+  emailNorm        String?
+  phoneNorm        String?
+  preferredContact ContactMethod @default(EMAIL)
+  tags             String[]      @default([])
+  notes            String?
+  archivedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  sites    Site[]
+  requests Request[]
+  activity ActivityEvent[]
+
+  @@index([emailNorm])
+  @@index([phoneNorm])
+  @@index([name])
+}
+
+model Site {
+  id               String   @id @default(cuid())
+  clientId         String
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label            String?
+  line1            String
+  line2            String?
+  suburb           String
+  state            String   @default("NSW")
+  postcode         String
+  accessNotes      String?
+  switchboardNotes String?
+  createdAt        DateTime @default(now())
+
+  requests Request[]
+
+  @@index([clientId])
+}
+
+model Request {
+  id              String          @id @default(cuid())
+  clientId        String?
+  client          Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  siteId          String?
+  site            Site?           @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  source          RequestSource
+  receivedAt      DateTime        @default(now())
+  category        RequestCategory @default(OTHER)
+  urgency         Urgency         @default(ROUTINE)
+  status          RequestStatus   @default(NEW)
+  statusChangedAt DateTime        @default(now())
+  /// Platform user id of whoever owns following this up.
+  ownerUserId     String?
+  /// Who the enquirer is when no Client is linked yet.
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  summary         String
+  description     String?
+  lostReason      String?
+  /// Reference to the inbound email (message id), when it came from Gmail.
+  rawEmailRef     String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status, receivedAt])
+  @@index([clientId])
+}
+
+/// The unified timeline: every module records what happened here, whether a
+/// person or a workflow did it.
+model ActivityEvent {
+  id                 String    @id @default(cuid())
+  at                 DateTime  @default(now())
+  actorType          ActorType
+  /// Platform user id when actorType is USER.
+  actorUserId        String?
+  /// Display name of the actor ("Priya", "Enquiry to reply workflow").
+  actorLabel         String?
+  clientId           String?
+  client             Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  entityType         String
+  entityId           String
+  /// CREATED | UPDATED | NOTE | STATUS_CHANGED | LINKED | ARCHIVED | ...
+  kind               String
+  summary            String
+  body               String?
+  workflowInstanceId String?
+
+  @@index([clientId, at(sort: Desc)])
+  @@index([entityType, entityId, at(sort: Desc)])
+}

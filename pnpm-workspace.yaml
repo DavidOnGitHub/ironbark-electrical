@@ -1,0 +1,36 @@
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@swc/core': true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  sharp: false
+  unrs-resolver: false
+minimumReleaseAgeExclude:
+  - '@next/eslint-plugin-next@16.3.7'
+  - eslint-config-next@16.3.7
+  - '@next/env@16.3.7'
+  - '@next/swc-darwin-arm64@16.3.7'
+  - '@next/swc-darwin-x64@16.3.7'
+  - '@next/swc-linux-arm64-gnu@16.3.7'
+  - '@next/swc-linux-arm64-musl@16.3.7'
+  - '@next/swc-linux-x64-gnu@16.3.7'
+  - '@next/swc-linux-x64-musl@16.3.7'
+  - '@next/swc-win32-arm64-msvc@16.3.7'
+  - '@next/swc-win32-x64-msvc@16.3.7'
+  - next@16.3.7
+  - '@kabosh-digital/m-street-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
+  - '@kabosh-digital/ui-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
+  - '@kabosh-digital/workflow-schema@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
+  - '@kabosh-digital/workflow-temporal@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
+  - '@kabosh-digital/workflow-types@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
+# Security patches for transitive dependencies (CASA 6.1.1 - `pnpm audit --prod`
+# must stay clean). Remove an entry once its parent package ships the fix.
+overrides:
+  # via @temporalio/* > @grpc/grpc-js (GHSA-m9gg-hp2v-232j, GHSA-f596-whhp-79r4)
+  '@grpc/grpc-js@>=1.14.0 <1.14.5': ^1.14.5
+  # via @temporalio/worker > webpack > schema-utils > ajv
+  fast-uri@<3.1.7: ^3.1.7
+  # via @prisma/client > prisma > @prisma/config
+  deepmerge-ts@<8: ^8.0.2
