@@ -12,6 +12,7 @@ import { openQuoteStats } from "../src/domain/quotes";
 import { countJobsByStatus, weekSchedule } from "../src/domain/jobs";
 import { dayKey, weekStartKey } from "../src/lib/tz";
 import { formatMoney } from "../src/lib/money";
+import { receivablesSummary } from "../src/domain/invoicing";
 import { PageHeader } from "../src/ui/fields";
 import { RequestStatusChip, UrgencyChip } from "../src/ui/chips";
 
@@ -21,7 +22,8 @@ export default async function DashboardPage() {
   const { user, roles } = await dashboardAccess();
   const canSeeRequests = hasAnyRole(roles, Access.REQUESTS);
   const canSeeWork = hasAnyRole(roles, Access.QUOTES_READ);
-  const [clientCount, byStatus, waiting, activity, quoteStats, jobCounts, week] = await Promise.all([
+  const canSeeMoney = hasAnyRole(roles, Access.INVOICES_READ);
+  const [clientCount, byStatus, waiting, activity, quoteStats, jobCounts, week, money] = await Promise.all([
     appDb.client.count({ where: { archivedAt: null } }),
     canSeeRequests ? countByStatus() : null,
     canSeeRequests ? listRequests({ status: "NEW", limit: 5 }) : [],
@@ -29,6 +31,7 @@ export default async function DashboardPage() {
     canSeeWork ? openQuoteStats() : null,
     canSeeWork ? countJobsByStatus() : null,
     canSeeWork ? weekSchedule(weekStartKey(dayKey(new Date()))) : null,
+    canSeeMoney ? receivablesSummary() : null,
   ]);
   const open = byStatus ? byStatus.NEW + byStatus.CONTACTED + byStatus.SITE_VISIT_BOOKED + byStatus.QUOTED : 0;
   const oldestNew = waiting.length ? Math.max(...waiting.map((r) => requestAgeHours(r.receivedAt))) : 0;
@@ -47,7 +50,9 @@ export default async function DashboardPage() {
         {quoteStats ? <StatTile href="/quotes?status=SENT" label="Open quotes" value={quoteStats.count} sub={`${formatMoney(quoteStats.totalCents)} incl GST waiting on customers`} /> : null}
         {jobCounts && week ? <StatTile href="/schedule" label="Jobs this week" value={week.scheduled.length} sub={`${jobCounts.IN_PROGRESS} in progress`} /> : null}
         {jobCounts ? <StatTile href="/schedule" label="To schedule" value={jobCounts.UNSCHEDULED} sub="approved, no time yet" tone={jobCounts.UNSCHEDULED > 0 ? "warn" : "default"} /> : null}
-        {jobCounts ? <StatTile href="/jobs?status=COMPLETED" label="Completed, to invoice" value={jobCounts.COMPLETED} sub="invoicing arrives next" /> : null}
+        {money ? <StatTile href="/invoices" label="Outstanding" value={formatMoney(money.outstandingCents)} sub={`${money.outstandingCount} unpaid invoices`} /> : null}
+        {money ? <StatTile href="/invoices?status=OVERDUE" label="Overdue" value={formatMoney(money.overdueCents)} sub={`${money.overdue.length} past due`} tone={money.overdue.length > 0 ? "crit" : "default"} /> : null}
+        {jobCounts ? <StatTile href="/invoices" label="Ready to invoice" value={jobCounts.COMPLETED} sub="completed, no invoice yet" tone={jobCounts.COMPLETED > 0 ? "warn" : "default"} /> : null}
         <StatTile href="/clients" label="Clients" value={clientCount} sub="active" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -66,6 +71,21 @@ export default async function DashboardPage() {
                     <RequestStatusChip status={r.status} />
                     <span className="text-xs text-muted-foreground">{formatAge(requestAgeHours(r.receivedAt))}</span>
                   </span>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+        {money && money.overdue.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Overdue invoices</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {money.overdue.slice(0, 5).map((o) => (
+                <Link key={o.id} href={`/invoices/${o.id}`} className="flex items-center justify-between gap-3 rounded-md border p-2.5 text-sm hover:bg-muted" data-testid="overdue-row">
+                  <span className="min-w-0 truncate"><span className="font-medium">{o.number}</span> {o.clientName}<span className="block text-xs text-muted-foreground">{o.chase.action}</span></span>
+                  <span className="shrink-0 text-right"><span className="block tabular-nums">{formatMoney(o.balanceCents)}</span><span className="text-xs text-red-700 dark:text-red-400">{o.daysOverdue} d overdue</span></span>
                 </Link>
               ))}
             </CardContent>

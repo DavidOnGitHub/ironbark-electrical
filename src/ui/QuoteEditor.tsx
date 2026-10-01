@@ -10,6 +10,8 @@ import { ActionForm } from "./ActionForm";
 
 export interface EditorLine {
   priceItemId?: string | null;
+  /** Where an invoice line came from (QUOTE, VARIATION, MANUAL) - carried through unchanged. */
+  source?: string;
   description: string;
   quantity: number;
   unit: string;
@@ -24,12 +26,12 @@ export interface EditorPriceItem {
   priceCents: number;
 }
 
-type Row = { key: number; priceItemId: string | null; description: string; quantity: string; unit: string; price: string };
+type Row = { key: number; source: string; priceItemId: string | null; description: string; quantity: string; unit: string; price: string };
 
 const KIND_LABEL: Record<string, string> = { LABOUR: "Labour", CALL_OUT: "Call-out", STANDARD_JOB: "Standard jobs", MATERIAL: "Materials" };
 
 function toRows(lines: EditorLine[]): Row[] {
-  return lines.map((l, i) => ({ key: i, priceItemId: l.priceItemId ?? null, description: l.description, quantity: String(l.quantity), unit: l.unit, price: centsToInput(l.unitPriceCents) }));
+  return lines.map((l, i) => ({ key: i, source: l.source ?? "MANUAL", priceItemId: l.priceItemId ?? null, description: l.description, quantity: String(l.quantity), unit: l.unit, price: centsToInput(l.unitPriceCents) }));
 }
 
 /** The draft quote's line editor: pick from the price list or type a line, and watch
@@ -39,8 +41,13 @@ export function QuoteEditor({
   initialLines,
   priceItems,
   action,
+  idName = "quoteId",
+  saveLabel = "Save lines",
 }: {
   quoteId: string;
+  /** The hidden field that tells the action which record this is. */
+  idName?: string;
+  saveLabel?: string;
   initialLines: EditorLine[];
   priceItems: EditorPriceItem[];
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -53,7 +60,7 @@ export function QuoteEditor({
   const valid = rows.map((r, i) => r.description.trim() !== "" && Number.isFinite(parsed[i]!.qty) && parsed[i]!.qty > 0 && parsed[i]!.cents !== null);
   const totals = computeTotals(rows.map((_, i) => ({ quantity: valid[i] ? parsed[i]!.qty : 0, unitPriceCents: valid[i] ? parsed[i]!.cents! : 0 })));
   const payload = JSON.stringify(
-    rows.map((r, i) => ({ priceItemId: r.priceItemId ?? undefined, description: r.description, quantity: parsed[i]!.qty, unit: r.unit || "each", unitPriceCents: parsed[i]!.cents ?? 0 })),
+    rows.map((r, i) => ({ source: r.source, priceItemId: r.priceItemId ?? undefined, description: r.description, quantity: parsed[i]!.qty, unit: r.unit || "each", unitPriceCents: parsed[i]!.cents ?? 0 })),
   );
 
   const update = (key: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -64,8 +71,8 @@ export function QuoteEditor({
   const kinds = [...new Set(priceItems.map((p) => p.kind))];
 
   return (
-    <ActionForm action={action} submitLabel="Save lines" successMessage="Saved." className="gap-4">
-      <input type="hidden" name="quoteId" value={quoteId} />
+    <ActionForm action={action} submitLabel={saveLabel} successMessage="Saved." className="gap-4">
+      <input type="hidden" name={idName} value={quoteId} />
       <input type="hidden" name="lines" value={payload} />
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-60 flex-1 flex-col gap-1.5">
@@ -90,13 +97,13 @@ export function QuoteEditor({
           onClick={() => {
             const item = priceItems.find((p) => p.id === pick);
             if (!item) return;
-            addRow({ priceItemId: item.id, description: item.name, quantity: "1", unit: item.unit, price: centsToInput(item.priceCents) });
+            addRow({ source: "MANUAL", priceItemId: item.id, description: item.name, quantity: "1", unit: item.unit, price: centsToInput(item.priceCents) });
             setPick("");
           }}
         >
           Add line
         </Button>
-        <Button type="button" variant="outline" onClick={() => addRow({ priceItemId: null, description: "", quantity: "1", unit: "each", price: "" })}>
+        <Button type="button" variant="outline" onClick={() => addRow({ source: "MANUAL", priceItemId: null, description: "", quantity: "1", unit: "each", price: "" })}>
           Add custom line
         </Button>
       </div>

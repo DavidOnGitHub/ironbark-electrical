@@ -6,7 +6,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 
 export interface ActivityInput {
   actor: Actor;
-  entityType: "client" | "site" | "request" | "pricing" | "quote" | "job";
+  entityType: "client" | "site" | "request" | "pricing" | "quote" | "job" | "invoice";
   entityId: string;
   kind: string;
   summary: string;

@@ -61,7 +61,7 @@ export async function createJobFromQuote(input: JobFromQuote, actor: Actor, tx: 
 export async function getJob(id: string) {
   return appDb.job.findUnique({
     where: { id },
-    include: { client: true, site: true, quote: { select: { id: true, number: true, totalCents: true } }, notes: { orderBy: { createdAt: "desc" } } },
+    include: { client: true, site: true, quote: { select: { id: true, number: true, totalCents: true } }, invoices: { where: { status: { not: "VOID" } }, orderBy: { createdAt: "desc" }, take: 1, select: { id: true, number: true, status: true } }, notes: { orderBy: { createdAt: "desc" } } },
   });
 }
 
@@ -295,4 +295,37 @@ export async function countJobsByStatus(): Promise<Record<JobStatusValue, number
   const out = { UNSCHEDULED: 0, SCHEDULED: 0, IN_PROGRESS: 0, ON_HOLD: 0, COMPLETED: 0, INVOICED: 0, PAID: 0 } as Record<JobStatusValue, number>;
   for (const row of rows) out[row.status] = row._count._all;
   return out;
+}
+
+/**
+ * The invoicing module moves a job along its billing steps (Completed -> Invoiced
+ * -> Paid, or back to Completed when an invoice is voided) inside its own
+ * transaction, so the invoice and the job can never disagree.
+ */
+export async function setBillingStatus(tx: Db, jobId: string, to: "COMPLETED" | "INVOICED" | "PAID", actor: Actor) {
+  const current = await tx.job.findUniqueOrThrow({ where: { id: jobId } });
+  const allowed: Record<string, string[]> = { COMPLETED: ["INVOICED"], INVOICED: ["PAID", "COMPLETED"] };
+  if (current.status === to) return current;
+  if (!allowed[current.status]?.includes(to)) {
+    throw new Error(`A job that is ${JOB_STATUS_LABEL[current.status]} cannot move to ${JOB_STATUS_LABEL[to]}.`);
+  }
+  const job = await tx.job.update({ where: { id: jobId }, data: { status: to } });
+  await recordActivity(tx, {
+    actor,
+    entityType: "job",
+    entityId: jobId,
+    clientId: job.clientId,
+    kind: "STATUS_CHANGED",
+    summary: `${job.number}: ${JOB_STATUS_LABEL[current.status]} -> ${JOB_STATUS_LABEL[to]}`,
+  });
+  return job;
+}
+
+/** Completed jobs that have no invoice yet - the "ready to invoice" queue. */
+export async function listJobsReadyToInvoice() {
+  return appDb.job.findMany({
+    where: { status: "COMPLETED", invoices: { none: { status: { not: "VOID" } } } },
+    orderBy: { completedAt: "asc" },
+    include: { client: { select: { id: true, name: true } }, site: { select: { suburb: true } } },
+  });
 }

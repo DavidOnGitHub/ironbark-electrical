@@ -18,6 +18,7 @@ export async function register() {
           { href: "/quotes", label: "Quotes", icon: "file-text", roles: ["ADMIN", "EDITOR", "VIEWER"] },
           { href: "/jobs", label: "Jobs", icon: "briefcase", roles: ["ADMIN", "EDITOR", "VIEWER"] },
           { href: "/schedule", label: "Schedule", icon: "calendar", roles: ["ADMIN", "EDITOR", "VIEWER"] },
+          { href: "/invoices", label: "Invoices", icon: "receipt", roles: ["ADMIN", "EDITOR", "VIEWER"] },
         ],
       },
       { title: "Field", items: [{ href: "/my-day", label: "My day", icon: "wrench", roles: ["OPERATOR"] }] },

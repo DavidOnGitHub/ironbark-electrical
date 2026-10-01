@@ -87,6 +87,26 @@ enum JobNoteKind {
   VARIATION
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum PaymentMethod {
+  CARD
+  BANK
+  CASH
+  STRIPE
+}
+
+enum PaymentKind {
+  DEPOSIT
+  INVOICE
+}
+
 enum ActorType {
   USER
   WORKFLOW
@@ -115,6 +135,7 @@ model Client {
   activity ActivityEvent[]
   quotes   Quote[]
   jobs     Job[]
+  invoices Invoice[]
 
   @@index([emailNorm])
   @@index([phoneNorm])
@@ -299,7 +320,10 @@ model Job {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  notes JobNote[]
+  notes    JobNote[]
+  /// A job can be invoiced again after a void: at most one non-void invoice at a time.
+  invoices Invoice[]
+  payments Payment[]
 
   @@index([assignedUserId, scheduledStart])
   @@index([status])
@@ -320,4 +344,77 @@ model JobNote {
   createdAt        DateTime    @default(now())
 
   @@index([jobId, createdAt])
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  number          String        @unique
+  jobId           String
+  job             Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  siteId          String?
+  status          InvoiceStatus @default(DRAFT)
+  issuedAt        DateTime?
+  dueAt           DateTime?
+  paidAt          DateTime?
+  subtotalCents   Int           @default(0)
+  gstCents        Int           @default(0)
+  totalCents      Int           @default(0)
+  /// Deposit already received for this job, credited against the total (incl GST).
+  creditCents     Int           @default(0)
+  notes           String?
+  voidReason      String?
+  /// Set when a payment provider (Stripe) issues the payment link.
+  stripeInvoiceId String?
+  payUrl          String?
+  createdByUserId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@index([status])
+  @@index([clientId])
+  @@index([jobId])
+}
+
+model InvoiceLine {
+  id             String  @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position       Int
+  /// QUOTE | VARIATION | MANUAL - where the line came from.
+  source         String  @default("QUOTE")
+  description    String
+  quantity       Decimal @db.Decimal(10, 2)
+  unit           String  @default("each")
+  unitPriceCents Int
+  /// Ex GST: round(quantity x unitPriceCents).
+  lineTotalCents Int
+
+  @@index([invoiceId, position])
+}
+
+/// Money received. A DEPOSIT belongs to a job until an invoice is raised, then it
+/// is applied (invoiceId set) and shows as the invoice's credit; INVOICE payments
+/// belong to the invoice.
+model Payment {
+  id               String        @id @default(cuid())
+  kind             PaymentKind   @default(INVOICE)
+  invoiceId        String?
+  invoice          Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  jobId            String?
+  job              Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  method           PaymentMethod
+  amountCents      Int
+  paidAt           DateTime      @default(now())
+  reference        String?
+  stripePaymentId  String?
+  recordedByUserId String
+  createdAt        DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@index([jobId, kind])
 }

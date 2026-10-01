@@ -12,8 +12,9 @@ import { listClientTimeline } from "../../../src/domain/activity";
 import { formatAge, requestAgeHours } from "../../../src/domain/requests";
 import { listQuotes } from "../../../src/domain/quotes";
 import { listJobs } from "../../../src/domain/jobs";
+import { listInvoices } from "../../../src/domain/invoicing";
 import { formatMoney } from "../../../src/lib/money";
-import { JobStatusChip, QuoteStatusChip } from "../../../src/ui/chips";
+import { InvoiceStatusChip, JobStatusChip, QuoteStatusChip } from "../../../src/ui/chips";
 import { addNoteAction, addSiteAction, archiveClientAction, updateClientAction, updateSiteAction } from "../../../src/actions/clients";
 import { ActionForm } from "../../../src/ui/ActionForm";
 import { ClientFields, SiteFields } from "../../../src/ui/ClientFields";
@@ -32,7 +33,7 @@ export default async function ClientPage(props: { params: Promise<{ id: string }
   const canSeeRequests = hasAnyRole(user.roles, Access.REQUESTS);
   const canSeeQuotes = hasAnyRole(user.roles, Access.QUOTES_READ);
   const canWriteQuotes = hasAnyRole(user.roles, Access.QUOTES_WRITE);
-  const [quotes, jobs] = await Promise.all([canSeeQuotes ? listQuotes({ clientId: id }) : Promise.resolve([]), hasAnyRole(user.roles, Access.JOBS_READ) ? listJobs({ clientId: id }) : Promise.resolve([])]);
+  const [quotes, jobs, invoices] = await Promise.all([canSeeQuotes ? listQuotes({ clientId: id }) : Promise.resolve([]), hasAnyRole(user.roles, Access.JOBS_READ) ? listJobs({ clientId: id }) : Promise.resolve([]), hasAnyRole(user.roles, Access.INVOICES_READ) ? listInvoices({ clientId: id }) : Promise.resolve([])]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -156,6 +157,19 @@ export default async function ClientPage(props: { params: Promise<{ id: string }
                   <Link key={q.id} href={`/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md border p-2.5 text-sm hover:bg-muted">
                     <span className="truncate"><span className="font-medium">{q.number}</span> {q.title}</span>
                     <span className="flex shrink-0 items-center gap-2"><QuoteStatusChip status={q.effectiveStatus} /><span className="tabular-nums text-xs">{formatMoney(q.totalCents)}</span></span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+          {invoices.length > 0 ? (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Invoices ({invoices.length})</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {invoices.map((i) => (
+                  <Link key={i.id} href={`/invoices/${i.id}`} className="flex items-center justify-between gap-3 rounded-md border p-2.5 text-sm hover:bg-muted">
+                    <span className="truncate"><span className="font-medium">{i.number}</span> {i.job.number}</span>
+                    <span className="flex shrink-0 items-center gap-2"><InvoiceStatusChip status={i.effectiveStatus} /><span className="tabular-nums text-xs">{formatMoney(i.totalCents)}</span></span>
                   </Link>
                 ))}
               </CardContent>

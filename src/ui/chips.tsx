@@ -80,3 +80,22 @@ export function JobStatusChip({ status }: { status: JobStatusValue }) {
     </Badge>
   );
 }
+
+import { INVOICE_STATUS_LABEL, type EffectiveInvoiceStatus } from "../domain/invoicing/calc";
+
+const INVOICE_STYLE: Record<EffectiveInvoiceStatus, string> = {
+  DRAFT: "border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
+  SENT: "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  PARTIALLY_PAID: "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  PAID: "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
+  VOID: "border-zinc-300 bg-zinc-100 text-zinc-600 line-through dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
+  OVERDUE: "border-red-400 bg-red-100 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
+};
+
+export function InvoiceStatusChip({ status }: { status: EffectiveInvoiceStatus }) {
+  return (
+    <Badge variant="outline" className={cn("font-medium", INVOICE_STYLE[status])}>
+      {INVOICE_STATUS_LABEL[status]}
+    </Badge>
+  );
+}

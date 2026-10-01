@@ -10,6 +10,10 @@ import { getJob, JOB_STATUS_LABEL, JOB_TRANSITIONS } from "../../../src/domain/j
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { formatSite } from "../../../src/domain/clients";
 import { listTechnicians, staffLabelMap } from "../../../src/domain/shared/staff";
+import { depositStatus } from "../../../src/domain/invoicing";
+import { createInvoiceAction, recordDepositAction } from "../../../src/actions/invoicing";
+import { centsToInput } from "../../../src/lib/money";
+import { InvoiceStatusChip } from "../../../src/ui/chips";
 import { addJobNoteAction, approveVariationAction, changeJobStatusAction, scheduleJobAction, unscheduleJobAction } from "../../../src/actions/jobs";
 import { formatMoney } from "../../../src/lib/money";
 import { dateToSydneyLocal, formatDayTime, tomorrowLocalPrefix } from "../../../src/lib/tz";
@@ -26,7 +30,9 @@ export default async function JobPage(props: { params: Promise<{ id: string }> }
   const job = await getJob(id);
   if (!job) notFound();
   const canWrite = hasAnyRole(user.roles, Access.JOBS_WRITE);
-  const [timeline, technicians, labels] = await Promise.all([listEntityTimeline("job", id), canWrite ? listTechnicians() : Promise.resolve([]), staffLabelMap()]);
+  const canInvoice = hasAnyRole(user.roles, Access.INVOICES_WRITE);
+  const currentInvoice = job.invoices[0] ?? null;
+  const [timeline, technicians, labels, deposit] = await Promise.all([listEntityTimeline("job", id), canWrite ? listTechnicians() : Promise.resolve([]), staffLabelMap(), depositStatus(id)]);
   // Scheduling moves go through the Schedule card; invoicing moves belong to the invoicing module (next phase).
   const fieldMoves = JOB_TRANSITIONS[job.status].filter((s) => !["UNSCHEDULED", "SCHEDULED", "INVOICED", "PAID"].includes(s));
   const canSchedule = canWrite && ["UNSCHEDULED", "SCHEDULED", "ON_HOLD"].includes(job.status);
@@ -108,6 +114,43 @@ export default async function JobPage(props: { params: Promise<{ id: string }> }
         </div>
 
         <div className="flex flex-col gap-5">
+          {deposit || currentInvoice || (job.status === "COMPLETED" && canInvoice) ? (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Billing</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-4 text-sm">
+                {deposit ? (
+                  <div data-testid="deposit">
+                    <p>
+                      Deposit: {formatMoney(deposit.receivedCents)} of {formatMoney(deposit.requiredCents)} received
+                      {deposit.outstandingCents === 0 ? <span className="ml-1 text-green-700 dark:text-green-400">- paid</span> : <span className="ml-1 text-amber-700 dark:text-amber-400">- {formatMoney(deposit.outstandingCents)} due before work starts</span>}
+                    </p>
+                    {deposit.outstandingCents > 0 && canInvoice && !currentInvoice ? (
+                      <div className="mt-3">
+                        <ActionForm action={recordDepositAction} submitLabel="Record deposit received" variant="outline" successMessage="Recorded." resetOnSuccess>
+                          <input type="hidden" name="jobId" value={job.id} />
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <Field label="Amount ($)" name="amount" defaultValue={centsToInput(deposit.outstandingCents)} required />
+                            <SelectField label="Method" name="method" options={[{ value: "BANK", label: "Bank transfer" }, { value: "CARD", label: "Card" }, { value: "CASH", label: "Cash" }]} defaultValue="BANK" />
+                            <Field label="Reference" name="reference" />
+                          </div>
+                        </ActionForm>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {currentInvoice ? (
+                  <p className="flex flex-wrap items-center gap-2">
+                    Invoice <Link className="font-medium underline" href={`/invoices/${currentInvoice.id}`}>{currentInvoice.number}</Link>
+                    <InvoiceStatusChip status={currentInvoice.status} />
+                  </p>
+                ) : job.status === "COMPLETED" && canInvoice ? (
+                  <ActionForm action={createInvoiceAction} submitLabel="Create invoice" pendingLabel="Creating...">
+                    <input type="hidden" name="jobId" value={job.id} />
+                  </ActionForm>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
           {canSchedule ? (
             <Card>
               <CardHeader><CardTitle className="text-base">Schedule</CardTitle></CardHeader>
