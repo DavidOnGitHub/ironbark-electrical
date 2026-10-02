@@ -28,7 +28,7 @@ export async function register() {
       { title: "Insights", items: [{ href: "/reports", label: "Reports", icon: "bar-chart", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "About this demo", items: [{ href: "/works-for", label: "Works for...", icon: "building", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "Field", items: [{ href: "/my-day", label: "My day", icon: "wrench", roles: ["OPERATOR"] }] },
-      { title: "Setup", items: [{ href: "/pricing", label: "Price list", icon: "banknote", roles: ["ADMIN", "EDITOR"] }] },
+      { title: "Setup", items: [{ href: "/pricing", label: "Price list", icon: "banknote", roles: ["ADMIN", "EDITOR"] }, { href: "/email-templates", label: "Email templates", icon: "mail", roles: ["ADMIN", "EDITOR"] }] },
     ],
     navBadges: async ({ roles }): Promise<Record<string, NavBadge>> => {
       if (!roles.some((r) => ["ADMIN", "EDITOR", "VIEWER"].includes(r))) return {};

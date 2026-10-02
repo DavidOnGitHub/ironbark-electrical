@@ -5,9 +5,26 @@
  * implementations are in impl.ts and run only in the worker.
  */
 import { z } from "zod";
-import type { StepCatalogEntry } from "@kabosh-digital/workflow-types";
+import { connectorRef, type StepCatalogEntry } from "@kabosh-digital/workflow-types";
 
 const Params = <T extends z.ZodRawShape>(shape: T) => z.object({ params: z.object(shape) });
+
+/** The browser builder swaps `template` for a dropdown of the business's current templates (see StepCatalogSetup);
+ * the worker accepts any key and fails clearly when it does not exist. */
+export function sendTemplatedEmailDef(templateKeys?: string[]): StepCatalogEntry {
+  return {
+    key: "sendTemplatedEmail",
+    label: "Send templated email",
+    kind: "ACTION",
+    description: "Sends a branded email from one of the business's email templates (Setup > Email templates). Map each variable the template uses; the email stops with a clear message if one has no value. Does nothing real in a test run.",
+    configSchema: z.object({
+      template: templateKeys && templateKeys.length > 0 ? z.enum(templateKeys as [string, ...string[]]) : z.string(),
+      connectorId: connectorRef("EMAIL").optional(),
+      params: z.object({ to: z.unknown(), inReplyTo: z.unknown().optional(), variables: z.record(z.unknown()).optional() }),
+    }),
+    outputSchema: z.object({ sent: z.boolean(), to: z.string(), subject: z.string() }),
+  };
+}
 
 export const findClientDef: StepCatalogEntry = {
   key: "findClient",
@@ -40,7 +57,7 @@ export const getQuoteDef: StepCatalogEntry = {
   key: "getQuote",
   label: "Get quote details",
   kind: "ACTION",
-  description: "Reads a quote: who it is for, its total, whether the customer has answered yet, and ready-to-send email wording. \"Has email\" is only true when the address is allowed to receive automatic mail.",
+  description: "Reads a quote: who it is for, its total, whether the customer has answered yet, and ready-to-send email wording. \"Has email\" is only true when the address is allowed to receive automatic mail; \"has email address\" says there is an address a person could approve sending to.",
   configSchema: Params({ quoteId: z.unknown() }),
   outputSchema: z.object({
     number: z.string(),
@@ -49,6 +66,8 @@ export const getQuoteDef: StepCatalogEntry = {
     clientName: z.string(),
     clientEmail: z.string(),
     hasEmail: z.boolean(),
+    emailAddress: z.string(),
+    hasEmailAddress: z.boolean(),
     status: z.string(),
     isOpen: z.boolean(),
     totalText: z.string(),
@@ -56,6 +75,11 @@ export const getQuoteDef: StepCatalogEntry = {
     emailBody: z.string(),
     reminderSubject: z.string(),
     reminderBody: z.string(),
+    // For email templates (Setup > Email templates)
+    clientFirstName: z.string(),
+    validUntil: z.string(),
+    depositNote: z.string(),
+    lines: z.string(),
   }),
 };
 
@@ -88,6 +112,12 @@ export const getInvoiceDef: StepCatalogEntry = {
     reviewReminderSubject: z.string(),
     reviewReminderBody: z.string(),
     replyQuery: z.string(),
+    clientFirstName: z.string(),
+    jobTitle: z.string(),
+    dueDate: z.string(),
+    dueNote: z.string(),
+    payBlock: z.string(),
+    reviewUrl: z.string(),
   }),
 };
 
@@ -109,14 +139,15 @@ export const addTimelineNoteDef: StepCatalogEntry = {
   outputSchema: z.object({ recorded: z.boolean() }),
 };
 
-export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnquiryDef, getQuoteDef, getInvoiceDef, createPaymentLinkDef, addTimelineNoteDef];
+export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnquiryDef, getQuoteDef, getInvoiceDef, createPaymentLinkDef, addTimelineNoteDef, sendTemplatedEmailDef()];
 
 /** What the AI assistant is told about these steps, in the style of its built-in reference. */
 export const ironSparkAssistantSteps = [
   { key: "findClient", reference: 'findClient: {"params":{"email":"<address>","phone":"<number>"}} - returns {found,clientId,name}.' },
   { key: "createEnquiry", reference: 'createEnquiry: {"params":{"from":"<sender>","summary":"<one line>","description":"...","category":"FAULT_REPAIR|NEW_INSTALL|QUOTE_REQUEST|OTHER","urgency":"ROUTINE|URGENT|EMERGENCY","contactName":"...","contactPhone":"...","messageId":"<gmail id>"}} - logs the enquiry and links the client; returns {requestId,clientId,linked,isEmergency,canEmail}; canEmail is false when the sender is not allowed to receive automatic mail.' },
-  { key: "getQuote", reference: 'getQuote: {"params":{"quoteId":"<id>"}} - returns {clientName,clientEmail,hasEmail,isOpen,totalText,emailSubject,emailBody,reminderSubject,reminderBody}; isOpen is false once the customer has answered.' },
+  { key: "getQuote", reference: 'getQuote: {"params":{"quoteId":"<id>"}} - returns {clientName,clientEmail,hasEmail,emailAddress,hasEmailAddress,isOpen,totalText,emailSubject,emailBody,reminderSubject,reminderBody}; isOpen is false once the customer has answered.' },
   { key: "getInvoice", reference: 'getInvoice: {"params":{"invoiceId":"<id>"}} - returns {clientName,clientEmail,hasEmail,isPaid,isOpen,balanceText,daysOverdue,payUrl,invoiceSubject,invoiceBody,reminderSubject,reminderBody,noticeSubject,noticeBody,reviewSubject,reviewBody,reviewReminderSubject,reviewReminderBody,replyQuery}.' },
   { key: "createPaymentLink", reference: 'createPaymentLink: {"params":{"invoiceId":"<id>"}} - returns {created,payUrl,provider}.' },
+  { key: "sendTemplatedEmail", reference: 'sendTemplatedEmail: {"template":"<template key>","params":{"to":"<address>","inReplyTo":"<gmail id>","variables":{"<name>":"<value or $ref>"}}} - sends a branded email from an email template (Setup > Email templates); returns {sent,to,subject}.' },
   { key: "addTimelineNote", reference: 'addTimelineNote: {"params":{"clientId":"<id>","summary":"<what happened>","workflow":"<name>"}} - adds the line to the client\'s history.' },
 ];

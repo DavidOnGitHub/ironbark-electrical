@@ -9,7 +9,9 @@ import { getQuote } from "../domain/quotes";
 import { getInvoice } from "../domain/invoicing";
 import { ensurePaymentLink } from "../integrations/payments";
 import { isAllowedRecipient } from "../integrations/allowlist";
-import { formalNotice, invoiceEmail, invoiceReminder, quoteEmail, quoteReminder, reviewRequest } from "./messages";
+import { renderTemplate } from "../domain/emailTemplates";
+import { sendHtmlEmail } from "../integrations/gmailSend";
+import { firstName, formalNotice, invoiceEmail, invoiceReminder, quoteEmail, quoteReminder, reviewRequest } from "./messages";
 import { isTestRun, resolveParams, str } from "./runtime";
 import { formatMoney } from "../lib/money";
 
@@ -87,6 +89,9 @@ export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
     clientName: quote.client.name,
     clientEmail: allowed ? email : "",
     hasEmail: allowed,
+    // The address even when automatic mail to it is not allowed: a person can approve sending to it.
+    emailAddress: email,
+    hasEmailAddress: email !== "",
     status: quote.effectiveStatus,
     isOpen: quote.effectiveStatus === "SENT",
     totalText: formatMoney(quote.totalCents),
@@ -94,6 +99,10 @@ export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
     emailBody: first.body,
     reminderSubject: reminder.subject,
     reminderBody: reminder.body,
+    clientFirstName: firstName(quote.client.name),
+    validUntil: quote.validUntil.toLocaleDateString("en-AU"),
+    depositNote: quote.depositCents > 0 ? `A deposit of ${formatMoney(quote.depositCents)} is needed to book the work in.` : "",
+    lines: quote.lines.map((l) => `- ${l.description} (${Number(l.quantity)} ${l.unit}): ${formatMoney(l.lineTotalCents)}`).join("\n"),
   };
 }
 
@@ -133,6 +142,14 @@ export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
     reviewReminderSubject: reviewReminder.subject,
     reviewReminderBody: reviewReminder.body,
     replyQuery: allowed ? `from:${email} newer_than:7d` : "",
+    clientFirstName: firstName(invoice.client.name),
+    jobTitle: invoice.job.title,
+    dueDate: invoice.dueAt ? invoice.dueAt.toLocaleDateString("en-AU") : "the date on the invoice",
+    dueNote: invoice.dueAt ? `Due by: ${invoice.dueAt.toLocaleDateString("en-AU")}` : "",
+    payBlock: invoice.payUrl
+      ? `[Pay securely by card](${invoice.payUrl})\n\nYou can also pay by bank transfer - reply to this email for our details.`
+      : "To pay by bank transfer, reply to this email and we will send our details.",
+    reviewUrl,
   };
 }
 
@@ -156,6 +173,25 @@ export async function addTimelineNoteImpl(config: Cfg, context: WorkflowContext)
   return { recorded: true };
 }
 
+/** Renders an email template with the mapped variables and sends it (a test run renders - so a missing variable
+ * shows up - but sends nothing). */
+export async function sendTemplatedEmailImpl(config: Cfg & { template?: string; connectorId?: string }, context: WorkflowContext) {
+  const p = asParams(config, context);
+  const vars = Object.fromEntries(Object.entries((p.variables ?? {}) as Record<string, unknown>).map(([k, v]) => [k, v == null ? undefined : str(v)]));
+  const key = str(config.template);
+  if (!key) throw new Error("sendTemplatedEmail: choose an email template.");
+  const to = str(p.to);
+  const mail = await renderTemplate(key, vars);
+  if (isTestRun(context)) {
+    console.log(`[sendTemplatedEmail:mock] template=${key} to=${to} subject="${mail.subject}"`);
+    return { sent: true, to, subject: mail.subject };
+  }
+  if (!config.connectorId) throw new Error("sendTemplatedEmail: connect a Gmail account (Connected apps) and pick it in this step.");
+  const id = await sendHtmlEmail(config.connectorId, { to, subject: mail.subject, text: mail.text, html: mail.html, replyToMessageId: str(p.inReplyTo) || undefined });
+  console.log(`[sendTemplatedEmail] sent=${id} template=${key} to=${to} subject="${mail.subject}"`);
+  return { sent: true, to, subject: mail.subject };
+}
+
 export const stepImpls: Record<string, (config: Cfg, context: WorkflowContext) => Promise<unknown>> = {
   findClient: findClientImpl,
   createEnquiry: createEnquiryImpl,
@@ -163,4 +199,5 @@ export const stepImpls: Record<string, (config: Cfg, context: WorkflowContext) =
   getInvoice: getInvoiceImpl,
   createPaymentLink: createPaymentLinkImpl,
   addTimelineNote: addTimelineNoteImpl,
+  sendTemplatedEmail: sendTemplatedEmailImpl,
 };

@@ -15,7 +15,7 @@ export function wireConnectors(graph: WorkflowDefinitionGraph, { emailConnectorI
   if (!emailConnectorId) return graph;
   // The inbox trigger only looks at mail sent to the demo's plus-alias (me+ironbark@gmail.com), never the rest of the mailbox.
   const query = gmailAccount ? `in:inbox -from:me to:${inboxAlias(gmailAccount, process.env.DEMO_INBOX_TAG || "ironbark")}` : undefined;
-  const usesEmail = (n: { type: string; stepKey: string }) => (n.type === "TRIGGER" && n.stepKey === "emailInbound") || (n.type === "ACTION" && (n.stepKey === "sendEmail" || n.stepKey === "emailRead"));
+  const usesEmail = (n: { type: string; stepKey: string }) => (n.type === "TRIGGER" && n.stepKey === "emailInbound") || (n.type === "ACTION" && (n.stepKey === "sendEmail" || n.stepKey === "sendTemplatedEmail" || n.stepKey === "emailRead"));
   return {
     ...graph,
     nodes: graph.nodes.map((n) => {

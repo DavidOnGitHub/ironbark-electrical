@@ -7,7 +7,7 @@ import { formatMoney } from "../lib/money";
 
 const SIGNOFF = "Kind regards,\nThe team at Ironbark Electrical\n(02) 5550 0142";
 
-const firstName = (name: string) => name.trim().split(/\s+/)[0] || "there";
+export const firstName = (name: string) => name.trim().split(/\s+/)[0] || "there";
 
 export interface QuoteMailInput {
   clientName: string;

@@ -85,7 +85,7 @@ describe("the chasing cadences follow the requirements", () => {
 
 describe("safety rules", () => {
   it("nothing but the acknowledgement is sent without a person approving it (enquiry workflow)", () => {
-    const sends = enquiryToReply.nodes.filter((n) => n.stepKey === "sendEmail").map((n) => n.id);
+    const sends = enquiryToReply.nodes.filter((n) => n.stepKey === "sendTemplatedEmail").map((n) => n.id);
     expect(sends.sort()).toEqual(["acknowledge", "send_reply"]);
     // the proposed reply is only reachable through the approval decision
     const into = enquiryToReply.edges.filter((e) => e.toNodeId === "send_reply");
@@ -117,15 +117,35 @@ describe("safety rules", () => {
   });
   it("email failures fall back to a person, never to silence", () => {
     for (const g of [quoteChase, invoiceChase]) {
-      const first = g.nodes.find((n) => n.stepKey === "sendEmail")!;
+      const first = g.nodes.find((n) => n.stepKey === "sendTemplatedEmail")!;
       expect(first.onFailureNodeId).toBeTruthy();
       expect(g.nodes.find((n) => n.id === first.onFailureNodeId)!.type).toBe("HUMAN_TASK");
     }
   });
+  it("quote emails to an address that is not on the allowlist wait for a person's approval, then send themselves", () => {
+    const edge = (from: string, to: string) => quoteChase.edges.find((e) => e.fromNodeId === from && e.toNodeId === to);
+    // the first email: automatic only when allowed; otherwise the approval task, whose approval is what sends it
+    expect(edge("decision_email", "send_quote")!.condition).toMatchObject({ field: "load_quote.hasEmail", value: true });
+    expect(edge("decision_email", "approve_send")!.condition).toMatchObject({ field: "load_quote.hasEmailAddress", value: true });
+    expect(quoteChase.edges.filter((e) => e.toNodeId === "send_quote_approved").map((e) => e.fromNodeId)).toEqual(["decision_send_approved"]);
+    expect(edge("decision_send_approved", "send_quote_approved")!.condition).toMatchObject({ field: "approve_send.approved", value: true });
+    expect(edge("decision_send_approved", "send_by_hand")!.condition).toBeUndefined(); // rejected: a person sends it
+    // the reminder follows the same rule
+    expect(edge("decision_remind_email", "reminder")!.condition).toMatchObject({ field: "check_1.hasEmail", value: true });
+    expect(edge("decision_remind_email", "approve_reminder")!.condition).toMatchObject({ field: "check_1.hasEmailAddress", value: true });
+    expect(quoteChase.edges.filter((e) => e.toNodeId === "reminder_approved").map((e) => e.fromNodeId)).toEqual(["decision_reminder_approved"]);
+    // the approval tasks show the email they approve
+    for (const [task, step] of [["approve_send", "send_quote_approved"], ["approve_reminder", "reminder_approved"]] as const) {
+      expect(quoteChase.nodes.find((n) => n.id === task)!.config).toMatchObject({ approval: true, reviewsNodeId: step });
+    }
+    // the only way to the automatic nodes is through the allowlist decision
+    expect(quoteChase.edges.filter((e) => e.toNodeId === "send_quote").map((e) => e.fromNodeId)).toEqual(["decision_email"]);
+    expect(quoteChase.edges.filter((e) => e.toNodeId === "reminder").map((e) => e.fromNodeId)).toEqual(["decision_remind_email"]);
+  });
   it("wiring the Gmail connector fills in every Gmail node and nothing else", () => {
     const wired = wireConnectors(invoiceChase, { emailConnectorId: "conn_gmail" });
     for (const n of wired.nodes) {
-      const wantsEmail = n.stepKey === "sendEmail" || n.stepKey === "emailRead" || n.stepKey === "emailInbound";
+      const wantsEmail = n.stepKey === "sendTemplatedEmail" || n.stepKey === "emailRead" || n.stepKey === "emailInbound";
       expect(n.config.connectorId, n.id).toBe(wantsEmail ? "conn_gmail" : undefined);
     }
     expect(wireConnectors(invoiceChase, {})).toBe(invoiceChase);

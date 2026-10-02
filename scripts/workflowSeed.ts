@@ -1,9 +1,11 @@
 import { prisma, Prisma } from "@kabosh-digital/workflow-schema";
 import { ironSparkWorkflows, wireConnectors } from "../src/workflows";
+import { ensureDefaultTemplates } from "../src/domain/emailTemplates";
 
-/** Puts the four workflows into the platform's tables, wiring the Gmail connector if one is connected. */
+/** Puts the four workflows into the platform's tables (owned by the Office user: the console shows each non-admin only their own workflows, runs and tasks), wiring the Gmail connector if one is connected. */
 export async function seedWorkflows(opts: { publish?: boolean } = {}) {
-  const owner = await prisma.user.findUnique({ where: { email: "owner@ironbark.test" }, select: { id: true } });
+  await ensureDefaultTemplates(); // the workflows' email steps refer to these
+  const owner = await prisma.user.findUnique({ where: { email: "office@ironbark.test" }, select: { id: true } });
   const gmail = await prisma.connector.findFirst({ where: { type: "EMAIL" }, orderBy: { createdAt: "asc" }, select: { id: true, config: true } });
   const done: { name: string; published: boolean }[] = [];
   for (const base of ironSparkWorkflows) {
@@ -15,7 +17,7 @@ export async function seedWorkflows(opts: { publish?: boolean } = {}) {
         ? { status: "PUBLISHED" as const, version: 1, publishedGraph: { ...graph, status: "PUBLISHED" } as unknown as Prisma.InputJsonValue, publishedVersion: 1, triggerEnabledAt: new Date() }
         : { status: "DRAFT" as const, version: 1, publishedGraph: Prisma.DbNull, publishedVersion: null }),
     };
-    await prisma.workflowDefinition.upsert({ where: { id: graph.id }, create: { id: graph.id, ownerId: owner?.id ?? null, ...data }, update: data });
+    await prisma.workflowDefinition.upsert({ where: { id: graph.id }, create: { id: graph.id, ownerId: owner?.id ?? null, ...data }, update: { ownerId: owner?.id ?? null, ...data } });
     done.push({ name: graph.name, published: !!opts.publish });
   }
   return { done, gmailConnected: !!gmail };

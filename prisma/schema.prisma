@@ -225,6 +225,21 @@ model Sequence {
   value Int    @default(0)
 }
 
+/// Wording of the emails the automations send. `key` is what a workflow's email step refers to, so it never
+/// changes after creation; everything else is edited freely. Body is light markup (see render.ts).
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  subject     String
+  body        String
+  /// Variables the template expects, for the editor's help text and preview ("clientFirstName", "number", ...).
+  variables   String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 /// The price list: labour rates, call-out fee, standard jobs and materials.
 /// Amounts are integer cents, ex GST. Technicians never see this table.
 model PriceItem {
@@ -241,9 +256,35 @@ model PriceItem {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  lines QuoteLine[]
+  lines       QuoteLine[]
+  bundleItems PriceBundleItem[]
 
   @@index([kind, active])
+}
+
+/// A named set of price-list items added to a quote in one click (e.g. "Switchboard upgrade package").
+/// It has no price of its own: each line takes the item's current price when it is added.
+model PriceBundle {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items PriceBundleItem[]
+}
+
+model PriceBundleItem {
+  id          String      @id @default(cuid())
+  bundleId    String
+  bundle      PriceBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  priceItemId String
+  priceItem   PriceItem   @relation(fields: [priceItemId], references: [id], onDelete: Restrict)
+  quantity    Decimal     @default(1) @db.Decimal(10, 2)
+  sortOrder   Int         @default(0)
+
+  @@index([bundleId, sortOrder])
 }
 
 model Quote {

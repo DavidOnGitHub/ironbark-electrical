@@ -22,6 +22,8 @@ export const Access = {
   DASHBOARD: [OWNER, OFFICE, BOOKKEEPER],
   /** Business KPIs. */
   REPORTS: [OWNER, OFFICE, BOOKKEEPER],
+  /** Email templates. */
+  TEMPLATES: [OWNER, OFFICE],
   /** The price list. Technicians never see prices. */
   PRICING: [OWNER, OFFICE],
   INVOICES_READ: [OWNER, OFFICE, BOOKKEEPER],

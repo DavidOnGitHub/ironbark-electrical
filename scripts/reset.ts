@@ -8,7 +8,7 @@ import { clearAutomationRuns, seedWorkflows } from "./workflowSeed";
 
 // Back to the seed state: stop any automation runs, wipe the business tables, re-create the demo accounts, reseed.
 const runs = await clearAutomationRuns();
-await appDb.$executeRawUnsafe('TRUNCATE TABLE "ironbark-electrical"."ActivityEvent", "ironbark-electrical"."Payment", "ironbark-electrical"."InvoiceLine", "ironbark-electrical"."Invoice", "ironbark-electrical"."JobNote", "ironbark-electrical"."Job", "ironbark-electrical"."QuoteLine", "ironbark-electrical"."Quote", "ironbark-electrical"."PriceItem", "ironbark-electrical"."Sequence", "ironbark-electrical"."Request", "ironbark-electrical"."Site", "ironbark-electrical"."Client" RESTART IDENTITY CASCADE');
+await appDb.$executeRawUnsafe('TRUNCATE TABLE "ironbark-electrical"."ActivityEvent", "ironbark-electrical"."Payment", "ironbark-electrical"."InvoiceLine", "ironbark-electrical"."Invoice", "ironbark-electrical"."JobNote", "ironbark-electrical"."Job", "ironbark-electrical"."QuoteLine", "ironbark-electrical"."Quote", "ironbark-electrical"."PriceItem", "ironbark-electrical"."Sequence", "ironbark-electrical"."Request", "ironbark-electrical"."Site", "ironbark-electrical"."Client", "ironbark-electrical"."EmailTemplate", "ironbark-electrical"."PriceBundleItem", "ironbark-electrical"."PriceBundle" RESTART IDENTITY CASCADE');
 const ids = await seedUsers();
 const counts = await seedBusiness(ids);
 const items = await seedPriceList();

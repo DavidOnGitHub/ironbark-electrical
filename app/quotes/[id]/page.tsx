@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-stre
 import { Access } from "../../../src/access";
 import { requireBusinessPage } from "../../../src/guard";
 import { getQuote, DEPOSIT_PCT, GST_RATE_PCT } from "../../../src/domain/quotes";
-import { listPriceItems } from "../../../src/domain/pricing";
+import { bundleLines, listBundles, listPriceItems } from "../../../src/domain/pricing";
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { formatSite } from "../../../src/domain/clients";
-import { decideQuoteAction, extendQuoteValidityAction, markQuoteSentAction, saveQuoteLinesAction } from "../../../src/actions/quotes";
+import { decideQuoteAction, extendQuoteValidityAction, markQuoteSentAction, saveQuoteLinesAction, suggestQuoteLinesAction } from "../../../src/actions/quotes";
 import { formatMoney } from "../../../src/lib/money";
 import { ActionForm } from "../../../src/ui/ActionForm";
 import { PageHeader, SelectField, TextAreaField } from "../../../src/ui/fields";
@@ -25,7 +25,7 @@ export default async function QuotePage(props: { params: Promise<{ id: string }>
   const quote = await getQuote(id);
   if (!quote) notFound();
   const canWrite = hasAnyRole(user.roles, Access.QUOTES_WRITE);
-  const [timeline, priceItems] = await Promise.all([listEntityTimeline("quote", id), quote.status === "DRAFT" && canWrite ? listPriceItems({ activeOnly: true }) : Promise.resolve([])]);
+  const [timeline, priceItems, bundles] = await Promise.all([listEntityTimeline("quote", id), quote.status === "DRAFT" && canWrite ? listPriceItems({ activeOnly: true }) : Promise.resolve([]), quote.status === "DRAFT" && canWrite ? listBundles({ activeOnly: true }) : Promise.resolve([])]);
   const status = quote.effectiveStatus;
   const editable = quote.status === "DRAFT" && canWrite;
 
@@ -58,6 +58,9 @@ export default async function QuotePage(props: { params: Promise<{ id: string }>
               <QuoteEditor
                 quoteId={quote.id}
                 action={saveQuoteLinesAction}
+                suggest={suggestQuoteLinesAction}
+                enquiryText={quote.request ? [...new Set([quote.request.summary, quote.request.description].filter(Boolean))].join("\n\n") : quote.title}
+                bundles={bundles.map((b) => ({ id: b.id, name: b.name, lines: bundleLines(b) }))}
                 priceItems={priceItems.map((p) => ({ id: p.id, name: p.name, kind: p.kind, unit: p.unit, priceCents: p.priceCents }))}
                 initialLines={quote.lines.map((l) => ({ priceItemId: l.priceItemId, description: l.description, quantity: Number(l.quantity), unit: l.unit, unitPriceCents: l.unitPriceCents }))}
               />

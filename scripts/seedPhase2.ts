@@ -40,7 +40,27 @@ export async function seedPriceList() {
     });
     byName.set(p.name, { id: row.id, name: row.name, unit: row.unit, priceCents });
   }
+  await seedBundles(byName);
   return byName;
+}
+
+/** Bundles: the common jobs as one click on a quote. Descriptions use the words customers use, so "Suggest lines" can match them. */
+export const BUNDLES: { name: string; description: string; items: { item: string; qty: number }[] }[] = [
+  { name: "Downlight package (6 LEDs)", description: "LED downlights supplied and fitted, with cable and call-out", items: [{ item: "Standard call-out", qty: 1 }, { item: "Electrician", qty: 3 }, { item: "LED downlight 10W", qty: 6 }, { item: "TPS cable 2.5mm", qty: 14 }] },
+  { name: "Ceiling fan package (3 fans)", description: "Ceiling fans supplied and installed", items: [{ item: "Ceiling fan install", qty: 3 }, { item: "Ceiling fan kit", qty: 3 }, { item: "TPS cable 2.5mm", qty: 9 }] },
+  { name: "EV charger package", description: "EV charger installation with conduit and a weatherproof power point", items: [{ item: "EV charger install (7kW, supply extra)", qty: 1 }, { item: "Conduit 20mm", qty: 8 }, { item: "Electrician", qty: 1.5 }, { item: "Weatherproof power point", qty: 1 }] },
+  { name: "Switchboard upgrade package", description: "Switchboard upgrade with new safety switches (RCBO), old ceramic fuses replaced", items: [{ item: "Switchboard upgrade (basic)", qty: 1 }, { item: "Safety switch RCBO", qty: 6 }, { item: "Apprentice", qty: 4 }] },
+  { name: "Smoke alarm compliance (5 alarms)", description: "Smoke alarms replaced and interconnected to current standard", items: [{ item: "Smoke alarm replacement", qty: 5 }, { item: "Smoke alarm 240V interconnect", qty: 5 }] },
+  { name: "Fault finding visit", description: "Fault finding and repair: tripping safety switch, power point or light not working", items: [{ item: "Standard call-out", qty: 1 }, { item: "Electrician", qty: 1.5 }, { item: "Double power point", qty: 1 }] },
+  { name: "Extra power points (4 double)", description: "Extra double power points added to a room", items: [{ item: "Power point install (single)", qty: 4 }, { item: "Double power point", qty: 4 }, { item: "Electrician", qty: 1 }] },
+];
+
+export async function seedBundles(byName: Map<string, { id: string }>) {
+  for (const b of BUNDLES) {
+    await appDb.priceBundle.create({
+      data: { name: b.name, description: b.description, items: { create: b.items.map((it, i) => ({ priceItemId: byName.get(it.item)!.id, quantity: it.qty, sortOrder: i })) } },
+    });
+  }
 }
 
 type Items = Awaited<ReturnType<typeof seedPriceList>>;

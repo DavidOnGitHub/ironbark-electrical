@@ -143,6 +143,20 @@ aside.fixed {
   --border: #2a2421;
 }
 
+/* The sidebar stays put on desktop. The kit makes it sticky, which only holds while the page is no taller than the
+   shell: on the workflow editor (a tall canvas) the page outgrew the shell and the menu scrolled away with it.
+   Fixed does not depend on that, so the content column takes the sidebar's width as a margin instead. */
+@media (min-width: 1024px) {
+  aside.fixed {
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+  aside.fixed ~ div {
+    margin-left: var(--sidebar-width);
+  }
+}
+
 /* Active item: dark chip with a hi-vis bar. Counts: hi-vis for "needs action", red for overdue. */
 aside.fixed a[aria-current="page"] {
   background: #40362f;

@@ -2,8 +2,27 @@ import { DAYS, defineWorkflow, GMAIL_RETRY, HOURS, ref } from "./build";
 
 export const QUOTE_CHASE_ID = "def_ironspark_quote_chase";
 
+const quoteVars = (from: string) => ({
+  clientFirstName: ref(`${from}.clientFirstName`),
+  title: ref(`${from}.title`),
+  number: ref(`${from}.number`),
+  lines: ref(`${from}.lines`),
+  totalText: ref(`${from}.totalText`),
+  depositNote: ref(`${from}.depositNote`),
+  validUntil: ref(`${from}.validUntil`),
+});
+const reminderVars = (from: string) => ({
+  clientFirstName: ref(`${from}.clientFirstName`),
+  title: ref(`${from}.title`),
+  number: ref(`${from}.number`),
+  totalText: ref(`${from}.totalText`),
+  validUntil: ref(`${from}.validUntil`),
+});
+
 /** Quote and chase: started when a quote is marked as sent. Emails the quote, waits a day, nudges
- * once, waits three more days, then asks the owner to phone. Stops the moment the customer answers. */
+ * once, waits three more days, then asks the owner to phone. Stops the moment the customer answers.
+ * Automatic email only goes to addresses the business allows; for any other address a person reads the
+ * email first (the task shows it) and approving sends it - the same for the reminder. */
 export const quoteChase = defineWorkflow(
   { id: QUOTE_CHASE_ID, name: "Quote and chase" },
   [
@@ -13,9 +32,25 @@ export const quoteChase = defineWorkflow(
     {
       id: "send_quote",
       type: "ACTION",
-      stepKey: "sendEmail",
+      stepKey: "sendTemplatedEmail",
       label: "Email the quote",
-      config: { params: { to: ref("load_quote.clientEmail"), subject: ref("load_quote.emailSubject"), body: ref("load_quote.emailBody") } },
+      config: { template: "quote_send", params: { to: ref("load_quote.clientEmail"), variables: quoteVars("load_quote") } },
+      retryPolicy: GMAIL_RETRY,
+      onFailureNodeId: "send_by_hand",
+    },
+    {
+      id: "approve_send",
+      type: "HUMAN_TASK",
+      label: "Office approves sending the quote",
+      config: { taskType: "approve_quote_email", assigneeRole: "EDITOR", approval: true, reviewsNodeId: "send_quote_approved", description: "This customer is not on the automatic-email list. Read the email below. Approve to send it now, or reject to send it yourself." },
+    },
+    { id: "decision_send_approved", type: "DECISION", label: "Approved?" },
+    {
+      id: "send_quote_approved",
+      type: "ACTION",
+      stepKey: "sendTemplatedEmail",
+      label: "Email the approved quote",
+      config: { template: "quote_send", params: { to: ref("load_quote.emailAddress"), variables: quoteVars("load_quote") } },
       retryPolicy: GMAIL_RETRY,
       onFailureNodeId: "send_by_hand",
     },
@@ -23,18 +58,34 @@ export const quoteChase = defineWorkflow(
       id: "send_by_hand",
       type: "HUMAN_TASK",
       label: "Send the quote by hand",
-      config: { taskType: "send_quote_by_hand", assigneeRole: "EDITOR", description: "The quote could not be emailed automatically (no email address, or sending failed). Send it to the customer yourself, then mark this done.", terminal: true },
+      config: { taskType: "send_quote_by_hand", assigneeRole: "EDITOR", reviewsNodeId: "send_quote_approved", description: "The quote could not be emailed (no email address, rejected, or sending failed). The email is shown below - send it to the customer yourself, then mark this done.", terminal: true },
     },
     { id: "note_sent", type: "ACTION", stepKey: "addTimelineNote", label: "Note it on the client's history", config: { params: { clientId: ref("load_quote.clientId"), summary: "Quote emailed to the customer", workflow: "Quote and chase" } } },
     { id: "wait_1", type: "DELAY", label: "Wait one day", config: { seconds: 1 * DAYS } },
     { id: "check_1", type: "ACTION", stepKey: "getQuote", label: "Has the customer answered?", config: { params: { quoteId: ref("trigger.quoteId") } } },
     { id: "decision_open_1", type: "DECISION", label: "Still waiting?" },
+    { id: "decision_remind_email", type: "DECISION", label: "May we send the reminder automatically?" },
+    {
+      id: "approve_reminder",
+      type: "HUMAN_TASK",
+      label: "Office approves the reminder",
+      config: { taskType: "approve_quote_reminder", assigneeRole: "EDITOR", approval: true, reviewsNodeId: "reminder_approved", description: "The customer has not answered the quote. Read the reminder below. Approve to send it, or reject to skip it." },
+    },
+    { id: "decision_reminder_approved", type: "DECISION", label: "Approved?" },
+    {
+      id: "reminder_approved",
+      type: "ACTION",
+      stepKey: "sendTemplatedEmail",
+      label: "Send the approved reminder",
+      config: { template: "quote_reminder", params: { to: ref("check_1.emailAddress"), variables: reminderVars("check_1") } },
+      retryPolicy: GMAIL_RETRY,
+    },
     {
       id: "reminder",
       type: "ACTION",
-      stepKey: "sendEmail",
+      stepKey: "sendTemplatedEmail",
       label: "Send a friendly reminder",
-      config: { params: { to: ref("load_quote.clientEmail"), subject: ref("load_quote.reminderSubject"), body: ref("load_quote.reminderBody") } },
+      config: { template: "quote_reminder", params: { to: ref("check_1.clientEmail"), variables: reminderVars("check_1") } },
       retryPolicy: GMAIL_RETRY,
     },
     { id: "note_reminded", type: "ACTION", stepKey: "addTimelineNote", label: "Note the reminder", config: { params: { clientId: ref("load_quote.clientId"), summary: "Reminder emailed about the quote", workflow: "Quote and chase" } } },
@@ -54,12 +105,24 @@ export const quoteChase = defineWorkflow(
     { from: "trigger", to: "load_quote" },
     { from: "load_quote", to: "decision_email" },
     { from: "decision_email", to: "send_quote", when: { field: "load_quote.hasEmail", op: "eq", value: true }, label: "Has email" },
-    { from: "decision_email", to: "send_by_hand", label: "No email" },
+    { from: "decision_email", to: "approve_send", when: { field: "load_quote.hasEmailAddress", op: "eq", value: true }, label: "Needs approval" },
+    { from: "decision_email", to: "send_by_hand", label: "No email address" },
+    { from: "approve_send", to: "decision_send_approved" },
+    { from: "decision_send_approved", to: "send_quote_approved", when: { field: "approve_send.approved", op: "eq", value: true }, label: "Approved" },
+    { from: "decision_send_approved", to: "send_by_hand", label: "Rejected - send by hand" },
+    { from: "send_quote_approved", to: "note_sent" },
     { from: "send_quote", to: "note_sent" },
     { from: "note_sent", to: "wait_1" },
     { from: "wait_1", to: "check_1" },
     { from: "check_1", to: "decision_open_1" },
-    { from: "decision_open_1", to: "reminder", when: { field: "check_1.isOpen", op: "eq", value: true }, label: "No answer yet" },
+    { from: "decision_open_1", to: "decision_remind_email", when: { field: "check_1.isOpen", op: "eq", value: true }, label: "No answer yet" },
+    { from: "decision_remind_email", to: "reminder", when: { field: "check_1.hasEmail", op: "eq", value: true }, label: "Automatic" },
+    { from: "decision_remind_email", to: "approve_reminder", when: { field: "check_1.hasEmailAddress", op: "eq", value: true }, label: "Needs approval" },
+    { from: "decision_remind_email", to: "owner_call", label: "No email address" },
+    { from: "approve_reminder", to: "decision_reminder_approved" },
+    { from: "decision_reminder_approved", to: "reminder_approved", when: { field: "approve_reminder.approved", op: "eq", value: true }, label: "Approved" },
+    { from: "decision_reminder_approved", to: "wait_2", label: "Rejected - skip the reminder" },
+    { from: "reminder_approved", to: "note_reminded" },
     { from: "decision_open_1", to: "note_answered_1", label: "Answered" },
     { from: "reminder", to: "note_reminded" },
     { from: "note_reminded", to: "wait_2" },

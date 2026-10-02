@@ -16,9 +16,9 @@ export const reviewRequest = defineWorkflow(
     {
       id: "send_review",
       type: "ACTION",
-      stepKey: "sendEmail",
+      stepKey: "sendTemplatedEmail",
       label: "Ask for a review",
-      config: { params: { to: ref("load_invoice.clientEmail"), subject: ref("load_invoice.reviewSubject"), body: ref("load_invoice.reviewBody") } },
+      config: { template: "review_request", params: { to: ref("load_invoice.clientEmail"), variables: { clientFirstName: ref("load_invoice.clientFirstName"), title: ref("load_invoice.jobTitle"), reviewUrl: ref("load_invoice.reviewUrl") } } },
       retryPolicy: GMAIL_RETRY,
     },
     { id: "wait_2", type: "DELAY", label: "Wait three days", config: { seconds: 3 * DAYS } },
@@ -52,9 +52,9 @@ export const reviewRequest = defineWorkflow(
     {
       id: "send_reminder",
       type: "ACTION",
-      stepKey: "sendEmail",
+      stepKey: "sendTemplatedEmail",
       label: "One gentle reminder",
-      config: { params: { to: ref("load_invoice.clientEmail"), subject: ref("load_invoice.reviewReminderSubject"), body: ref("load_invoice.reviewReminderBody") } },
+      config: { template: "review_reminder", params: { to: ref("load_invoice.clientEmail"), variables: { clientFirstName: ref("load_invoice.clientFirstName"), title: ref("load_invoice.jobTitle"), reviewUrl: ref("load_invoice.reviewUrl") } } },
       retryPolicy: GMAIL_RETRY,
     },
     { id: "note_reminded", type: "ACTION", stepKey: "addTimelineNote", label: "Note the reminder", config: { params: { clientId: ref("load_invoice.clientId"), summary: "Review reminder emailed", workflow: "Review request" }, terminal: true } },

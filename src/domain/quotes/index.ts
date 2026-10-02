@@ -14,6 +14,7 @@ import { addDays, computeTotals, effectiveQuoteStatus, lineTotalCents, QUOTE_STA
 import { formatMoney } from "../../lib/money";
 
 export * from "./calc";
+export * from "./suggest";
 
 const blank = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 
@@ -112,7 +113,7 @@ export async function updateQuoteDetails(quoteId: string, input: { title: string
 export async function getQuote(id: string) {
   const quote = await appDb.quote.findUnique({
     where: { id },
-    include: { lines: { orderBy: { position: "asc" } }, client: true, site: true, request: { select: { id: true, summary: true, status: true } }, job: { select: { id: true, number: true, status: true } } },
+    include: { lines: { orderBy: { position: "asc" } }, client: true, site: true, request: { select: { id: true, summary: true, description: true, status: true } }, job: { select: { id: true, number: true, status: true } } },
   });
   return quote ? withEffectiveStatus(quote) : null;
 }

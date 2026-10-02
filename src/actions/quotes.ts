@@ -13,9 +13,12 @@ import {
   markQuoteSent,
   QuoteLineSchema,
   replaceQuoteLines,
+  suggestLines,
+  type SuggestResult,
   updateQuoteDetails,
 } from "../domain/quotes";
 import { afterQuoteSent } from "../automation";
+import { bundleLines, listBundles, listPriceItems } from "../domain/pricing";
 import { errorMessage, text, type ActionState } from "./shared";
 
 export async function createQuoteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -109,4 +112,18 @@ export async function extendQuoteValidityAction(_prev: ActionState, formData: Fo
   revalidatePath(`/quotes/${quoteId}`);
   revalidatePath("/quotes");
   return { error: null, ok: true };
+}
+
+/** Suggested price-list lines for an enquiry's wording. Read-only: the office reviews them before anything is added.
+ * Uses the AI when ANTHROPIC_API_KEY is set (it can only choose price-list entries), keyword matching otherwise. */
+export async function suggestQuoteLinesAction(description: string): Promise<SuggestResult> {
+  await requireRole(Access.QUOTES_WRITE);
+  const [items, bundles] = await Promise.all([listPriceItems({ activeOnly: true }), listBundles({ activeOnly: true })]);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  return suggestLines(
+    description,
+    items.map((i) => ({ id: i.id, name: i.name, description: i.description, kind: i.kind, unit: i.unit, priceCents: i.priceCents })),
+    bundles.map((b) => ({ id: b.id, name: b.name, description: b.description, lines: bundleLines(b) })),
+    apiKey ? { apiKey } : undefined,
+  );
 }

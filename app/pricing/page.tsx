@@ -3,8 +3,9 @@ import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
 import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
-import { listPriceItems } from "../../src/domain/pricing";
-import { savePriceItemAction, togglePriceItemAction } from "../../src/actions/pricing";
+import { bundleLines, listBundles, listPriceItems } from "../../src/domain/pricing";
+import { savePriceItemAction, toggleBundleAction, togglePriceItemAction } from "../../src/actions/pricing";
+import { BundleEditor } from "../../src/ui/BundleEditor";
 import { formatMoney } from "../../src/lib/money";
 import { ActionForm } from "../../src/ui/ActionForm";
 import { PageHeader } from "../../src/ui/fields";
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic";
 
 export default async function PricingPage() {
   await requireBusinessPage(Access.PRICING);
-  const items = await listPriceItems();
+  const [items, bundles] = await Promise.all([listPriceItems(), listBundles()]);
+  const pickable = items.filter((i) => i.active).map((i) => ({ id: i.id, name: i.name, unit: i.unit, priceCents: i.priceCents }));
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Price list" subtitle="Labour rates, call-out fee, standard jobs and materials. Prices are per unit, excluding GST." />
@@ -28,6 +30,47 @@ export default async function PricingPage() {
           </ActionForm>
         </CardContent>
       </Card>
+      <div className="flex flex-col gap-2" data-testid="bundles">
+        <h2 className="text-sm font-semibold">
+          Bundles <span className="text-muted-foreground">({bundles.length})</span>
+        </h2>
+        <p className="text-xs text-muted-foreground">A bundle adds several price-list items to a quote in one click, at today&rsquo;s prices. Describe what it covers - the quote&rsquo;s &ldquo;Suggest lines&rdquo; uses that to match enquiries.</p>
+        <Card className="p-0">
+          <ul className="divide-y">
+            {bundles.length === 0 ? <li className="px-4 py-4 text-sm text-muted-foreground">None yet.</li> : null}
+            {bundles.map((b) => {
+              const lines = bundleLines(b);
+              return (
+                <li key={b.id} className="px-4 py-2.5 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <details className="min-w-0 flex-1">
+                      <summary className="cursor-pointer font-medium">
+                        {b.name} {!b.active ? <Badge variant="secondary" className="ml-1">retired</Badge> : null}
+                        <span className="ml-2 font-normal text-muted-foreground">{lines.length} lines, {formatMoney(lines.reduce((t, l) => t + Math.round(l.quantity * l.unitPriceCents), 0))} ex GST</span>
+                      </summary>
+                      {b.description ? <p className="mt-1 text-xs text-muted-foreground">{b.description}</p> : null}
+                      <div className="mt-3 max-w-3xl">
+                        <BundleEditor bundle={{ id: b.id, name: b.name, description: b.description ?? "", items: b.items.map((it) => ({ priceItemId: it.priceItemId, quantity: Number(it.quantity) })) }} priceItems={pickable} />
+                      </div>
+                    </details>
+                    <form action={toggleBundleAction}>
+                      <input type="hidden" name="bundleId" value={b.id} />
+                      <input type="hidden" name="active" value={b.active ? "no" : "yes"} />
+                      <Button type="submit" variant="ghost" size="sm">{b.active ? "Retire" : "Reactivate"}</Button>
+                    </form>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+        <details className="rounded-lg border p-3 text-sm">
+          <summary className="cursor-pointer font-medium">New bundle</summary>
+          <div className="mt-3 max-w-3xl">
+            <BundleEditor priceItems={pickable} />
+          </div>
+        </details>
+      </div>
       {KIND_OPTIONS.map((kind) => {
         const rows = items.filter((i) => i.kind === kind.value);
         return (
