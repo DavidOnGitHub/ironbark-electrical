@@ -1,7 +1,7 @@
 /** Requests (enquiries) module - the public API. */
 import { z } from "zod";
 import { appDb, type Prisma } from "../../db/app";
-import type { RequestStatus } from "iron-spark-client";
+import type { RequestStatus } from "ironbark-electrical-client";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { createClient, findPossibleDuplicates, type DuplicateMatch } from "../clients";

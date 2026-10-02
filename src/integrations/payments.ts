@@ -39,7 +39,7 @@ export async function ensurePaymentLink(
     }
   }
   const session = await createCheckoutSession(
-    { invoiceId, invoiceNumber: invoice.number, amountCents: invoice.balanceCents, customerEmail: invoice.client.email ?? undefined, baseUrl: deps.baseUrl ?? (process.env.APP_BASE_URL || "http://localhost:3000") },
+    { invoiceId, invoiceNumber: invoice.number, amountCents: invoice.balanceCents, customerEmail: invoice.client.email ?? undefined, baseUrl: deps.baseUrl ?? (process.env.APP_BASE_URL || process.env.AUTH_URL || "http://localhost:3200") },
     key,
     deps.fetchImpl,
   );

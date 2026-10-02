@@ -5,8 +5,8 @@ import { stepImpls } from "./impl";
 
 let registered = false;
 
-/** Plugs Iron Spark's steps and test fixtures into the engine. Call once in the worker before runWorker(). */
-export function registerIronSpark(): void {
+/** Plugs Ironbark Electrical's steps and test fixtures into the engine. Call once in the worker before runWorker(). */
+export function registerIronbark(): void {
   if (registered) return;
   registered = true;
   for (const def of ironSparkStepDefs) {

@@ -34,3 +34,5 @@ overrides:
   fast-uri@<3.1.7: ^3.1.7
   # via @prisma/client > prisma > @prisma/config
   deepmerge-ts@<8: ^8.0.2
+patchedDependencies:
+  '@kabosh-digital/m-street-kit@0.2.0': patches/@kabosh-digital__m-street-kit@0.2.0.patch

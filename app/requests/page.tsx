@@ -8,7 +8,7 @@ import { formatAge, isOpenStatus, listRequests, REQUEST_STATUS_LABEL, REQUEST_ST
 import { staffLabelMap } from "../../src/domain/shared/staff";
 import { PageHeader } from "../../src/ui/fields";
 import { CATEGORY_LABEL, RequestStatusChip, UrgencyChip } from "../../src/ui/chips";
-import type { RequestStatus } from "iron-spark-client";
+import type { RequestStatus } from "ironbark-electrical-client";
 
 export const dynamic = "force-dynamic";
 

@@ -1,4 +1,4 @@
-import type { RequestStatus } from "iron-spark-client";
+import type { RequestStatus } from "ironbark-electrical-client";
 
 /** Allowed moves of the enquiry pipeline. Won normally comes from an approved
  * quote (Phase 2) but a person may also mark it by hand; Lost can be reopened. */

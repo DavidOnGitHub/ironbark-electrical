@@ -4,10 +4,10 @@ import { ironSparkWorkflows, wireConnectors } from "../src/workflows";
 /** Puts the four workflows into the platform's tables, wiring the Gmail connector if one is connected. */
 export async function seedWorkflows(opts: { publish?: boolean } = {}) {
   const owner = await prisma.user.findUnique({ where: { email: "owner@ironbark.test" }, select: { id: true } });
-  const gmail = await prisma.connector.findFirst({ where: { type: "EMAIL" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  const gmail = await prisma.connector.findFirst({ where: { type: "EMAIL" }, orderBy: { createdAt: "asc" }, select: { id: true, config: true } });
   const done: { name: string; published: boolean }[] = [];
   for (const base of ironSparkWorkflows) {
-    const graph = wireConnectors(base, { emailConnectorId: gmail?.id });
+    const graph = wireConnectors(base, { emailConnectorId: gmail?.id, gmailAccount: (gmail?.config as { fromAddress?: string } | null)?.fromAddress });
     const data = {
       name: graph.name,
       graph: graph as unknown as Prisma.InputJsonValue,

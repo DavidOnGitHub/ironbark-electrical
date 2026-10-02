@@ -1,5 +1,5 @@
 /**
- * Puts Iron Spark's four workflows into the platform's tables (as drafts the owner can edit, test
+ * Puts Ironbark Electrical's four workflows into the platform's tables (as drafts the owner can edit, test
  * and publish in the console), wiring the Gmail connector if one is connected.
  *
  *   pnpm workflows:seed            drafts

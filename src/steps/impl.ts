@@ -8,6 +8,7 @@ import { createRequest, type RequestInput } from "../domain/requests";
 import { getQuote } from "../domain/quotes";
 import { getInvoice } from "../domain/invoicing";
 import { ensurePaymentLink } from "../integrations/payments";
+import { isAllowedRecipient } from "../integrations/allowlist";
 import { formalNotice, invoiceEmail, invoiceReminder, quoteEmail, quoteReminder, reviewRequest } from "./messages";
 import { isTestRun, resolveParams, str } from "./runtime";
 import { formatMoney } from "../lib/money";
@@ -41,7 +42,9 @@ export async function createEnquiryImpl(config: Cfg, context: WorkflowContext) {
   const category = CATEGORIES.includes(str(p.category)) ? str(p.category) : "OTHER";
   const urgency = URGENCIES.includes(str(p.urgency)) ? str(p.urgency) : "ROUTINE";
   const isEmergency = urgency === "EMERGENCY";
-  if (isTestRun(context)) return { requestId: "test-request", clientId, linked: !!clientId, isEmergency, simulated: true };
+  // Whether the automation may write back to this sender (see integrations/allowlist.ts).
+  const canEmail = isAllowedRecipient(sender.email);
+  if (isTestRun(context)) return { requestId: "test-request", clientId, linked: !!clientId, isEmergency, canEmail, simulated: true };
   const request = await createRequest(
     {
       source: "EMAIL",
@@ -57,7 +60,7 @@ export async function createEnquiryImpl(config: Cfg, context: WorkflowContext) {
     },
     { type: "WORKFLOW", label: "Enquiry to reply" },
   );
-  return { requestId: request.id, clientId, linked: !!clientId, isEmergency, simulated: false };
+  return { requestId: request.id, clientId, linked: !!clientId, isEmergency, canEmail, simulated: false };
 }
 
 export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
@@ -76,13 +79,14 @@ export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
   const first = quoteEmail(mail);
   const reminder = quoteReminder(mail);
   const email = quote.client.email ?? "";
+  const allowed = email !== "" && isAllowedRecipient(email);
   return {
     number: quote.number,
     title: quote.title,
     clientId: quote.clientId,
     clientName: quote.client.name,
-    clientEmail: email,
-    hasEmail: email !== "",
+    clientEmail: allowed ? email : "",
+    hasEmail: allowed,
     status: quote.effectiveStatus,
     isOpen: quote.effectiveStatus === "SENT",
     totalText: formatMoney(quote.totalCents),
@@ -105,12 +109,13 @@ export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
   const review = reviewRequest(invoice.client.name, invoice.job.title, reviewUrl);
   const reviewReminder = reviewRequest(invoice.client.name, invoice.job.title, reviewUrl, true);
   const email = invoice.client.email ?? "";
+  const allowed = email !== "" && isAllowedRecipient(email);
   return {
     number: invoice.number,
     clientId: invoice.clientId,
     clientName: invoice.client.name,
-    clientEmail: email,
-    hasEmail: email !== "",
+    clientEmail: allowed ? email : "",
+    hasEmail: allowed,
     status: invoice.effectiveStatus,
     isPaid: invoice.status === "PAID",
     isOpen: (invoice.status === "SENT" || invoice.status === "PARTIALLY_PAID") && invoice.balanceCents > 0,
@@ -127,7 +132,7 @@ export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
     reviewBody: review.body,
     reviewReminderSubject: reviewReminder.subject,
     reviewReminderBody: reviewReminder.body,
-    replyQuery: email ? `from:${email} newer_than:7d` : "",
+    replyQuery: allowed ? `from:${email} newer_than:7d` : "",
   };
 }
 

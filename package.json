@@ -1,17 +1,17 @@
 {
-  "name": "iron-spark",
+  "name": "ironbark-electrical",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Iron Spark - the marketing demo business app: Ironbark Electrical, a small trade contractor. Console shell over @kabosh-digital/m-street-kit plus its own business domain.",
+  "description": "Ironbark Electrical - the marketing demo business app: Ironbark Electrical, a small trade contractor. Console shell over @kabosh-digital/m-street-kit plus its own business domain.",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p ${PORT:-3200}",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${PORT:-3200}",
     "worker": "tsx --env-file=.env src/worker.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

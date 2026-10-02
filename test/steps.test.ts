@@ -2,7 +2,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { runStep, TEST_MODE_CONTEXT_KEY } from "@kabosh-digital/workflow-temporal/testing";
 import { appDb } from "../src/db/app";
-import { registerIronSpark } from "../src/steps/register";
+import { registerIronbark } from "../src/steps/register";
 import { addSite, createClient } from "../src/domain/clients";
 import { getRequest } from "../src/domain/requests";
 import { createQuote, markQuoteSent, replaceQuoteLines, decideQuote } from "../src/domain/quotes";
@@ -19,7 +19,13 @@ const ref = (path: string) => ({ $ref: path });
 const run = (key: string, params: Record<string, unknown>, context: Record<string, unknown> = {}) => runStep(key, { params }, context) as Promise<Record<string, any>>;
 const testMode = { [TEST_MODE_CONTEXT_KEY]: true };
 
-beforeAll(() => registerIronSpark());
+beforeAll(() => {
+  registerIronbark();
+  process.env.EMAIL_ALLOWLIST = "*";
+});
+afterAll(() => {
+  delete process.env.EMAIL_ALLOWLIST;
+});
 beforeEach(truncateAll);
 afterEach(() => vi.unstubAllGlobals());
 afterAll(async () => {
@@ -190,6 +196,34 @@ describe("createPaymentLink", () => {
     expect(out).toMatchObject({ created: true, provider: "test" });
     expect(calls).toHaveLength(0);
     expect((await getInvoice(invoiceId))?.payUrl).toBeNull();
+  });
+});
+
+describe("the recipient allowlist in the steps", () => {
+  afterEach(() => {
+    process.env.EMAIL_ALLOWLIST = "*";
+  });
+  it("a client whose address is not allowed reads as having no email, so the workflow hands off to a person", async () => {
+    const { quoteId } = await sentQuote();
+    process.env.EMAIL_ALLOWLIST = "someone-else@example.org";
+    expect(await run("getQuote", { quoteId })).toMatchObject({ hasEmail: false, clientEmail: "" });
+    process.env.EMAIL_ALLOWLIST = "@example.com";
+    expect(await run("getQuote", { quoteId })).toMatchObject({ hasEmail: true, clientEmail: "pat@example.com" });
+    delete process.env.EMAIL_ALLOWLIST; // deny by default
+    expect((await run("getQuote", { quoteId })).hasEmail).toBe(false);
+  });
+  it("same for invoices, including the reply-search query", async () => {
+    const { invoiceId } = await issuedInvoice();
+    process.env.EMAIL_ALLOWLIST = "nobody@example.org";
+    expect(await run("getInvoice", { invoiceId })).toMatchObject({ hasEmail: false, clientEmail: "", replyQuery: "" });
+  });
+  it("an enquiry from a sender who is not allowed is still logged, but the workflow is told not to write back", async () => {
+    const params = { from: ref("trigger.from"), summary: "Lights", category: "FAULT_REPAIR", urgency: "ROUTINE" };
+    process.env.EMAIL_ALLOWLIST = "friend@example.org";
+    const stranger = await run("createEnquiry", params, { trigger: { from: "Spammer <spam@evil.example>" } });
+    expect(stranger.canEmail).toBe(false);
+    expect(await getRequest(stranger.requestId)).toBeTruthy();
+    expect((await run("createEnquiry", params, { trigger: { from: "Friend <FRIEND@example.org>" } })).canEmail).toBe(true);
   });
 });
 

@@ -13,13 +13,13 @@ describe.each(ironSparkWorkflows.map((g) => [g.name, g] as const))("workflow: %s
     expect(validateGraph(graph)).toEqual([]);
   });
 
-  it("only uses steps that exist (built in, or one of Iron Spark's)", () => {
+  it("only uses steps that exist (built in, or one of Ironbark Electrical's)", () => {
     for (const n of graph.nodes.filter((n) => n.type === "ACTION")) {
       expect(BUILT_IN.has(n.stepKey) || OURS.has(n.stepKey), `${n.id} uses ${n.stepKey}`).toBe(true);
     }
   });
 
-  it("every Iron Spark step node has a config its own schema accepts", () => {
+  it("every Ironbark Electrical step node has a config its own schema accepts", () => {
     for (const n of graph.nodes.filter((n) => n.type === "ACTION" && OURS.has(n.stepKey))) {
       const parsed = OURS.get(n.stepKey)!.configSchema.safeParse(n.config);
       expect(parsed.success, `${n.id}: ${parsed.success ? "" : JSON.stringify(parsed.error.issues)}`).toBe(true);
@@ -92,6 +92,20 @@ describe("safety rules", () => {
     expect(into).toHaveLength(1);
     expect(into[0]!.fromNodeId).toBe("decision_approved");
     expect(into[0]!.condition).toMatchObject({ field: "approve_reply.approved", op: "eq", value: true });
+  });
+  it("the enquiry workflow only writes back to senders on the allowlist", () => {
+    const to = enquiryToReply.edges.filter((e) => e.toNodeId === "acknowledge");
+    expect(to).toHaveLength(1);
+    expect(to[0]).toMatchObject({ fromNodeId: "decision_can_email", condition: { field: "log_enquiry.canEmail", op: "eq", value: true } });
+    expect(enquiryToReply.edges.find((e) => e.fromNodeId === "decision_can_email" && !e.condition)!.toNodeId).toBe("log_not_emailed");
+  });
+  it("the inbox trigger is narrowed to the plus-alias, never the whole mailbox", () => {
+    const wired = wireConnectors(enquiryToReply, { emailConnectorId: "conn_gmail", gmailAccount: "david8959@gmail.com" });
+    const trigger = wired.nodes.find((n) => n.type === "TRIGGER")!;
+    expect(trigger.config.query).toBe("in:inbox -from:me to:david8959+ironspark@gmail.com");
+    expect(trigger.config.connectorId).toBe("conn_gmail");
+    // without the account the query is left as shipped (still wired to the connector)
+    expect(wireConnectors(enquiryToReply, { emailConnectorId: "c" }).nodes.find((n) => n.type === "TRIGGER")!.config.query).toBe(enquiryToReply.nodes.find((n) => n.type === "TRIGGER")!.config.query);
   });
   it("an emergency enquiry alerts the owner before the reply is approved", () => {
     const toEmergency = enquiryToReply.edges.find((e) => e.toNodeId === "emergency_task")!;

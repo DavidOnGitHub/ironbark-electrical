@@ -8,7 +8,7 @@ import { prisma, UserRole } from "@kabosh-digital/workflow-schema";
 import { appDb } from "../src/db/app";
 import { normalizeEmail, normalizePhone } from "../src/domain/clients/normalize";
 
-export const DEMO_PASSWORD = "IronSpark-demo-1";
+export const DEMO_PASSWORD = "Ironbark-demo-1";
 
 export const DEMO_USERS = [
   { email: "owner@ironbark.test", name: "Sam Walker", roles: [UserRole.ADMIN] },

@@ -1,5 +1,5 @@
-// Iron Spark business data (Ironbark Electrical). Lives in its own Postgres
-// schema ("iron-spark") next to the platform's tables, with its own client and
+// Ironbark Electrical business data (Ironbark Electrical). Lives in its own Postgres
+// schema ("ironbark-electrical") next to the platform's tables, with its own client and
 // migration history. Business tables reference platform users by plain id
 // strings (Prisma cannot relate across two schemas) - validated in code.
 //
@@ -10,7 +10,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/iron-spark-client"
+  output   = "../node_modules/ironbark-electrical-client"
 }
 
 datasource db {

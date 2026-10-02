@@ -1,6 +1,6 @@
 import { Badge } from "@kabosh-digital/m-street-kit/ui/badge";
 import { cn } from "@kabosh-digital/m-street-kit/format";
-import type { RequestStatus, Urgency } from "iron-spark-client";
+import type { RequestStatus, Urgency } from "ironbark-electrical-client";
 import { REQUEST_STATUS_LABEL } from "../domain/requests/status";
 
 const STATUS_STYLE: Record<RequestStatus, string> = {

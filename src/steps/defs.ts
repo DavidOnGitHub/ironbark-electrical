@@ -1,5 +1,5 @@
 /**
- * Iron Spark's workflow steps, as the visual builder sees them: label, description,
+ * Ironbark Electrical's workflow steps, as the visual builder sees them: label, description,
  * config and output shapes - nothing that touches the database. This module is
  * imported by the browser bundle (via StepCatalogSetup) and by the server; the
  * implementations are in impl.ts and run only in the worker.
@@ -33,14 +33,14 @@ export const createEnquiryDef: StepCatalogEntry = {
     contactPhone: z.unknown().optional(),
     messageId: z.unknown().optional(),
   }),
-  outputSchema: z.object({ requestId: z.string(), clientId: z.string().nullable(), linked: z.boolean(), isEmergency: z.boolean(), simulated: z.boolean() }),
+  outputSchema: z.object({ requestId: z.string(), clientId: z.string().nullable(), linked: z.boolean(), isEmergency: z.boolean(), canEmail: z.boolean(), simulated: z.boolean() }),
 };
 
 export const getQuoteDef: StepCatalogEntry = {
   key: "getQuote",
   label: "Get quote details",
   kind: "ACTION",
-  description: "Reads a quote: who it is for, its total, whether the customer has answered yet, and ready-to-send email wording.",
+  description: "Reads a quote: who it is for, its total, whether the customer has answered yet, and ready-to-send email wording. \"Has email\" is only true when the address is allowed to receive automatic mail.",
   configSchema: Params({ quoteId: z.unknown() }),
   outputSchema: z.object({
     number: z.string(),
@@ -114,7 +114,7 @@ export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnqui
 /** What the AI assistant is told about these steps, in the style of its built-in reference. */
 export const ironSparkAssistantSteps = [
   { key: "findClient", reference: 'findClient: {"params":{"email":"<address>","phone":"<number>"}} - returns {found,clientId,name}.' },
-  { key: "createEnquiry", reference: 'createEnquiry: {"params":{"from":"<sender>","summary":"<one line>","description":"...","category":"FAULT_REPAIR|NEW_INSTALL|QUOTE_REQUEST|OTHER","urgency":"ROUTINE|URGENT|EMERGENCY","contactName":"...","contactPhone":"...","messageId":"<gmail id>"}} - logs the enquiry and links the client; returns {requestId,clientId,linked,isEmergency}.' },
+  { key: "createEnquiry", reference: 'createEnquiry: {"params":{"from":"<sender>","summary":"<one line>","description":"...","category":"FAULT_REPAIR|NEW_INSTALL|QUOTE_REQUEST|OTHER","urgency":"ROUTINE|URGENT|EMERGENCY","contactName":"...","contactPhone":"...","messageId":"<gmail id>"}} - logs the enquiry and links the client; returns {requestId,clientId,linked,isEmergency,canEmail}; canEmail is false when the sender is not allowed to receive automatic mail.' },
   { key: "getQuote", reference: 'getQuote: {"params":{"quoteId":"<id>"}} - returns {clientName,clientEmail,hasEmail,isOpen,totalText,emailSubject,emailBody,reminderSubject,reminderBody}; isOpen is false once the customer has answered.' },
   { key: "getInvoice", reference: 'getInvoice: {"params":{"invoiceId":"<id>"}} - returns {clientName,clientEmail,hasEmail,isPaid,isOpen,balanceText,daysOverdue,payUrl,invoiceSubject,invoiceBody,reminderSubject,reminderBody,noticeSubject,noticeBody,reviewSubject,reviewBody,reviewReminderSubject,reviewReminderBody,replyQuery}.' },
   { key: "createPaymentLink", reference: 'createPaymentLink: {"params":{"invoiceId":"<id>"}} - returns {created,payUrl,provider}.' },

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma, UserRole } from "@kabosh-digital/workflow-schema";
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
-import type { RequestStatus } from "iron-spark-client";
+import type { RequestStatus } from "ironbark-electrical-client";
 import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
 import {

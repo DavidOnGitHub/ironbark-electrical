@@ -3,6 +3,7 @@ import { prisma } from "@kabosh-digital/workflow-schema";
 import { DEMO_PASSWORD, DEMO_USERS, seedBusiness, seedUsers } from "./seedData";
 import { seedPriceList, seedQuotesAndJobs } from "./seedPhase2";
 import { seedInvoicing } from "./seedInvoicing";
+import { seedDemoInbox } from "./seedDemoInbox";
 
 const existing = await appDb.client.count();
 if (existing > 0) {
@@ -13,7 +14,8 @@ if (existing > 0) {
 const items = await seedPriceList();
 const phase2 = await seedQuotesAndJobs(ids, items);
 const phase3 = await seedInvoicing(ids);
-  console.log("Seeded:", counts, phase2, phase3);
+const inbox = await seedDemoInbox(process.env.DEMO_INBOX);
+  console.log("Seeded:", counts, phase2, phase3, "| demo inbox clients:", inbox.updated);
   console.log(`Demo accounts (password ${DEMO_PASSWORD}): ${DEMO_USERS.map((u) => u.email).join(", ")}`);
 }
 await appDb.$disconnect();

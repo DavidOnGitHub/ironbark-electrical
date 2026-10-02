@@ -1,0 +1,243 @@
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index 7f630ab42fc766a9500ab4aa8ba12f9e20a282e5..8510e0b256e30b222559f0136fcf6d26a06277a8 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -54,7 +54,7 @@ function BrandRow({ branding }: { branding: BrandingConfig }) {
+       <RelayLogo size={28} className="shrink-0 text-teal-accent" />
+       <div className="min-w-0">
+         <p className="truncate text-[0.9375rem] font-bold tracking-tight leading-tight">{branding.productName}</p>
+-        <p className="text-[0.6875rem] leading-tight text-muted-foreground/70">M Street System</p>
++        <p className="text-[0.6875rem] leading-tight text-muted-foreground/70">Workflow automation</p>
+       </div>
+     </div>
+   );
+diff --git a/src/lib/actions/mfa.ts b/src/lib/actions/mfa.ts
+index cad7b59987d7c7a3b136557783cf871bf5e966f0..57403bf4f38207861a00e7bd9c00ba7456cc0c6f 100644
+--- a/src/lib/actions/mfa.ts
++++ b/src/lib/actions/mfa.ts
+@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
+ import QRCode from "qrcode";
+ import { decryptSecrets, encryptSecrets, prisma, UserRole } from "@kabosh-digital/workflow-schema";
+ import { auditGlobal, requireUser, unstable_update } from "../auth";
++import { BRANDING, displayName } from "../branding";
+ import { newMfaProof, newTotpSecret, totpUri, verifyTotpCode } from "../mfa";
+ import { ACCOUNT_FAILURE_WINDOW_MS, isAccountLocked } from "../rateLimit";
+ 
+@@ -96,7 +97,7 @@ export async function beginMfaSetupAction(): Promise<{ error?: string; secret?:
+       where: { id: user.id },
+       data: { mfaPendingSecret: encryptSecrets({ totp: secret }) },
+     });
+-    const qrDataUrl = await QRCode.toDataURL(totpUri(secret, user.email), { margin: 1, width: 220 });
++    const qrDataUrl = await QRCode.toDataURL(totpUri(secret, user.email, displayName(BRANDING)), { margin: 1, width: 220 });
+     return { secret, qrDataUrl };
+   } catch (err) {
+     return { error: err instanceof Error ? err.message : String(err) };
+diff --git a/src/lib/branding.ts b/src/lib/branding.ts
+index 058a16ddee471233366c496bbaef8a4045299764..7391c0ea938fd30cc52d8bd3106dcff3dd5094f2 100644
+--- a/src/lib/branding.ts
++++ b/src/lib/branding.ts
+@@ -15,6 +15,9 @@
+  *   broke the default dark-mode cascade. Only white-labeled deployments may
+  *   touch this token at all.
+  */
++/** The platform every business app is built on. Not configurable: businesses are named, the platform is not. */
++export const PRODUCT_NAME = "M-Street System";
++
+ export interface BrandingConfig {
+   productName: string;
+   businessName: string | null;
+@@ -22,6 +25,11 @@ export interface BrandingConfig {
+   accentColor: string | null;
+ }
+ 
++/** What to call this deployment to a person: its business, or the platform when it has none set. */
++export function displayName(branding: Pick<BrandingConfig, "businessName" | "productName">): string {
++  return branding.businessName ?? branding.productName;
++}
++
+ const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+ 
+ function readEnv(name: string): string | null {
+@@ -32,7 +40,8 @@ function readEnv(name: string): string | null {
+ export function getBranding(): BrandingConfig {
+   const rawAccent = readEnv("BRANDING_ACCENT_COLOR");
+   return {
+-    productName: "Joy Step",
++    // The platform is always M-Street System; a deployment names its business (BRANDING_BUSINESS_NAME).
++    productName: PRODUCT_NAME,
+     businessName: readEnv("BRANDING_BUSINESS_NAME"),
+     logoUrl: readEnv("BRANDING_LOGO_URL"),
+     // Regex-validated so an inline <style> built from this value can't be used
+diff --git a/src/lib/mfa.ts b/src/lib/mfa.ts
+index 1de4db7e370c81554df592b309a90806055e9050..9ac1901daa81b2c26ddef3e2297ba800b1364caf 100644
+--- a/src/lib/mfa.ts
++++ b/src/lib/mfa.ts
+@@ -24,11 +24,11 @@ const DRIFT_STEPS = 1;
+ const PROOF_TTL_MS = 60 * 1000;
+ 
+ /** Label shown in the authenticator app (issuer + account). */
+-export const MFA_ISSUER = "Joy Step";
++export const MFA_ISSUER = "M-Street System";
+ 
+-function totp(secretBase32: string, account = ""): TOTP {
++function totp(secretBase32: string, account = "", issuer: string = MFA_ISSUER): TOTP {
+   return new TOTP({
+-    issuer: MFA_ISSUER,
++    issuer,
+     label: account,
+     algorithm: "SHA1",
+     digits: 6,
+@@ -43,8 +43,8 @@ export function newTotpSecret(): string {
+ }
+ 
+ /** The otpauth:// URI an authenticator app scans (as a QR code). */
+-export function totpUri(secretBase32: string, account: string): string {
+-  return totp(secretBase32, account).toString();
++export function totpUri(secretBase32: string, account: string, issuer: string = MFA_ISSUER): string {
++  return totp(secretBase32, account, issuer).toString();
+ }
+ 
+ /** The current code for a secret - for tests. */
+diff --git a/src/routes/auth/mfa/page.tsx b/src/routes/auth/mfa/page.tsx
+index 70d77d546ba7e33a9b5f6f147d1870aa4fb6d153..53224a6aa7da05325b2f4b6c288a19803bf61e79 100644
+--- a/src/routes/auth/mfa/page.tsx
++++ b/src/routes/auth/mfa/page.tsx
+@@ -1,3 +1,4 @@
++import { BRANDING, displayName } from "../../../lib/branding";
+ import Link from "next/link";
+ import { redirect } from "next/navigation";
+ import { auth } from "../../../lib/auth";
+@@ -30,7 +31,7 @@ export default async function MfaPage(props: PageProps<"/auth/mfa">) {
+     state === "setup"
+       ? "Administrator access needs a second step. Set it up once; after that you'll enter a code from your phone when you sign in."
+       : state === "required"
+-        ? "Open your authenticator app and enter the current code for Joy Step. Admin access stays on for 12 hours."
++        ? `Open your authenticator app and enter the current code for ${displayName(BRANDING)}. Admin access stays on for 12 hours.`
+         : state === "verified"
+           ? "Your code is verified - administrator access is on for this session."
+           : "Authenticator codes are only needed for administrators.";
+diff --git a/src/routes/auth/signin/page.tsx b/src/routes/auth/signin/page.tsx
+index 54f3ab55a5d61415be70ee759b7d1536d1e18ba3..62dbcf3d784ff06ea55e86ca22fd6c3242b44a9e 100644
+--- a/src/routes/auth/signin/page.tsx
++++ b/src/routes/auth/signin/page.tsx
+@@ -1,6 +1,7 @@
+ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../ui/card";
+ import Link from "next/link";
+ import { CredentialsForm } from "./CredentialsForm";
++import { BRANDING, displayName } from "../../../lib/branding";
+ import { GoogleSignInButton } from "./GoogleSignInButton";
+ 
+ /**
+@@ -18,7 +19,7 @@ export default function SignInPage() {
+       <Card className="w-full max-w-sm">
+         <CardHeader>
+           <CardTitle className="text-xl">Sign in</CardTitle>
+-          <CardDescription>Joy Step - sign in to continue</CardDescription>
++          <CardDescription>{displayName(BRANDING)} - sign in to continue</CardDescription>
+         </CardHeader>
+         <CardContent className="flex flex-col gap-4">
+           <GoogleSignInButton />
+diff --git a/src/routes/google-limited-use/page.tsx b/src/routes/google-limited-use/page.tsx
+index be0287a13dcd6b81a2346877a7f74fbde2c18a4a..86b48f9f957911ff7d76b2169813d26cdfc746ae 100644
+--- a/src/routes/google-limited-use/page.tsx
++++ b/src/routes/google-limited-use/page.tsx
+@@ -1,6 +1,6 @@
+ import Link from "next/link";
+ import type { Metadata } from "next";
+-import { BRANDING } from "../../lib/branding";
++import { BRANDING, displayName } from "../../lib/branding";
+ 
+ /**
+  * Public Google API Services Limited Use statement, kept on its own URL so it
+@@ -10,7 +10,7 @@ import { BRANDING } from "../../lib/branding";
+  */
+ 
+ export const metadata: Metadata = {
+-  title: `Google API Services Limited Use Statement | ${BRANDING.productName}`,
++  title: `Google API Services Limited Use Statement | ${displayName(BRANDING)}`,
+   description:
+     "Our affirmative statement of compliance with the Google API Services User Data Policy, including the Limited Use requirements.",
+ };
+@@ -34,7 +34,7 @@ export default function GoogleLimitedUsePage() {
+   return (
+     <div className="min-h-dvh bg-background px-4 py-12">
+       <main className="mx-auto max-w-3xl">
+-        <p className="text-xs font-medium uppercase tracking-wide text-teal-accent">{BRANDING.productName}</p>
++        <p className="text-xs font-medium uppercase tracking-wide text-teal-accent">{displayName(BRANDING)}</p>
+         <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">
+           Google API Services — Limited Use Statement
+         </h1>
+@@ -48,7 +48,7 @@ export default function GoogleLimitedUsePage() {
+         </div>
+ 
+         <P>
+-          {BRANDING.productName}&apos;s use and transfer to any other app of information received from Google
++          {displayName(BRANDING)}&apos;s use and transfer to any other app of information received from Google
+           APIs will adhere to the{" "}
+           <a
+             className="text-teal-accent underline"
+@@ -109,7 +109,7 @@ export default function GoogleLimitedUsePage() {
+           >
+             third-party connections
+           </a>{" "}
+-          page, or by disconnecting the account in the {BRANDING.productName} console.
++          page, or by disconnecting the account in the {displayName(BRANDING)} console.
+         </P>
+ 
+         <H2>Contact</H2>
+diff --git a/src/routes/privacy/page.tsx b/src/routes/privacy/page.tsx
+index e2332df9a1ffbdc3e434fe47255010dad2655e5e..3bed6ce4a87a0b4eb6a8d8ecb8aa35e08843efac 100644
+--- a/src/routes/privacy/page.tsx
++++ b/src/routes/privacy/page.tsx
+@@ -1,6 +1,6 @@
+ import Link from "next/link";
+ import type { Metadata } from "next";
+-import { BRANDING } from "../../lib/branding";
++import { BRANDING, displayName } from "../../lib/branding";
+ 
+ /**
+  * Public privacy policy. Required by Google's OAuth verification / API
+@@ -19,8 +19,8 @@ import { BRANDING } from "../../lib/branding";
+  */
+ 
+ export const metadata: Metadata = {
+-  title: `Privacy Policy | ${BRANDING.productName}`,
+-  description: `How ${BRANDING.productName} accesses, uses, stores, and shares data, including Google Workspace user data and third-party AI/ML processing.`,
++  title: `Privacy Policy | ${displayName(BRANDING)}`,
++  description: `How ${displayName(BRANDING)} accesses, uses, stores, and shares data, including Google Workspace user data and third-party AI/ML processing.`,
+ };
+ 
+ const LAST_UPDATED = "September 14, 2026";
+@@ -43,12 +43,12 @@ export default function PrivacyPage() {
+   return (
+     <div className="min-h-dvh bg-background px-4 py-12">
+       <main className="mx-auto max-w-3xl">
+-        <p className="text-xs font-medium uppercase tracking-wide text-teal-accent">{BRANDING.productName}</p>
++        <p className="text-xs font-medium uppercase tracking-wide text-teal-accent">{displayName(BRANDING)}</p>
+         <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">Privacy Policy</h1>
+         <P>Last updated: {LAST_UPDATED}</P>
+ 
+         <P>
+-          {BRANDING.productName} is a workflow-automation console that runs user-defined workflows against
++          {displayName(BRANDING)} is a workflow-automation console that runs user-defined workflows against
+           services the user explicitly connects, including Google Workspace services (Gmail and Google Drive).
+           This policy explains what data we access, why, how we store and protect it, when it is shared, and the
+           choices available to you. By connecting an account or using the service you agree to this policy.
+@@ -117,7 +117,7 @@ export default function PrivacyPage() {
+           Policy, including the Limited Use requirements.
+         </P>
+         <P>
+-          {BRANDING.productName}&apos;s use of information received from Google APIs adheres to the{" "}
++          {displayName(BRANDING)}&apos;s use of information received from Google APIs adheres to the{" "}
+           <a
+             className="text-teal-accent underline"
+             href="https://developers.google.com/terms/api-services-user-data-policy"
+@@ -232,7 +232,7 @@ export default function PrivacyPage() {
+           <a className="text-teal-accent underline" href={`mailto:${CONTACT_EMAIL}`}>
+             {CONTACT_EMAIL}
+           </a>
+-          . {BRANDING.productName} is available at{" "}
++          . {displayName(BRANDING)} is available at{" "}
+           <a className="text-teal-accent underline" href={SITE} target="_blank" rel="noreferrer">
+             {SITE}
+           </a>
