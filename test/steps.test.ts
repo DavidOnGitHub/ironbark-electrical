@@ -166,6 +166,7 @@ describe("createPaymentLink", () => {
   });
 
   it("does nothing, and says so, when no payment provider is set up", async () => {
+    delete process.env.STRIPE_SECRET_KEY; // a developer's own test key must not leak into the test
     const { invoiceId } = await issuedInvoice();
     expect(await run("createPaymentLink", { invoiceId })).toEqual({ created: false, payUrl: "", provider: "none" });
   });

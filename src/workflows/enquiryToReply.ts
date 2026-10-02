@@ -66,8 +66,8 @@ export const enquiryToReply = defineWorkflow(
         },
       },
     },
-    { id: "decision_can_email", type: "DECISION", label: "May we email this sender?" },
-    { id: "log_not_emailed", type: "ACTION", stepKey: "logAudit", label: "Logged - reply by hand", config: { event: "sender_not_on_allowlist", params: { requestId: ref("log_enquiry.requestId") }, terminal: true } },
+    { id: "decision_can_email", type: "DECISION", label: "Send the automatic acknowledgement to this sender?" },
+    { id: "log_not_emailed", type: "ACTION", stepKey: "logAudit", label: "No automatic email for this sender", config: { event: "sender_not_on_allowlist", params: { requestId: ref("log_enquiry.requestId") } } },
     {
       id: "acknowledge",
       type: "ACTION",
@@ -109,6 +109,7 @@ export const enquiryToReply = defineWorkflow(
     { from: "log_enquiry", to: "decision_can_email" },
     { from: "decision_can_email", to: "acknowledge", when: { field: "log_enquiry.canEmail", op: "eq", value: true }, label: "Allowed" },
     { from: "decision_can_email", to: "log_not_emailed", label: "Not on the list" },
+    { from: "log_not_emailed", to: "decision_emergency" },
     { from: "acknowledge", to: "decision_emergency" },
     { from: "decision_emergency", to: "emergency_task", when: { field: "log_enquiry.isEmergency", op: "eq", value: true }, label: "Safety risk" },
     { from: "decision_emergency", to: "approve_reply", label: "Routine or urgent" },

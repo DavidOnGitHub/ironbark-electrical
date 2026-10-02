@@ -89,7 +89,8 @@ hosted demo).
   (email with a card pay link, then day 1 / 7 / 14 / 30 overdue), *Review request*
   (a day after payment, one reminder, unhappy replies to the owner). Stripe test-mode
   pay links and a signed webhook that records the payment. Every automated email except the
-  acknowledgement waits for a person or is a fixed, reviewed wording; everything an
+  acknowledgement waits for a person or is a fixed, reviewed wording; the acknowledgement only goes to
+  allowlisted senders, while a reply a person approves may go to anyone; everything an
   automation does lands on the client's history.
 
 ## Automations

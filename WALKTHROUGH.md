@@ -32,7 +32,7 @@ show that off.
 | Min | Role | What you do | What you say |
 |---|---|---|---|
 | 0:00 | Office | Open the **Dashboard**. | "Sam runs a small electrical business. This is what needs attention at 7am: new enquiries, open quotes, money owed, and who is on the tools today." Point at the yellow-edged tile and the red overdue amount. |
-| 1:00 | - | Send an email to the demo inbox alias (`you+ironbark@gmail.com`), for example "Hi, can you quote on six downlights in our lounge room?" from another address on the allowlist. | "A customer emails the business, like they always do." |
+| 1:00 | - | Send an email to the demo inbox alias (`you+ironbark@gmail.com`), for example "Hi, can you quote on six downlights in our lounge room?" from any other address. A sender not on the allowlist skips the automatic acknowledgement but still gets a person-approved reply; one on the allowlist also gets the acknowledgement at once. | "A customer emails the business, like they always do." |
 | 1:30 | Office | Open **Runs** (Automation section). Open the live *Enquiry to reply* run. | "An AI reads it, decides it is a real enquiry, logs it, and has the acknowledgement ready - but it does not send anything it should not. A person approves the reply." |
 | 2:30 | Office | Go to **Tasks** (Automation section), open *Office approves the reply*, **Approve**. Check the demo inbox for the email. | "One click. The customer has an answer in minutes, and it is on their history. Emergencies would have phoned the owner first." |
 | 3:30 | Office | **Requests**: open *Quote to rewire 1960s house* > **Create a client from this enquiry** > **Create a quote**. Add two lines from the price list (for example Electrician + Switchboard upgrade). **Save lines**. | "Prices come from the price list. GST and the deposit rule over $1,500 are automatic. No spreadsheet." |
@@ -62,7 +62,7 @@ rehearsed here**, so try it before relying on it.
 | Temporal workflows with real waits (production mode) | Test mode caps waits at 5 seconds |
 | Users, roles, data, reports | Fictional business and data |
 
-Real email never goes to a stranger: with no allowlist nothing is sent and the step hands the job to a person.
+Fully automatic email (acknowledgements, quote and invoice chases, review requests) only goes to addresses on `EMAIL_ALLOWLIST`; with no allowlist none is sent and the step hands the job to a person. A reply a person has read and approved can go to any sender.
 
 ## If something goes wrong
 

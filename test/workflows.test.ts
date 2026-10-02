@@ -93,11 +93,14 @@ describe("safety rules", () => {
     expect(into[0]!.fromNodeId).toBe("decision_approved");
     expect(into[0]!.condition).toMatchObject({ field: "approve_reply.approved", op: "eq", value: true });
   });
-  it("the enquiry workflow only writes back to senders on the allowlist", () => {
+  it("the enquiry workflow only auto-acknowledges senders on the allowlist, but a person can still approve a reply to anyone", () => {
     const to = enquiryToReply.edges.filter((e) => e.toNodeId === "acknowledge");
     expect(to).toHaveLength(1);
     expect(to[0]).toMatchObject({ fromNodeId: "decision_can_email", condition: { field: "log_enquiry.canEmail", op: "eq", value: true } });
     expect(enquiryToReply.edges.find((e) => e.fromNodeId === "decision_can_email" && !e.condition)!.toNodeId).toBe("log_not_emailed");
+    // an off-list sender skips only the automatic acknowledgement: it still reaches the approval task
+    expect(enquiryToReply.edges.filter((e) => e.fromNodeId === "log_not_emailed").map((e) => e.toNodeId)).toEqual(["decision_emergency"]);
+    expect(enquiryToReply.edges.find((e) => e.fromNodeId === "decision_emergency" && !e.condition)!.toNodeId).toBe("approve_reply");
   });
   it("the inbox trigger is narrowed to the plus-alias, never the whole mailbox", () => {
     const wired = wireConnectors(enquiryToReply, { emailConnectorId: "conn_gmail", gmailAccount: "david8959@gmail.com" });
