@@ -37,7 +37,7 @@ describe("recipient allowlist (deny by default)", () => {
   it("parses the list tidily and builds the inbox alias", () => {
     expect(parseAllowlist(" A@x.com ,, @y.org ")).toEqual(["a@x.com", "@y.org"]);
     expect(canonicalEmail("Dav.id+x@Gmail.com")).toBe("david@gmail.com");
-    expect(inboxAlias("david8959@gmail.com")).toBe("david8959+ironspark@gmail.com");
+    expect(inboxAlias("david8959@gmail.com")).toBe("david8959+ironbark@gmail.com");
     expect(inboxAlias("david8959+old@gmail.com", "demo")).toBe("david8959+demo@gmail.com");
   });
 });

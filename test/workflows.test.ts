@@ -102,7 +102,7 @@ describe("safety rules", () => {
   it("the inbox trigger is narrowed to the plus-alias, never the whole mailbox", () => {
     const wired = wireConnectors(enquiryToReply, { emailConnectorId: "conn_gmail", gmailAccount: "david8959@gmail.com" });
     const trigger = wired.nodes.find((n) => n.type === "TRIGGER")!;
-    expect(trigger.config.query).toBe("in:inbox -from:me to:david8959+ironspark@gmail.com");
+    expect(trigger.config.query).toBe("in:inbox -from:me to:david8959+ironbark@gmail.com");
     expect(trigger.config.connectorId).toBe("conn_gmail");
     // without the account the query is left as shipped (still wired to the connector)
     expect(wireConnectors(enquiryToReply, { emailConnectorId: "c" }).nodes.find((n) => n.type === "TRIGGER")!.config.query).toBe(enquiryToReply.nodes.find((n) => n.type === "TRIGGER")!.config.query);

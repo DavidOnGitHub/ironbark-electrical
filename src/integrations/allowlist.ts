@@ -41,8 +41,8 @@ export function isAllowedRecipient(address: string, env: Record<string, string |
   return list.some((entry) => (entry.startsWith("@") ? entry === domain : canonicalEmail(entry) === email));
 }
 
-/** The Gmail plus-alias the inbox trigger listens on, e.g. "me+ironspark@gmail.com". */
-export function inboxAlias(account: string, tag = "ironspark"): string {
+/** The Gmail plus-alias the inbox trigger listens on, e.g. "me+ironbark@gmail.com". */
+export function inboxAlias(account: string, tag = "ironbark"): string {
   const a = account.trim().toLowerCase();
   const at = a.lastIndexOf("@");
   return `${a.slice(0, at).split("+")[0]}+${tag}${a.slice(at)}`;

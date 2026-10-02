@@ -51,7 +51,9 @@ pnpm dev                         # http://localhost:3200 (set PORT to use anothe
 pnpm worker                      # in another terminal (needed once workflows run)
 ```
 
-`pnpm reset` returns the business data to the seed state. `pnpm test` runs the
+`pnpm reset` returns the business data to the seed state; `pnpm demo:reset` also publishes the
+workflows, and `pnpm demo:check` says whether the demo is ready to show (see `WALKTHROUGH.md` for the
+10-minute script). `pnpm test` runs the
 suite (integration tests use the `ironbark-electrical-test` schema).
 
 ## Demo accounts

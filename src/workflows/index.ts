@@ -13,8 +13,8 @@ type Connectors = { emailConnectorId?: string; /** The connected Gmail account, 
 /** Points every Gmail node (the inbox trigger, sendEmail, emailRead) at the connected Gmail account. */
 export function wireConnectors(graph: WorkflowDefinitionGraph, { emailConnectorId, gmailAccount }: Connectors): WorkflowDefinitionGraph {
   if (!emailConnectorId) return graph;
-  // The inbox trigger only looks at mail sent to the demo's plus-alias (me+ironspark@gmail.com), never the rest of the mailbox.
-  const query = gmailAccount ? `in:inbox -from:me to:${inboxAlias(gmailAccount, process.env.DEMO_INBOX_TAG || "ironspark")}` : undefined;
+  // The inbox trigger only looks at mail sent to the demo's plus-alias (me+ironbark@gmail.com), never the rest of the mailbox.
+  const query = gmailAccount ? `in:inbox -from:me to:${inboxAlias(gmailAccount, process.env.DEMO_INBOX_TAG || "ironbark")}` : undefined;
   const usesEmail = (n: { type: string; stepKey: string }) => (n.type === "TRIGGER" && n.stepKey === "emailInbound") || (n.type === "ACTION" && (n.stepKey === "sendEmail" || n.stepKey === "emailRead"));
   return {
     ...graph,
