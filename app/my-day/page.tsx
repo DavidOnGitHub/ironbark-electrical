@@ -13,6 +13,8 @@ import { JobStatusChip } from "../../src/ui/chips";
 
 export const dynamic = "force-dynamic";
 
+const TAP_LINK = "flex h-12 items-center justify-center rounded-lg border bg-background text-base font-medium hover:bg-muted sm:h-9 sm:text-sm";
+
 const FIELD_ACTION_LABEL: Partial<Record<JobStatusValue, string>> = { IN_PROGRESS: "Start / resume", COMPLETED: "Mark complete", ON_HOLD: "Put on hold" };
 
 export default async function MyDayPage() {
@@ -40,7 +42,7 @@ export default async function MyDayPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="My day" subtitle={`Hi ${user.name?.split(" ")[0] ?? "there"} - your jobs for today and the next 7 days.`} />
+      <PageHeader title="My day" subtitle={`Hi ${user.name?.split(" ")[0] ?? "there"} - today and the next 7 days.`} />
       {days.length === 0 ? (
         <Card>
           <CardHeader><CardTitle className="text-base">No jobs scheduled</CardTitle></CardHeader>
@@ -64,30 +66,39 @@ export default async function MyDayPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4 text-sm">
                   <div className="grid gap-1.5">
-                    <p className="font-medium">{j.client.name}{j.client.phone ? <> - <a className="underline" href={`tel:${j.client.phone.replace(/\s/g, "")}`}>{j.client.phone}</a></> : null}</p>
-                    {address ? <p><a className="underline" href={`https://maps.google.com/?q=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer">{address}</a></p> : null}
+                    <p className="font-medium">{j.client.name}</p>
+                    {address ? <p>{address}</p> : null}
                     {j.site?.accessNotes ? <p><span className="text-xs text-muted-foreground">Access: </span>{j.site.accessNotes}</p> : null}
                     {j.site?.switchboardNotes ? <p><span className="text-xs text-muted-foreground">Switchboard: </span>{j.site.switchboardNotes}</p> : null}
                     {j.scope ? <p className="whitespace-pre-wrap text-muted-foreground">{j.scope}</p> : null}
                   </div>
+                  {j.client.phone || address ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {j.client.phone ? <a className={TAP_LINK} href={`tel:${j.client.phone.replace(/\s/g, "")}`} data-testid="call-link">Call</a> : <span />}
+                      {address ? <a className={TAP_LINK} href={`https://maps.google.com/?q=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer" data-testid="directions-link">Directions</a> : <span />}
+                    </div>
+                  ) : null}
                   {moves.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid gap-2 sm:flex sm:flex-wrap">
                       {moves.map((to) => (
-                        <ActionForm key={to} action={fieldChangeStatusAction} submitLabel={FIELD_ACTION_LABEL[to] ?? JOB_STATUS_LABEL[to]} variant={to === "COMPLETED" ? "default" : "outline"} className="gap-1">
+                        <ActionForm key={to} action={fieldChangeStatusAction} submitLabel={FIELD_ACTION_LABEL[to] ?? JOB_STATUS_LABEL[to]} variant={to === "COMPLETED" ? "default" : "outline"} className="gap-1" buttonClassName="h-12 w-full text-base sm:h-9 sm:w-auto sm:text-sm">
                           <input type="hidden" name="jobId" value={j.id} />
                           <input type="hidden" name="to" value={to} />
                         </ActionForm>
                       ))}
                     </div>
                   ) : null}
-                  <ActionForm action={fieldAddNoteAction} submitLabel="Add" resetOnSuccess variant="outline">
+                  <details className="rounded-md border p-3">
+                    <summary className="flex min-h-10 cursor-pointer items-center text-sm font-medium">Add a note or variation</summary>
+                    <ActionForm action={fieldAddNoteAction} submitLabel="Add" resetOnSuccess variant="outline" className="mt-3" buttonClassName="h-12 w-full text-base sm:h-9 sm:w-auto sm:text-sm">
                     <input type="hidden" name="jobId" value={j.id} />
                     <div className="grid gap-3 sm:grid-cols-3">
                       <SelectField label="Add a" name="kind" options={[{ value: "NOTE", label: "Note" }, { value: "VARIATION", label: "Variation (extra work)" }]} />
                       <Field label="Extra ex GST ($)" name="extra" hint="Variations only" className="sm:col-span-2" />
                     </div>
                     <TextAreaField label="Details" name="text" rows={2} placeholder="Found old wiring, extra circuit needed..." />
-                  </ActionForm>
+                    </ActionForm>
+                  </details>
                   {j.notes.length > 0 ? (
                     <ul className="flex flex-col gap-1.5 text-xs">
                       {j.notes.slice(0, 5).map((n) => (

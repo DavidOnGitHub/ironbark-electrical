@@ -17,6 +17,7 @@ export function ActionForm({
   className,
   variant = "default",
   resetOnSuccess = false,
+  buttonClassName,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   children: ReactNode;
@@ -26,6 +27,8 @@ export function ActionForm({
   className?: string;
   variant?: "default" | "outline" | "secondary";
   resetOnSuccess?: boolean;
+  /** Extra classes for the submit button (e.g. a bigger tap target on phones). */
+  buttonClassName?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     async (prev: ActionState, formData: FormData) => {
@@ -85,7 +88,7 @@ export function ActionForm({
       ) : null}
       {state.ok && successMessage ? <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p> : null}
       <div>
-        <Button type="submit" variant={variant} disabled={pending}>
+        <Button type="submit" variant={variant} disabled={pending} className={buttonClassName}>
           {pending ? pendingLabel : submitLabel}
         </Button>
       </div>
