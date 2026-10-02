@@ -1,37 +1,56 @@
-import { Badge } from "@kabosh-digital/m-street-kit/ui/badge";
 import { cn } from "@kabosh-digital/m-street-kit/format";
 import type { RequestStatus, Urgency } from "ironbark-electrical-client";
 import { REQUEST_STATUS_LABEL } from "../domain/requests/status";
 
-const STATUS_STYLE: Record<RequestStatus, string> = {
-  NEW: "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  CONTACTED: "border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
-  SITE_VISIT_BOOKED: "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  QUOTED: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  WON: "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-  LOST: "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
+type Tone = "ok" | "warn" | "bad" | "info" | "prog" | "neutral";
+
+/** Six meanings, each a dot plus words (colour is never the only signal). */
+const TONE: Record<Tone, string> = {
+  ok: "bg-status-ok-soft text-status-ok",
+  warn: "bg-status-warn-soft text-status-warn",
+  bad: "bg-status-bad-soft text-status-bad",
+  info: "bg-status-info-soft text-status-info",
+  prog: "bg-status-prog-soft text-status-prog",
+  neutral: "bg-status-neutral-soft text-status-neutral",
+};
+
+function Chip({ tone, className, children }: { tone: Tone; className?: string; children: React.ReactNode }) {
+  return (
+    <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-[4px] px-2.5 text-[0.78rem] font-semibold whitespace-nowrap before:size-[7px] before:shrink-0 before:rounded-full before:bg-current", TONE[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
+const STATUS_STYLE: Record<RequestStatus, Tone> = {
+  NEW: "info",
+  CONTACTED: "neutral",
+  SITE_VISIT_BOOKED: "prog",
+  QUOTED: "warn",
+  WON: "ok",
+  LOST: "bad",
 };
 
 export function RequestStatusChip({ status }: { status: RequestStatus }) {
   return (
-    <Badge variant="outline" className={cn("font-medium", STATUS_STYLE[status])}>
+    <Chip tone={STATUS_STYLE[status] as Tone}>
       {REQUEST_STATUS_LABEL[status]}
-    </Badge>
+    </Chip>
   );
 }
 
-const URGENCY_STYLE: Record<Urgency, string> = {
+const URGENCY_STYLE: Record<Urgency, Tone | ""> = {
   ROUTINE: "",
-  URGENT: "border-amber-400 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  EMERGENCY: "border-red-400 bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
+  URGENT: "warn",
+  EMERGENCY: "bad",
 };
 
 export function UrgencyChip({ urgency }: { urgency: Urgency }) {
   if (urgency === "ROUTINE") return null;
   return (
-    <Badge variant="outline" className={cn("font-semibold uppercase", URGENCY_STYLE[urgency])}>
+    <Chip tone={URGENCY_STYLE[urgency] as Tone}>
       {urgency === "EMERGENCY" ? "Emergency" : "Urgent"}
-    </Badge>
+    </Chip>
   );
 }
 
@@ -47,55 +66,60 @@ export const SOURCE_LABEL: Record<string, string> = { EMAIL: "Email", PHONE: "Ph
 import { QUOTE_STATUS_LABEL, type QuoteStatusValue } from "../domain/quotes/calc";
 import { JOB_STATUS_LABEL, type JobStatusValue } from "../domain/jobs/status";
 
-const QUOTE_STYLE: Record<QuoteStatusValue, string> = {
-  DRAFT: "border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
-  SENT: "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  APPROVED: "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-  DECLINED: "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
-  EXPIRED: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
+const QUOTE_STYLE: Record<QuoteStatusValue, Tone> = {
+  DRAFT: "neutral",
+  SENT: "info",
+  APPROVED: "ok",
+  DECLINED: "bad",
+  EXPIRED: "warn",
 };
 
 export function QuoteStatusChip({ status }: { status: QuoteStatusValue }) {
   return (
-    <Badge variant="outline" className={cn("font-medium", QUOTE_STYLE[status])}>
+    <Chip tone={QUOTE_STYLE[status] as Tone}>
       {QUOTE_STATUS_LABEL[status]}
-    </Badge>
+    </Chip>
   );
 }
 
-const JOB_STYLE: Record<JobStatusValue, string> = {
-  UNSCHEDULED: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  SCHEDULED: "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  IN_PROGRESS: "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  ON_HOLD: "border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
-  COMPLETED: "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-  INVOICED: "border-teal-300 bg-teal-50 text-teal-800 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-200",
-  PAID: "border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+const JOB_STYLE: Record<JobStatusValue, Tone> = {
+  UNSCHEDULED: "warn",
+  SCHEDULED: "info",
+  IN_PROGRESS: "prog",
+  ON_HOLD: "neutral",
+  COMPLETED: "ok",
+  INVOICED: "info",
+  PAID: "ok",
 };
 
 export function JobStatusChip({ status }: { status: JobStatusValue }) {
   return (
-    <Badge variant="outline" className={cn("font-medium", JOB_STYLE[status])}>
+    <Chip tone={JOB_STYLE[status] as Tone}>
       {JOB_STATUS_LABEL[status]}
-    </Badge>
+    </Chip>
   );
 }
 
 import { INVOICE_STATUS_LABEL, type EffectiveInvoiceStatus } from "../domain/invoicing/calc";
 
-const INVOICE_STYLE: Record<EffectiveInvoiceStatus, string> = {
-  DRAFT: "border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
-  SENT: "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  PARTIALLY_PAID: "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  PAID: "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-  VOID: "border-zinc-300 bg-zinc-100 text-zinc-600 line-through dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
-  OVERDUE: "border-red-400 bg-red-100 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
+const INVOICE_STYLE: Record<EffectiveInvoiceStatus, Tone> = {
+  DRAFT: "neutral",
+  SENT: "info",
+  PARTIALLY_PAID: "prog",
+  PAID: "ok",
+  VOID: "neutral",
+  OVERDUE: "bad",
 };
 
 export function InvoiceStatusChip({ status }: { status: EffectiveInvoiceStatus }) {
   return (
-    <Badge variant="outline" className={cn("font-medium", INVOICE_STYLE[status])}>
+    <Chip tone={INVOICE_STYLE[status] as Tone}>
       {INVOICE_STATUS_LABEL[status]}
-    </Badge>
+    </Chip>
   );
+}
+
+/** Job numbers look like cable labels: hi-vis with dark text. */
+export function JobTag({ number }: { number: string }) {
+  return <span className="inline-block rounded-sm bg-hivis px-1.5 py-px font-heading text-[0.9em] leading-snug font-bold tracking-wide whitespace-nowrap text-hivis-foreground">{number}</span>;
 }

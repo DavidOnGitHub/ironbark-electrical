@@ -10,7 +10,7 @@ overrides:
   deepmerge-ts@<8: ^8.0.2
 
 patchedDependencies:
-  '@kabosh-digital/m-street-kit@0.2.0': 2012dfeeb79b523f0bd1365cd340a9258137f464b1704cf85b14870167f50c1b
+  '@kabosh-digital/m-street-kit@0.2.0': e73ca48d5ef93d4d508fcc7e0ecf43ee3db6fa62ef81aa7f8db149b6e278cad7
 
 importers:
 
@@ -18,7 +18,7 @@ importers:
     dependencies:
       '@kabosh-digital/m-street-kit':
         specifier: 0.2.0
-        version: 0.2.0(patch_hash=2012dfeeb79b523f0bd1365cd340a9258137f464b1704cf85b14870167f50c1b)(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.3.7(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
+        version: 0.2.0(patch_hash=e73ca48d5ef93d4d508fcc7e0ecf43ee3db6fa62ef81aa7f8db149b6e278cad7)(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.3.7(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
       '@kabosh-digital/ui-kit':
         specifier: 0.2.0
         version: 0.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -4995,7 +4995,7 @@ snapshots:
       '@jsonjoy.com/codegen': 17.67.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@kabosh-digital/m-street-kit@0.2.0(patch_hash=2012dfeeb79b523f0bd1365cd340a9258137f464b1704cf85b14870167f50c1b)(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.3.7(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)':
+  '@kabosh-digital/m-street-kit@0.2.0(patch_hash=e73ca48d5ef93d4d508fcc7e0ecf43ee3db6fa62ef81aa7f8db149b6e278cad7)(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.3.7(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)':
     dependencies:
       '@kabosh-digital/ui-kit': 0.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@kabosh-digital/workflow-schema': 0.2.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)

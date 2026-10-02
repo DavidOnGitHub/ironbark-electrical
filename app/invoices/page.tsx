@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { hasAnyRole } from "@kabosh-digital/m-street-kit/auth";
-import { StatTile } from "@kabosh-digital/m-street-kit/components/StatTile";
+import { Kpi, Money } from "../../src/ui/kit";
 import { Badge } from "@kabosh-digital/m-street-kit/ui/badge";
 import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
@@ -34,10 +34,10 @@ export default async function InvoicesPage(props: { searchParams: Promise<{ stat
     <div className="flex flex-col gap-5">
       <PageHeader title="Invoices" subtitle="Drafted from completed jobs, reviewed, issued, paid." actions={<Button asChild variant="outline"><Link href="/invoices/export" prefetch={false} download>Export CSV</Link></Button>} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Outstanding" value={formatMoney(summary.outstandingCents)} sub={`${summary.outstandingCount} unpaid ${summary.outstandingCount === 1 ? "invoice" : "invoices"}`} />
-        <StatTile href="/invoices?status=OVERDUE" label="Overdue" value={formatMoney(summary.overdueCents)} sub={`${summary.overdue.length} past due`} tone={summary.overdue.length > 0 ? "crit" : "default"} />
-        <StatTile label="Received this month" value={formatMoney(summary.receivedThisMonthCents)} sub="payments and deposits" />
-        <StatTile label="Ready to invoice" value={ready.length} sub="completed, no invoice yet" tone={ready.length > 0 ? "warn" : "default"} />
+        <Kpi label="Outstanding" value={<Money cents={summary.outstandingCents} />} sub={`${summary.outstandingCount} unpaid ${summary.outstandingCount === 1 ? "invoice" : "invoices"}`} />
+        <Kpi href="/invoices?status=OVERDUE" label="Overdue" value={<Money cents={summary.overdueCents} />} sub={`${summary.overdue.length} past due`} tone={summary.overdue.length > 0 ? "bad" : "neutral"} />
+        <Kpi label="Received this month" value={<Money cents={summary.receivedThisMonthCents} />} sub="payments and deposits" />
+        <Kpi label="Ready to invoice" value={ready.length} sub="completed, no invoice yet" tone={ready.length > 0 ? "warn" : "neutral"} />
       </div>
 
       {ready.length > 0 ? (

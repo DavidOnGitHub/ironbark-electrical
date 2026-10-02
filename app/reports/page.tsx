@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatTile } from "@kabosh-digital/m-street-kit/components/StatTile";
+import { Kpi } from "../../src/ui/kit";
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
 import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
@@ -33,12 +33,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <a href="/invoices/export" className="ml-auto rounded-md border px-3 py-1 hover:bg-muted" data-testid="export-link">Export invoices and payments (CSV)</a>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Enquiries" value={r.funnel.total} sub={`${dash(r.funnel.quotedPct, "%")} reached a quote`} />
-        <StatTile label="Enquiries won" value={dash(r.funnel.wonPct, "%")} sub={`${r.funnel.won} of ${r.funnel.total}`} />
-        <StatTile label="Quote approval" value={dash(r.quotes.approvalPct, "%")} sub={`${r.quotes.approved} of ${r.quotes.sent} sent quotes`} />
-        <StatTile label="Quote to decision" value={days(r.quotes.medianDaysToDecision)} sub="median wait for the customer" />
-        <StatTile label="Job done to invoice" value={days(r.billing.medianDaysToInvoice)} sub="median" />
-        <StatTile label="Invoice to paid" value={days(r.billing.medianDaysToPaid)} sub="median" />
+        <Kpi label="Enquiries" value={r.funnel.total} sub={`${dash(r.funnel.quotedPct, "%")} reached a quote`} />
+        <Kpi label="Enquiries won" value={dash(r.funnel.wonPct, "%")} sub={`${r.funnel.won} of ${r.funnel.total}`} />
+        <Kpi label="Quote approval" value={dash(r.quotes.approvalPct, "%")} sub={`${r.quotes.approved} of ${r.quotes.sent} sent quotes`} />
+        <Kpi label="Quote to decision" value={days(r.quotes.medianDaysToDecision)} sub="median wait for the customer" />
+        <Kpi label="Job done to invoice" value={days(r.billing.medianDaysToInvoice)} sub="median" />
+        <Kpi label="Invoice to paid" value={days(r.billing.medianDaysToPaid)} sub="median" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

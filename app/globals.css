@@ -1,5 +1,183 @@
 @import "@kabosh-digital/m-street-kit/styles.css";
 
+/* Ironbark theme (design-previews/ironbark): warm bark brown, gum-leaf mist background, hi-vis yellow for
+   things that need attention. These override the kit's tokens, so its components pick the theme up unchanged. */
+:root {
+  --background: #ecefe9;
+  --foreground: #1f1a17;
+  --card: #ffffff;
+  --card-foreground: #1f1a17;
+  --popover: #ffffff;
+  --popover-foreground: #1f1a17;
+  --muted: #f5f6f2;
+  --muted-foreground: #5a564f;
+  --secondary: #f5f6f2;
+  --secondary-foreground: #1f1a17;
+  --accent: #f1efea;
+  --accent-foreground: #1f1a17;
+  --border: #d8dad2;
+  --input: #bfc2b7;
+  --destructive: #a3261b;
+  --radius: 0.375rem;
+  --teal-accent: #2b2420; /* primary: bark */
+  --teal-accent-foreground: #ffffff;
+  --sidebar-width: 236px;
+
+  --link: #2c5e43;
+  --hivis: #f6b800;
+  --hivis-foreground: #1f1a17;
+  --status-ok: #2c6a3e;
+  --status-ok-soft: #e3efe4;
+  --status-warn: #7f4c08;
+  --status-warn-soft: #fbeed0;
+  --status-bad: #a3261b;
+  --status-bad-soft: #f8e4e0;
+  --status-info: #2b5880;
+  --status-info-soft: #e4edf5;
+  --status-prog: #683d8c;
+  --status-prog-soft: #f0e8f6;
+  --status-neutral: #55504a;
+  --status-neutral-soft: #eeede8;
+
+  --status-completed: #2c6a3e;
+  --status-pending: #7f4c08;
+  --status-failed: #a3261b;
+  --status-running: #2b5880;
+}
+
+.dark {
+  --background: #191513;
+  --foreground: #f2ede7;
+  --card: #231e1b;
+  --card-foreground: #f2ede7;
+  --popover: #231e1b;
+  --popover-foreground: #f2ede7;
+  --muted: #2a2421;
+  --muted-foreground: #bab1a7;
+  --secondary: #2a2421;
+  --secondary-foreground: #f2ede7;
+  --accent: #2a2421;
+  --accent-foreground: #f2ede7;
+  --border: #3a322d;
+  --input: #4d433c;
+  --destructive: #ff9a8c;
+  --teal-accent: #f6b800; /* primary: hi-vis */
+  --teal-accent-foreground: #1f1a17;
+
+  --link: #95c8a6;
+  --status-ok: #8ed3a0;
+  --status-ok-soft: #1e2f23;
+  --status-warn: #f6c55a;
+  --status-warn-soft: #3a2d12;
+  --status-bad: #ff9a8c;
+  --status-bad-soft: #3c1f1b;
+  --status-info: #93c0ea;
+  --status-info-soft: #1c2b3a;
+  --status-prog: #cda6ec;
+  --status-prog-soft: #2e2238;
+  --status-neutral: #c9c1b7;
+  --status-neutral-soft: #2f2926;
+
+  --status-completed: #8ed3a0;
+  --status-pending: #f6c55a;
+  --status-failed: #ff9a8c;
+  --status-running: #93c0ea;
+}
+
+@theme inline {
+  --color-link: var(--link);
+  --color-hivis: var(--hivis);
+  --color-hivis-foreground: var(--hivis-foreground);
+  --color-status-ok: var(--status-ok);
+  --color-status-ok-soft: var(--status-ok-soft);
+  --color-status-warn: var(--status-warn);
+  --color-status-warn-soft: var(--status-warn-soft);
+  --color-status-bad: var(--status-bad);
+  --color-status-bad-soft: var(--status-bad-soft);
+  --color-status-info: var(--status-info);
+  --color-status-info-soft: var(--status-info-soft);
+  --color-status-prog: var(--status-prog);
+  --color-status-prog-soft: var(--status-prog-soft);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-neutral-soft: var(--status-neutral-soft);
+}
+
+/* The kit's 18px root makes everything feel oversized; the theme works at the standard 16px. */
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+.font-heading {
+  font-family: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+}
+
+h1 {
+  font-size: 2.125rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+/* Sidebar: dark bark. The kit paints it with the card tokens, so re-point them inside the sidebar only. */
+aside.fixed {
+  --card: #2b2420;
+  --foreground: #ece6df;
+  --muted: #40362f;
+  --muted-foreground: #bdb3a8;
+  --border: #40362f;
+  --teal-accent: #f6b800;
+  --teal-accent-foreground: #1f1a17;
+  color: var(--foreground);
+}
+
+.dark aside.fixed {
+  --card: #120f0d;
+  --muted: #2a2421;
+  --border: #2a2421;
+}
+
+/* Active item: dark chip with a hi-vis bar. Counts: hi-vis for "needs action", red for overdue. */
+aside.fixed a[aria-current="page"] {
+  background: #40362f;
+  color: #fff;
+  box-shadow: inset 3px 0 0 #f6b800;
+}
+aside.fixed a[aria-current="page"] svg {
+  color: #f6b800;
+}
+aside.fixed [data-nav-badge="warn"] {
+  background: #f6b800;
+  color: #1f1a17;
+  border-color: transparent;
+}
+
+/* The mobile top bar. */
+div.border-b.bg-card.lg\:hidden {
+  background: #2b2420;
+  color: #ece6df;
+  --muted-foreground: #bdb3a8;
+  --teal-accent: #f6b800;
+}
+
+/* Keyboard focus is visible on every background: dark ring with a hi-vis halo. */
+:focus-visible {
+  outline: 3px solid var(--hivis-outline, #1f1a17);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #f6b800;
+}
+aside.fixed :focus-visible,
+.dark :focus-visible {
+  --hivis-outline: #f6b800;
+  box-shadow: none;
+}
+
 /* Phones and tablets: comfortable tap targets, and 16px text so iOS does not zoom on focus. */
 @media (pointer: coarse) {
   input:not([type="checkbox"]):not([type="radio"]),

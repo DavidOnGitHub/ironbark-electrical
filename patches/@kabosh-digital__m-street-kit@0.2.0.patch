@@ -1,7 +1,16 @@
 diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
-index 7f630ab42fc766a9500ab4aa8ba12f9e20a282e5..8510e0b256e30b222559f0136fcf6d26a06277a8 100644
+index 7f630ab42fc766a9500ab4aa8ba12f9e20a282e5..cbaae05f3891a41317bdea42540b5d6bd41c425e 100644
 --- a/src/components/Sidebar.tsx
 +++ b/src/components/Sidebar.tsx
+@@ -8,7 +8,7 @@ import { cn } from "../lib/utils";
+ import { RelayLogo } from "./RelayLogo";
+ import { ThemeToggle } from "./ThemeToggle";
+ import type { BrandingConfig } from "../lib/branding";
+-import type { NavSectionConfig } from "../config";
++import type { NavBadge, NavSectionConfig } from "../config";
+ import { NAV_ICONS } from "./navIcons";
+ 
+ const NAV_ITEMS = [
 @@ -54,7 +54,7 @@ function BrandRow({ branding }: { branding: BrandingConfig }) {
        <RelayLogo size={28} className="shrink-0 text-teal-accent" />
        <div className="min-w-0">
@@ -11,6 +20,139 @@ index 7f630ab42fc766a9500ab4aa8ba12f9e20a282e5..8510e0b256e30b222559f0136fcf6d26
        </div>
      </div>
    );
+@@ -66,6 +66,7 @@ function NavItem({
+   Icon,
+   exact,
+   count,
++  badge,
+   onNavigate,
+ }: {
+   href: string;
+@@ -73,9 +74,11 @@ function NavItem({
+   Icon: typeof LayoutDashboard;
+   exact: boolean;
+   count?: number;
++  badge?: NavBadge;
+   onNavigate: () => void;
+ }) {
+   const pathname = usePathname();
++  const shown = badge && badge.count > 0 ? badge : typeof count === "number" && count > 0 ? { count } : null;
+   const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+ 
+   return (
+@@ -90,16 +93,20 @@ function NavItem({
+     >
+       <Icon size={16} className="shrink-0" />
+       {label}
+-      {typeof count === "number" && count > 0 ? (
++      {shown ? (
+         <span
++          data-nav-badge={(shown as NavBadge).tone ?? "warn"}
+           className={cn(
+             "ml-auto rounded-full border px-1.5 py-px text-[0.6875rem] font-bold tabular-nums",
+             active
+               ? "border-transparent bg-teal-accent text-teal-accent-foreground"
+-              : "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-950 dark:text-amber-300",
++              : (shown as NavBadge).tone === "bad"
++                ? "border-red-600/30 bg-red-50 text-red-700 dark:border-red-400/30 dark:bg-red-950 dark:text-red-300"
++                : "border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-950 dark:text-amber-300",
+           )}
+         >
+-          {count}
++          {shown.count}
++          {(shown as NavBadge).label ? <span className="sr-only"> {(shown as NavBadge).label}</span> : null}
+         </span>
+       ) : null}
+     </Link>
+@@ -113,6 +120,7 @@ export function Sidebar({
+   isAdmin,
+   canManageConnectors,
+   extraNav = [],
++  navBadges = {},
+ }: {
+   branding: BrandingConfig;
+   pendingTaskCount: number | null;
+@@ -122,6 +130,8 @@ export function Sidebar({
+   /** Business sections (already filtered to this user's roles), shown between
+    * Dashboard and the platform's own items - see KitConfig.nav. */
+   extraNav?: NavSectionConfig[];
++  /** Live counts for the business items, keyed by href - see KitConfig.navBadges. */
++  navBadges?: Record<string, NavBadge>;
+ }) {
+   const [open, setOpen] = useState(false);
+ 
+@@ -205,6 +215,7 @@ export function Sidebar({
+                   label={item.label}
+                   Icon={NAV_ICONS[item.icon] ?? LayoutDashboard}
+                   exact={item.exact ?? false}
++                  badge={navBadges[item.href]}
+                   onNavigate={() => setOpen(false)}
+                 />
+               ))}
+diff --git a/src/config.ts b/src/config.ts
+index 6fd659d890d763c12f8c5cb46de9efd77a95e43f..fab7047871f5d4feb84982bc081e02080ecca132 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -45,11 +45,24 @@ export interface AssistantStepConfig {
+   reference: string;
+ }
+ 
++/** A count shown on a sidebar item, e.g. "3 overdue invoices". */
++export interface NavBadge {
++  count: number;
++  /** "bad" is red; the default is amber. */
++  tone?: "warn" | "bad";
++  /** Screen-reader text after the number, e.g. "overdue invoices". */
++  label?: string;
++}
++
+ export interface KitConfig {
+   demoSeed?: DemoSeed;
+   /** Business pages for the sidebar, shown between Dashboard and the platform's
+    * own Workflows/Runs/Tasks items. */
+   nav?: NavSectionConfig[];
++  /** Live counts for the business items in `nav`, keyed by href. Called on every
++   * page render with the signed-in user's roles (empty when signed out); a
++   * failure shows no badges rather than breaking the page. */
++  navBadges?: (ctx: { roles: UserRole[] }) => Promise<Record<string, NavBadge>> | Record<string, NavBadge>;
+   /** Business-friendly role names (e.g. ADMIN -> "Owner"). Display only: the
+    * stored role values and permission checks do not change. */
+   roleLabels?: Partial<Record<UserRole, string>>;
+diff --git a/src/layout.tsx b/src/layout.tsx
+index 230e846093b3b400351cd621ebb3a5aa15aa4eea..463829286e1b294092aafcefbe63126e85403915 100644
+--- a/src/layout.tsx
++++ b/src/layout.tsx
+@@ -8,7 +8,7 @@ import { auth } from "./lib/auth";
+ import { hasAnyRole } from "./lib/roles";
+ import { Policy } from "./lib/policy";
+ import { getBranding, buildAccentOverrideCss } from "./lib/branding";
+-import { getKitConfig } from "./config";
++import { getKitConfig, type NavBadge } from "./config";
+ import { visibleNavSections } from "./lib/nav";
+ import { countPendingTasks } from "./lib/queries";
+ 
+@@ -57,6 +57,13 @@ export async function KitRootLayout({ children, appVersion }: { children: React.
+   // Phase A: signed-in user for the header chip/sign-out. Every page is
+   // behind the middleware auth gate (except /auth and /api/auth).
+   const session = await auth();
++  const roles = session?.user?.roles ?? [];
++  let navBadges: Record<string, NavBadge> = {};
++  try {
++    navBadges = roles.length > 0 ? ((await getKitConfig().navBadges?.({ roles })) ?? {}) : {};
++  } catch {
++    // Badges are decoration: never let them break a page.
++  }
+ 
+   return (
+     <html
+@@ -84,6 +91,7 @@ export async function KitRootLayout({ children, appVersion }: { children: React.
+               isAdmin={session?.user?.roles?.includes("ADMIN") ?? false}
+               canManageConnectors={hasAnyRole(session?.user?.roles, Policy.CONNECTORS)}
+               extraNav={visibleNavSections(getKitConfig().nav, session?.user?.roles)}
++              navBadges={navBadges}
+             />
+             <div className="flex min-w-0 flex-1 flex-col">
+               <header className="flex items-center justify-end border-b px-5 py-2 lg:px-10">
 diff --git a/src/lib/actions/mfa.ts b/src/lib/actions/mfa.ts
 index cad7b59987d7c7a3b136557783cf871bf5e966f0..57403bf4f38207861a00e7bd9c00ba7456cc0c6f 100644
 --- a/src/lib/actions/mfa.ts

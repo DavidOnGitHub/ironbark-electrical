@@ -9,7 +9,7 @@ import { fieldAddNoteAction, fieldChangeStatusAction } from "../../src/actions/j
 import { dayKey, formatDayKey, formatDayTime, formatTime } from "../../src/lib/tz";
 import { ActionForm } from "../../src/ui/ActionForm";
 import { Field, PageHeader, SelectField, TextAreaField } from "../../src/ui/fields";
-import { JobStatusChip } from "../../src/ui/chips";
+import { JobStatusChip, JobTag } from "../../src/ui/chips";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +56,10 @@ export default async function MyDayPage() {
             const moves = JOB_TRANSITIONS[j.status].filter((to) => technicianCanMoveJob(j.status, to));
             const address = j.site ? [j.site.line1, j.site.line2, `${j.site.suburb} ${j.site.state} ${j.site.postcode}`].filter(Boolean).join(", ") : null;
             return (
-              <Card key={j.id} data-testid="field-job">
+              <Card key={j.id} data-testid="field-job" className={j.status === "IN_PROGRESS" ? "border-l-[6px] border-l-hivis" : undefined}>
                 <CardHeader>
                   <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-                    <span>{j.number} - {j.title}</span>
+                    <span className="flex flex-wrap items-center gap-2"><JobTag number={j.number} /><span>{j.title}</span></span>
                     <JobStatusChip status={j.status} />
                   </CardTitle>
                   {j.scheduledStart && j.scheduledEnd ? <p className="text-sm text-muted-foreground">{formatDayTime(j.scheduledStart)} - {formatTime(j.scheduledEnd)}</p> : null}
