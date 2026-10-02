@@ -24,6 +24,7 @@ export async function register() {
           { href: "/invoices", label: "Invoices", icon: "receipt", roles: ["ADMIN", "EDITOR", "VIEWER"] },
         ],
       },
+      { title: "Insights", items: [{ href: "/reports", label: "Reports", icon: "bar-chart", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "Field", items: [{ href: "/my-day", label: "My day", icon: "wrench", roles: ["OPERATOR"] }] },
       { title: "Setup", items: [{ href: "/pricing", label: "Price list", icon: "banknote", roles: ["ADMIN", "EDITOR"] }] },
     ],

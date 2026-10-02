@@ -20,6 +20,8 @@ export const Access = {
   REQUESTS: [OWNER, OFFICE],
   /** The dashboard of the business. */
   DASHBOARD: [OWNER, OFFICE, BOOKKEEPER],
+  /** Business KPIs. */
+  REPORTS: [OWNER, OFFICE, BOOKKEEPER],
   /** The price list. Technicians never see prices. */
   PRICING: [OWNER, OFFICE],
   INVOICES_READ: [OWNER, OFFICE, BOOKKEEPER],
