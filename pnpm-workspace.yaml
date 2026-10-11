@@ -20,11 +20,11 @@ minimumReleaseAgeExclude:
   - '@next/swc-win32-arm64-msvc@16.3.7'
   - '@next/swc-win32-x64-msvc@16.3.7'
   - next@16.3.7
-  - '@kabosh-digital/m-street-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
-  - '@kabosh-digital/ui-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
-  - '@kabosh-digital/workflow-schema@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
-  - '@kabosh-digital/workflow-temporal@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
-  - '@kabosh-digital/workflow-types@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0'
+  - '@kabosh-digital/m-street-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0'
+  - '@kabosh-digital/ui-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0'
+  - '@kabosh-digital/workflow-schema@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0'
+  - '@kabosh-digital/workflow-temporal@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0'
+  - '@kabosh-digital/workflow-types@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0'
 # Security patches for transitive dependencies (CASA 6.1.1 - `pnpm audit --prod`
 # must stay clean). Remove an entry once its parent package ships the fix.
 overrides:
@@ -34,6 +34,3 @@ overrides:
   fast-uri@<3.1.7: ^3.1.7
   # via @prisma/client > prisma > @prisma/config
   deepmerge-ts@<8: ^8.0.2
-patchedDependencies:
-  '@kabosh-digital/m-street-kit@0.2.0': patches/@kabosh-digital__m-street-kit@0.2.0.patch
-  '@kabosh-digital/workflow-schema@0.2.0': patches/@kabosh-digital__workflow-schema@0.2.0.patch
