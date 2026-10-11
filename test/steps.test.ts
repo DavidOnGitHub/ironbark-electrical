@@ -115,6 +115,12 @@ describe("getQuote", () => {
     expect(q.emailBody).toContain("deposit of $660.00"); // over $1,500 -> 30%
     expect(q.reminderBody).toContain("Following up".length ? q.number : "");
   });
+  it("gives the customer's accept link for a sent quote", async () => {
+    const { quoteId } = await sentQuote();
+    const q = await run("getQuote", { quoteId });
+    expect(q.acceptUrl).toMatch(/^http.*\/accept\/[\w-]{30,}$/);
+    expect(await run("getQuote", { quoteId })).toMatchObject({ acceptUrl: q.acceptUrl });
+  });
   it("is no longer open once the customer has answered", async () => {
     const { quoteId } = await sentQuote();
     await decideQuote(quoteId, "DECLINED", "too dear", priya);
@@ -247,15 +253,17 @@ describe("AI stand-ins for test runs", () => {
   it("sorts a real enquiry from noise, with urgency, category and a phone number", () => {
     const a = ironSparkMockAgent("triageEnquiry", { from: "Pat Smith <pat@example.com>", subject: "Quote for 6 downlights", body: "Hi, could you quote on installing 6 downlights in our lounge? Call me on 0412 345 678" }) as Record<string, any>;
     expect(a).toMatchObject({ isEnquiry: true, category: "QUOTE_REQUEST", urgency: "ROUTINE", contactName: "Pat Smith", contactPhone: "0412 345 678" });
-    expect(a.ackBody).toContain("Hi Pat");
+    expect(a.replyDraft).toContain("Hi Pat");
     expect(a.replyDraft).toContain("quote");
+    expect(a.ackBody).toBeUndefined();
     expect((ironSparkMockAgent("triageEnquiry", { from: "x@y.com", subject: "50% off SEO services!", body: "unsubscribe here" }) as Record<string, any>).isEnquiry).toBe(false);
   });
-  it("treats a safety risk as an emergency and tells the customer to switch off and call", () => {
+  it("treats a safety risk as an emergency and puts the switch-off-and-call advice in the reply", () => {
     const a = ironSparkMockAgent("triageEnquiry", { from: "a@b.com", subject: "Burning smell from switchboard", body: "There is a burning smell and I heard sparks" }) as Record<string, any>;
     expect(a).toMatchObject({ urgency: "EMERGENCY", category: "FAULT_REPAIR" });
-    expect(a.ackBody).toContain("main switch");
-    expect(a.ackBody).toContain("(02) 5550 0142");
+    // nobody emails the customer first any more, so the one approved reply carries the safety advice
+    expect(a.replyDraft).toContain("main switch");
+    expect(a.replyDraft).toContain("(02) 5550 0142");
   });
   it("reads unhappy replies as negative", () => {
     expect((ironSparkMockAgent("classifyFeedback", { body: "Not happy - they left a mess and were late" }) as Record<string, any>).isNegative).toBe(true);

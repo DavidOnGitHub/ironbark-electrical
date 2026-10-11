@@ -5,15 +5,16 @@ For a prospect who runs a small business on email, spreadsheets and a patchwork 
 
 Say "this is a fictional electrician" once, early. After that, tell the story as if it were their business.
 
-## Before you start (5 minutes, every time)
+## Before you start (5 minutes)
 
 ```bash
 cd ~/dev/ironbark-electrical
 docker compose up -d            # from the platform repo, if Postgres/Temporal are not running
-pnpm demo:reset                 # clean seed data, workflows re-published
+# pnpm demo:reset              # ONLY for a brand-new start: DELETES all data (asks you to type "reset"). Never run automatically.
+pnpm workflows:seed --publish   # after a workflow change; keeps all your data
 pnpm dev                        # terminal 1: http://localhost:3200
 pnpm worker                     # terminal 2: runs the automations
-stripe listen --forward-to localhost:3200/api/stripe/webhook   # terminal 3: only for the payment moment
+stripe listen --api-key "$STRIPE_SECRET_KEY" --forward-to localhost:3200/api/stripe/webhook   # terminal 3: only for the payment moment
 pnpm demo:check                 # PASS on every line you need
 ```
 
@@ -32,11 +33,11 @@ show that off.
 | Min | Role | What you do | What you say |
 |---|---|---|---|
 | 0:00 | Office | Open the **Dashboard**. | "Sam runs a small electrical business. This is what needs attention at 7am: new enquiries, open quotes, money owed, and who is on the tools today." Point at the yellow-edged tile and the red overdue amount. |
-| 1:00 | - | Send an email to the demo inbox alias (`you+ironbark@gmail.com`), for example "Hi, can you quote on six downlights in our lounge room?" from any other address. A sender not on the allowlist skips the automatic acknowledgement but still gets a person-approved reply; one on the allowlist also gets the acknowledgement at once. | "A customer emails the business, like they always do." |
-| 1:30 | Office | Open **Runs** (Automation section). Open the live *Enquiry to reply* run. | "An AI reads it, decides it is a real enquiry, logs it, and has the acknowledgement ready - but it does not send anything it should not. A person approves the reply." |
+| 1:00 | - | Send an email to the demo inbox alias (`you+ironbark@gmail.com`), for example "Hi, can you quote on six downlights in our lounge room?" from any other address. The customer gets one reply, and only after the office approves it. | "A customer emails the business, like they always do." |
+| 1:30 | Office | Open **Runs** (Automation section). Open the live *Enquiry to reply* run. | "An AI reads it, decides it is a real enquiry, logs it, and writes a reply - but it does not send anything until a person approves it." |
 | 2:30 | Office | Go to **Tasks** (Automation section), open *Office approves the reply*, **Approve**. Check the demo inbox for the email. | "One click. The customer has an answer in minutes, and it is on their history. Emergencies would have phoned the owner first." |
-| 3:30 | Office | **Requests**: open *Quote to rewire 1960s house* > **Create a client from this enquiry** > **Create a quote**. Click **Suggest lines**: the enquiry's wording is matched to the price list and a bundle (or items with quantities) is proposed. Tick what is right, **Add selected lines**, then **Save lines**. | "It reads the enquiry and proposes lines from our own price list - it cannot invent a price. The office checks them. Bundles add a whole job in one click, and GST and the deposit rule over $1,500 are automatic. No spreadsheet." |
-| 5:00 | Office | **Mark as sent**, then **Customer approved**. | "Sending the quote starts a follow-up automation (reminder after a day, owner calls after three more). Approving it creates the job and marks the enquiry won." You land on the new job. |
+| 3:30 | Office | **Requests**: open *Quote to rewire 1960s house* > **Create a client from this enquiry** > **Create a quote**. The enquiry's wording is matched automatically to the price list and a bundle (or items with quantities) is proposed, already ticked. Untick what is wrong, **Add selected lines**, then **Save lines**. | "It reads the enquiry and proposes lines from our own price list - it cannot invent a price. The office checks them. Bundles add a whole job in one click, and GST and the deposit rule over $1,500 are automatic. No spreadsheet." |
+| 5:00 | Office | **Send quote**. The email has an **Accept or decline** link (shown on the quote page too): open it in a private window and click **Accept this quote**; or, on the quote page, record the answer by hand with **Customer approved**. | "Sending the quote starts a follow-up automation (reminder after a day, owner calls after three more). Approving it creates the job and marks the enquiry won." You land on the new job. |
 | 5:45 | Office | On the job: pick **Jordan Lee**, tomorrow's default time, **Schedule**. The clash warning appears; choose **Mia Chen** (or **Book anyway**). | "It warns about double-booking before it happens." |
 | 6:30 | Technician (phone window) | **My day**: **Start / resume**, open **Add a note or variation**, add a note, **Mark complete**. | "The technician gets a phone-friendly list: Call, Directions, access notes - and never sees prices. A variation, like extra work, flows to the invoice after the office approves it." |
 | 7:30 | Office | Job page > **Create invoice**, review, **Issue invoice**. Show the **Payment link**. Open it in a new tab and pay with the Stripe test card `4242 4242 4242 4242`, any future date, any CVC. | "Deposit credited, GST right, a card link on the invoice. Overdue chasing starts by itself: day 1, 7, 14, 30." |
@@ -64,7 +65,7 @@ rehearsed here**, so try it before relying on it.
 | Temporal workflows with real waits (production mode) | Test mode caps waits at 5 seconds |
 | Users, roles, data, reports | Fictional business and data |
 
-Fully automatic email (acknowledgements, quote and invoice chases, review requests) only goes to addresses on `EMAIL_ALLOWLIST`; with no allowlist none is sent and the step hands the job to a person. A reply a person has read and approved can go to any sender.
+Fully automatic email (quote and invoice chases, review requests) only goes to addresses on `EMAIL_ALLOWLIST`; with no allowlist none is sent and the step hands the job to a person. A reply a person has read and approved can go to any sender.
 
 ## If something goes wrong
 
@@ -73,9 +74,9 @@ Fully automatic email (acknowledgements, quote and invoice chases, review reques
 | No email arrived | `pnpm demo:check`. Is the worker running? Is the recipient on `EMAIL_ALLOWLIST`? Is Gmail connected? |
 | The enquiry did not start a run | The mail must be sent **to** the `+ironbark` alias, from outside the connected account. |
 | Invoice has no payment link | Stripe keys missing in `.env`; restart `pnpm dev`. |
-| Invoice did not flip to Paid | `stripe listen` is not running, or its `whsec_...` is not in `STRIPE_WEBHOOK_SECRET`. |
+| Invoice did not flip to Paid | `stripe listen` is not running, is logged into a different Stripe account than `STRIPE_SECRET_KEY` (start it with `--api-key "$STRIPE_SECRET_KEY"`), or its `whsec_...` is not in `STRIPE_WEBHOOK_SECRET`. Payments already made can be recorded afterwards with `pnpm payments:replay`. |
 | Page says something went wrong | Reload; if it repeats, check the `pnpm dev` terminal. |
-| Everything is a mess | `pnpm demo:reset` and start again. |
+| Everything is a mess | Only if you are happy to lose all current data: `pnpm demo:reset` (it asks you to type "reset"). |
 
 ## Rehearsal log
 

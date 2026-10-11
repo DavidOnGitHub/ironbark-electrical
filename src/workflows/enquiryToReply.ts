@@ -5,7 +5,7 @@ export const ENQUIRY_ID = "def_ironspark_enquiry_to_reply";
 const TRIAGE_SYSTEM_PROMPT = `You read the shared inbox of Ironbark Electrical, a small residential and light-commercial electrical contractor in Sydney.
 Decide whether the email is a genuine enquiry from a customer who wants electrical work, a quote or a repair. Newsletters, sales pitches, invoices, receipts and spam are NOT enquiries.
 Classify the enquiry (FAULT_REPAIR, NEW_INSTALL, QUOTE_REQUEST or OTHER) and its urgency: EMERGENCY only when there is a safety risk (burning smell, smoke, sparks, shocks, a hot switchboard); URGENT when they have no power or need help the same day; otherwise ROUTINE.
-Extract the customer's name and phone number if present. Write: a one-line summary; a short acknowledgement email (ackBody) that says we have their message and will be in touch - for an EMERGENCY, tell them to switch off at the main switch if safe and to call (02) 5550 0142 now; and a proposed reply (replyDraft) that suggests a site visit or call-out time this week, in a warm, plain, Australian tone. Never promise a price.
+Extract the customer's name and phone number if present. Write: a one-line summary; and a proposed reply (replyDraft) that thanks them once, confirms we have received their email, and lets them know we will reply to their request soon, in a warm, plain, Australian tone. Do not suggest a site visit or call-out time, and do not ask the customer for a preferred time - that comes in a later email. Nobody else emails the customer first, so the reply must stand on its own. For an EMERGENCY, begin the reply by telling them to switch off at the main switch if it is safe to do so, keep clear, and call (02) 5550 0142 now. Never promise a price.
 Always answer by calling submit_result.`;
 
 const RESPONSE_SCHEMA = {
@@ -18,14 +18,13 @@ const RESPONSE_SCHEMA = {
     summary: { type: "string", description: "One line for the pipeline." },
     contactName: { type: "string" },
     contactPhone: { type: "string", description: "Empty if not given." },
-    ackBody: { type: "string" },
     replyDraft: { type: "string" },
   },
-  required: ["isEnquiry", "reason", "category", "urgency", "summary", "ackBody", "replyDraft"],
+  required: ["isEnquiry", "reason", "category", "urgency", "summary", "replyDraft"],
 };
 
-/** Enquiry to reply: an email arrives, the AI reads it, the enquiry is logged and acknowledged,
- * and a person approves the proposed reply before it is sent. Emergencies alert the owner first. */
+/** Enquiry to reply: an email arrives, the AI reads it, the enquiry is logged,
+ * and a person approves the proposed reply before it is sent (the customer gets one email, not an acknowledgement and a reply). Emergencies alert the owner first. */
 export const enquiryToReply = defineWorkflow(
   { id: ENQUIRY_ID, name: "Enquiry to reply" },
   [
@@ -66,16 +65,6 @@ export const enquiryToReply = defineWorkflow(
         },
       },
     },
-    { id: "decision_can_email", type: "DECISION", label: "Send the automatic acknowledgement to this sender?" },
-    { id: "log_not_emailed", type: "ACTION", stepKey: "logAudit", label: "No automatic email for this sender", config: { event: "sender_not_on_allowlist", params: { requestId: ref("log_enquiry.requestId") } } },
-    {
-      id: "acknowledge",
-      type: "ACTION",
-      stepKey: "sendTemplatedEmail",
-      label: "Acknowledge straight away",
-      config: { template: "enquiry_ack", params: { to: ref("trigger.from"), inReplyTo: ref("trigger.message_id"), variables: { subject: ref("trigger.subject"), message: ref("triage.ackBody") } } },
-      retryPolicy: GMAIL_RETRY,
-    },
     { id: "decision_emergency", type: "DECISION", label: "An emergency?" },
     {
       id: "emergency_task",
@@ -106,11 +95,7 @@ export const enquiryToReply = defineWorkflow(
     { from: "triage", to: "decision_enquiry" },
     { from: "decision_enquiry", to: "log_enquiry", when: { field: "triage.isEnquiry", op: "eq", value: true }, label: "An enquiry" },
     { from: "decision_enquiry", to: "log_ignored", label: "Not an enquiry" },
-    { from: "log_enquiry", to: "decision_can_email" },
-    { from: "decision_can_email", to: "acknowledge", when: { field: "log_enquiry.canEmail", op: "eq", value: true }, label: "Allowed" },
-    { from: "decision_can_email", to: "log_not_emailed", label: "Not on the list" },
-    { from: "log_not_emailed", to: "decision_emergency" },
-    { from: "acknowledge", to: "decision_emergency" },
+    { from: "log_enquiry", to: "decision_emergency" },
     { from: "decision_emergency", to: "emergency_task", when: { field: "log_enquiry.isEmergency", op: "eq", value: true }, label: "Safety risk" },
     { from: "decision_emergency", to: "approve_reply", label: "Routine or urgent" },
     { from: "emergency_task", to: "approve_reply" },

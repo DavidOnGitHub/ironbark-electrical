@@ -4,6 +4,7 @@
  * (a job; the enquiry moves to Won). Totals come from calc.ts, the one place
  * the money rules live.
  */
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { appDb, type Db, type Prisma } from "../../db/app";
 import { recordActivity } from "../activity";
@@ -227,4 +228,45 @@ export async function extendQuoteValidity(quoteId: string, days: number, actor: 
     await recordActivity(tx, { actor, entityType: "quote", entityId: quoteId, clientId: quote.clientId, kind: "UPDATED", summary: `Quote ${quote.number} validity extended by ${n} days` });
     return quote;
   });
+}
+
+// ---- The customer's accept/decline link ----
+
+const CUSTOMER_LINK_ACTOR: Actor = { type: "SYSTEM", label: "Customer (accept link)" };
+
+/** The base address customers' links point at. */
+export function appBaseUrl(env: Record<string, string | undefined> = process.env): string {
+  return (env.APP_BASE_URL || env.AUTH_URL || "http://localhost:3200").replace(/\/+$/, "");
+}
+
+export const acceptUrlFor = (token: string, env?: Record<string, string | undefined>) => `${appBaseUrl(env)}/accept/${token}`;
+
+/** The quote's secret link token, created on first use. Only a sent quote gets one - a draft has no link yet. */
+export async function ensureAcceptToken(quoteId: string): Promise<string | null> {
+  const quote = await appDb.quote.findUnique({ where: { id: quoteId }, select: { status: true, acceptToken: true } });
+  if (!quote || quote.status === "DRAFT") return null;
+  if (quote.acceptToken) return quote.acceptToken;
+  const token = randomBytes(24).toString("base64url");
+  // Only fill an empty slot, so two callers at once end up with the same token.
+  await appDb.quote.updateMany({ where: { id: quoteId, acceptToken: null }, data: { acceptToken: token } });
+  return (await appDb.quote.findUnique({ where: { id: quoteId }, select: { acceptToken: true } }))?.acceptToken ?? null;
+}
+
+/** What the customer sees at their link; null for an unknown (or draft) quote. */
+export async function getQuoteByToken(token: string) {
+  if (!token || token.length < 16) return null;
+  const quote = await appDb.quote.findUnique({
+    where: { acceptToken: token },
+    include: { lines: { orderBy: { position: "asc" } }, client: { select: { name: true } } },
+  });
+  return quote && quote.status !== "DRAFT" ? withEffectiveStatus(quote) : null;
+}
+
+/** The customer's answer from their link. Same rules as the office recording it (sent, not expired), same effects. */
+export async function answerQuoteByToken(token: string, decision: "APPROVED" | "DECLINED", reason?: string) {
+  const quote = await getQuoteByToken(token);
+  if (!quote) throw new QuoteDecisionError("This link is not valid.");
+  const text = reason?.trim().slice(0, 1000);
+  const note = decision === "APPROVED" ? "Accepted using the link in the quote email" : `Declined using the link in the quote email${text ? `: ${text}` : ""}`;
+  return decideQuote(quote.id, decision, note, CUSTOMER_LINK_ACTOR);
 }

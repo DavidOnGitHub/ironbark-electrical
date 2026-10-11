@@ -10,6 +10,7 @@ const quoteVars = (from: string) => ({
   totalText: ref(`${from}.totalText`),
   depositNote: ref(`${from}.depositNote`),
   validUntil: ref(`${from}.validUntil`),
+  acceptUrl: ref(`${from}.acceptUrl`),
 });
 const reminderVars = (from: string) => ({
   clientFirstName: ref(`${from}.clientFirstName`),
@@ -17,9 +18,10 @@ const reminderVars = (from: string) => ({
   number: ref(`${from}.number`),
   totalText: ref(`${from}.totalText`),
   validUntil: ref(`${from}.validUntil`),
+  acceptUrl: ref(`${from}.acceptUrl`),
 });
 
-/** Quote and chase: started when a quote is marked as sent. Emails the quote, waits a day, nudges
+/** Quote and chase: started when a quote is sent. Emails the quote, waits a day, nudges
  * once, waits three more days, then asks the owner to phone. Stops the moment the customer answers.
  * Automatic email only goes to addresses the business allows; for any other address a person reads the
  * email first (the task shows it) and approving sends it - the same for the reminder. */

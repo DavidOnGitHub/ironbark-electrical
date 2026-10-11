@@ -5,7 +5,7 @@ import { appDb } from "../db/app";
 import { recordActivity } from "../domain/activity";
 import { findPossibleDuplicates } from "../domain/clients";
 import { createRequest, type RequestInput } from "../domain/requests";
-import { getQuote } from "../domain/quotes";
+import { acceptUrlFor, ensureAcceptToken, getQuote } from "../domain/quotes";
 import { getInvoice } from "../domain/invoicing";
 import { ensurePaymentLink } from "../integrations/payments";
 import { isAllowedRecipient } from "../integrations/allowlist";
@@ -82,6 +82,7 @@ export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
   const reminder = quoteReminder(mail);
   const email = quote.client.email ?? "";
   const allowed = email !== "" && isAllowedRecipient(email);
+  const token = await ensureAcceptToken(quote.id);
   return {
     number: quote.number,
     title: quote.title,
@@ -100,6 +101,8 @@ export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
     reminderSubject: reminder.subject,
     reminderBody: reminder.body,
     clientFirstName: firstName(quote.client.name),
+    // The customer's accept/decline page; empty until the quote is sent.
+    acceptUrl: token ? acceptUrlFor(token) : "",
     validUntil: quote.validUntil.toLocaleDateString("en-AU"),
     depositNote: quote.depositCents > 0 ? `A deposit of ${formatMoney(quote.depositCents)} is needed to book the work in.` : "",
     lines: quote.lines.map((l) => `- ${l.description} (${Number(l.quantity)} ${l.unit}): ${formatMoney(l.lineTotalCents)}`).join("\n"),
@@ -181,6 +184,13 @@ export async function sendTemplatedEmailImpl(config: Cfg & { template?: string; 
   const key = str(config.template);
   if (!key) throw new Error("sendTemplatedEmail: choose an email template.");
   const to = str(p.to);
+  // A quote's accept link belongs in any quote email, even from a run that began before the workflow
+  // mapped it (a run keeps the graph it started with, but the template is always the current one).
+  const quoteId = (context.trigger as { quoteId?: unknown } | undefined)?.quoteId;
+  if (vars.acceptUrl === undefined && typeof quoteId === "string") {
+    const token = await ensureAcceptToken(quoteId);
+    if (token) vars.acceptUrl = acceptUrlFor(token);
+  }
   const mail = await renderTemplate(key, vars);
   if (isTestRun(context)) {
     console.log(`[sendTemplatedEmail:mock] template=${key} to=${to} subject="${mail.subject}"`);

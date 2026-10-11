@@ -21,9 +21,11 @@
     "app:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "app:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "seed": "tsx --env-file=.env scripts/seed.ts",
+    "seed:prices": "tsx --env-file=.env scripts/seedPrices.ts",
     "reset": "tsx --env-file=.env scripts/reset.ts",
     "demo:check": "tsx --env-file=.env scripts/preflight.ts",
     "demo:reset": "tsx --env-file=.env scripts/reset.ts && tsx --env-file=.env scripts/seedWorkflows.ts --publish",
+    "payments:replay": "tsx --env-file=.env scripts/replayStripePayments.ts",
     "workflows:seed": "tsx --env-file=.env scripts/seedWorkflows.ts",
     "workflows:try": "tsx --env-file=.env scripts/tryWorkflow.ts"
   },

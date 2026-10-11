@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ironbark theme previews</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&family=Barlow+Condensed:wght@700&family=Onest:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F4F5F6;--surface:#FFFFFF;--ink:#17202B;--muted:#525D69;--border:#DCE0E5;--link:#1D4F84}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#11161D;--surface:#19202A;--ink:#E8EDF3;--muted:#A2ADB9;--border:#2A3442;--link:#8DBCEE}}
+:root[data-theme=dark]{--bg:#11161D;--surface:#19202A;--ink:#E8EDF3;--muted:#A2ADB9;--border:#2A3442;--link:#8DBCEE}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Public Sans",system-ui,sans-serif}
+a{color:var(--link)}
+a:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1440px;margin:0 auto;padding:40px 24px 64px}
+header{max-width:70ch;margin-bottom:32px}
+h1{font-size:30px;margin:0 0 8px;letter-spacing:-.015em}
+header p{margin:0;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.theme{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;display:block;height:262px;overflow:hidden;border-bottom:1px solid var(--border);background:var(--bg)}
+.thumb iframe{position:absolute;top:0;left:0;width:1280px;height:900px;border:0;transform:scale(.36);transform-origin:0 0;pointer-events:none}
+.body{padding:20px 22px 22px;display:grid;gap:14px;flex:1;align-content:start}
+.name{font-size:26px;margin:0;line-height:1.1}
+.harbour .name{font-family:"Public Sans";font-weight:700;letter-spacing:-.02em}
+.ironbark .name{font-family:"Barlow Condensed";font-weight:700}
+.switchboard .name{font-family:"Onest";font-weight:600;letter-spacing:-.02em}
+.mood{color:var(--muted);margin:2px 0 0}
+.sw{display:flex;gap:6px}
+.sw span{width:36px;height:36px;border-radius:8px;border:1px solid rgba(0,0,0,.12)}
+.why{margin:0}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.links a{display:inline-flex;align-items:center;height:40px;padding:0 14px;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-weight:600;color:var(--ink)}
+.links a:hover{border-color:var(--muted)}
+.rec{margin-top:36px;max-width:75ch;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px}
+.rec h2{margin:0 0 6px;font-size:20px}
+.rec p{margin:0 0 8px}
+@media (max-width:1100px){.grid{grid-template-columns:1fr 1fr}}
+@media (max-width:720px){.grid{grid-template-columns:1fr}.thumb{height:200px}.thumb iframe{transform:scale(.275)}.wrap{padding:28px 16px 48px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Ironbark Electrical - three themes</h1>
+    <p>All three use the same screens, data and layout. Only the design tokens and a few theme details change, so whichever theme is picked can be applied through the CSS variables in <code>app/globals.css</code>. Every page has a dark or light mode switch (moon button), the invoices page can show its loading, empty and error states, and My day can show the offline state.</p>
+  </header>
+
+  <div class="grid">
+    <article class="theme harbour">
+      <a class="thumb" href="harbour/dashboard.html" aria-label="Open the Harbour dashboard"><iframe src="harbour/dashboard.html" title="Harbour dashboard preview" loading="lazy" tabindex="-1"></iframe></a>
+      <div class="body">
+        <div><h2 class="name">Harbour</h2><p class="mood">Calm, light, corporate</p></div>
+        <div class="sw" aria-label="Palette"><span style="background:#1D4F84"></span><span style="background:#15212E"></span><span style="background:#F3F5F7"></span><span style="background:#FFFFFF"></span><span style="background:#8A4B00"></span><span style="background:#A8201A"></span></div>
+        <p class="why">Harbour blue on cool white, set in Public Sans. The four headline numbers sit in one ruled panel so they read as a single statement, not four separate tiles. It is the safest choice for prospects from any industry and sits closest to the console as it is now.</p>
+        <div class="links"><a href="harbour/dashboard.html">Dashboard</a><a href="harbour/invoices.html">Invoices</a><a href="harbour/my-day.html">My day (phone)</a></div>
+      </div>
+    </article>
+
+    <article class="theme ironbark">
+      <a class="thumb" href="ironbark/dashboard.html" aria-label="Open the Ironbark dashboard"><iframe src="ironbark/dashboard.html" title="Ironbark dashboard preview" loading="lazy" tabindex="-1"></iframe></a>
+      <div class="body">
+        <div><h2 class="name">Ironbark</h2><p class="mood">Warm, sturdy, made for the trade</p></div>
+        <div class="sw" aria-label="Palette"><span style="background:#2B2420"></span><span style="background:#F6B800"></span><span style="background:#ECEEE9"></span><span style="background:#FFFFFF"></span><span style="background:#2C5E43"></span><span style="background:#A3261B"></span></div>
+        <p class="why">Taken from the business name: dark ironbark timber for the sidebar, a pale gum-leaf background and hi-vis yellow for the things that need attention. Job numbers look like cable labels. Barlow Condensed fits long dollar amounts into narrow tiles and reads well on a phone in bright sun.</p>
+        <div class="links"><a href="ironbark/dashboard.html">Dashboard</a><a href="ironbark/invoices.html">Invoices</a><a href="ironbark/my-day.html">My day (phone)</a></div>
+      </div>
+    </article>
+
+    <article class="theme switchboard">
+      <a class="thumb" href="switchboard/dashboard.html" aria-label="Open the Switchboard dashboard"><iframe src="switchboard/dashboard.html" title="Switchboard dashboard preview" loading="lazy" tabindex="-1"></iframe></a>
+      <div class="body">
+        <div><h2 class="name">Switchboard</h2><p class="mood">Dark first, modern</p></div>
+        <div class="sw" aria-label="Palette"><span style="background:#0D1520"></span><span style="background:#142131"></span><span style="background:#5CB2FF"></span><span style="background:#4FD8A4"></span><span style="background:#F5BD4F"></span><span style="background:#FF8B7E"></span></div>
+        <p class="why">Deep blue-slate rather than black, with status shown as small indicator lights, like on a real switchboard. It looks sharp in a pitch and is easy on the eyes in a van before sunrise. Its light mode keeps the dark sidebar. It is harder to read outdoors at midday, so technicians would want the light mode.</p>
+        <div class="links"><a href="switchboard/dashboard.html">Dashboard</a><a href="switchboard/invoices.html">Invoices</a><a href="switchboard/my-day.html">My day (phone)</a></div>
+      </div>
+    </article>
+  </div>
+
+  <section class="rec" aria-labelledby="rec">
+    <h2 id="rec">Recommendation: Ironbark</h2>
+    <p>It is the only one of the three that is clearly about this business. A prospect sees a branded product, not a generic admin panel, and that is the point the demo has to make. The hi-vis accent does a real job too: it appears only on things that need attention, so the dashboard reads at a glance. It also holds up best on a technician's phone outdoors.</p>
+    <p>Harbour is the fallback, and a good default for the M-Street kit itself, so other businesses start neutral and add their own brand on top.</p>
+  </section>
+</div>
+</body>
+</html>

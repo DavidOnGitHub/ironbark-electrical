@@ -47,11 +47,12 @@ pnpm install                     # also generates both Prisma clients
 pnpm db:migrate                  # platform tables
 pnpm app:migrate                 # business tables
 pnpm seed                        # demo data + demo accounts
+pnpm seed:prices                  # only the price list and bundles (when you already have your own data)
 pnpm dev                         # http://localhost:3200 (set PORT to use another)
 pnpm worker                      # in another terminal (needed once workflows run)
 ```
 
-`pnpm reset` returns the business data to the seed state; `pnpm demo:reset` also publishes the
+`pnpm reset` returns the business data to the seed state (it deletes everything, asks you to type "reset", and nothing else ever runs it); `pnpm demo:reset` also publishes the
 workflows, and `pnpm demo:check` says whether the demo is ready to show (see `WALKTHROUGH.md` for the
 10-minute script). `pnpm test` runs the
 suite (integration tests use the `ironbark-electrical-test` schema).
@@ -83,22 +84,20 @@ hosted demo).
   cadence (day 1 / 7 / 14 / 30), deposits tracked against the job, the money
   position on the dashboard, and a CSV export for the bookkeeper.
 - **Phase 3b (automations and payments):** four workflows built from our own steps -
-  *Enquiry to reply* (AI sorts the inbox, logs the enquiry, acknowledges at once, a
-  person approves the reply, emergencies alert the owner first), *Quote and chase*
+  *Enquiry to reply* (AI sorts the inbox, logs the enquiry, a
+  person approves the one reply, emergencies alert the owner first), *Quote and chase*
   (email, remind after a day, owner calls after three more - to an address that is not on the
   allowlist the office reads and approves each email first, and approving sends it), *Invoice and payment chase*
   (email with a card pay link, then day 1 / 7 / 14 / 30 overdue), *Review request*
   (a day after payment, one reminder, unhappy replies to the owner). Stripe test-mode
-  pay links and a signed webhook that records the payment. Every automated email except the
-  acknowledgement waits for a person or is a fixed, reviewed wording; the acknowledgement only goes to
-  allowlisted senders, while a reply a person approves may go to anyone; everything an
+  pay links and a signed webhook that records the payment. Every automated email waits for a person or is a fixed, reviewed wording; a reply a person approves may go to anyone; everything an
   automation does lands on the client's history.
 
 ## Quote bundles and suggested lines
 
 Setup > Price list has **Bundles**: a named set of price-list items with quantities (for example the switchboard
 upgrade package), added to a quote in one click at today's prices - a bundle has no price of its own. In the quote
-editor, **Suggest lines** reads the enquiry (or any description) and proposes bundles and items with quantities;
+editor, the suggestions panel reads the enquiry automatically on a new quote (or any description) and proposes bundles and items with quantities;
 the office ticks what is right before anything is added. It matches by keyword against the price list. With
 `ANTHROPIC_API_KEY` set it asks the AI instead, which may only choose price-list entries and quantities (never a
 price), and falls back to keywords if the call fails. Matching lives in `src/domain/quotes/suggest.ts`.
@@ -133,4 +132,4 @@ Setup you need once: connect a demo Google account in the console (the redirect 
 the environment (see `.env.example`).
 
 All money is integer cents; business time is Sydney time (`src/lib/tz.ts`).
-Quotes are marked as sent by a person; emailing them arrives with the workflows.
+A person clicks **Send quote**; the customer's email carries a private accept/decline link (`/accept/<token>`, no account needed), and their answer is recorded like the office's own (job created, enquiry won, chasing stops); the quote-and-chase workflow emails it (after approval for an address not on the allowlist).

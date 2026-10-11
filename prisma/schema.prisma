@@ -310,6 +310,8 @@ model Quote {
   sentAt          DateTime?
   decidedAt       DateTime?
   decisionNote    String?
+  /// Secret in the customer's accept/decline link (/accept/<token>); created when the quote is emailed.
+  acceptToken     String?     @unique
   createdByUserId String
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt

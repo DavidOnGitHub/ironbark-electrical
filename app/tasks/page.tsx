@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth } from "@kabosh-digital/m-street-kit/auth";
+import { auth, redirectIfMfaPending } from "@kabosh-digital/m-street-kit/auth";
 import { CompleteTaskForm } from "@kabosh-digital/m-street-kit/components/CompleteTaskForm";
 import { formatRelativeTime } from "@kabosh-digital/m-street-kit/format";
 import { prisma } from "@kabosh-digital/workflow-schema";
@@ -24,6 +24,7 @@ function canComplete(user: { id: string; roles: string[] }, task: { input: unkno
 
 /** The console's Tasks page, plus the content of each approval: for an email step, the email itself. */
 export default async function TasksPage() {
+  await redirectIfMfaPending("/tasks");
   const session = await auth();
   const user = session?.user?.id ? { id: session.user.id, roles: (session.user.roles ?? []) as string[] } : null;
   const tasks = user

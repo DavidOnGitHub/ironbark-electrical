@@ -25,9 +25,9 @@ await check("App is running", async () => {
 
 await check("Demo data is seeded", async () => {
   const [clients, requests, users] = await Promise.all([appDb.client.count(), appDb.request.count(), prisma.user.count({ where: { email: { endsWith: "@ironbark.test" } } })]);
-  if (clients === 0 || users < 5) return ["fail", "no demo data - run `pnpm demo:reset`"];
+  if (clients === 0 || users < 5) return ["fail", "no demo data - run `pnpm seed` (or `pnpm demo:reset` to wipe and start over)"];
   const fresh = await appDb.request.count({ where: { status: "NEW" } });
-  return fresh >= 3 ? ["ok", `${clients} clients, ${requests} requests (${fresh} new), ${users} demo accounts`] : ["warn", `only ${fresh} new enquiries on the dashboard - run \`pnpm demo:reset\` for a fresh start`];
+  return fresh >= 3 ? ["ok", `${clients} clients, ${requests} requests (${fresh} new), ${users} demo accounts`] : ["warn", `only ${fresh} new enquiries on the dashboard - that is fine unless you want more to show`];
 });
 
 await check("Temporal is reachable", async () => {
@@ -40,7 +40,7 @@ await check("Temporal is reachable", async () => {
 await check("Automations are published", async () => {
   const defs = await prisma.workflowDefinition.findMany({ where: { id: { startsWith: "def_ironspark_" } }, select: { name: true, status: true } });
   const live = defs.filter((d) => d.status === "PUBLISHED").length;
-  if (defs.length === 0) return ["fail", "workflows missing - run `pnpm demo:reset`"];
+  if (defs.length === 0) return ["fail", "workflows missing - run `pnpm workflows:seed --publish` (keeps your data)"];
   if (process.env.AUTOMATIONS === "off") return ["warn", "AUTOMATIONS=off - nothing will start by itself"];
   return live === defs.length ? ["ok", `${live} of ${defs.length} published`] : ["warn", `${live} of ${defs.length} published - run \`pnpm workflows:seed --publish\``];
 });

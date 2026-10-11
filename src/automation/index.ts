@@ -6,6 +6,7 @@
  */
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { startInstanceForDefinition } from "@kabosh-digital/workflow-temporal/instances";
+import { cancelWorkflowInstance } from "@kabosh-digital/workflow-temporal/client";
 import { WorkflowDefinitionGraphSchema } from "@kabosh-digital/workflow-types";
 
 export const AUTOMATION_IDS = {
@@ -65,3 +66,37 @@ export async function startAutomation(key: AutomationKey, trigger: Record<string
 export const afterQuoteSent = (quoteId: string) => startAutomation("quoteChase", { quoteId });
 export const afterInvoiceIssued = (invoiceId: string) => startAutomation("invoiceChase", { invoiceId });
 export const afterInvoicePaid = (invoiceId: string) => startAutomation("reviewRequest", { invoiceId });
+
+/** What stopping a run touches - parameters so tests can supply their own. */
+export interface StopDeps {
+  findRunning: (definitionId: string) => Promise<{ id: string; context: unknown }[]>;
+  cancel: (instanceId: string) => Promise<void>;
+  finish: (instanceId: string) => Promise<void>;
+}
+
+const realStopDeps: StopDeps = {
+  findRunning: (definitionId) => prisma.workflowInstance.findMany({ where: { definitionId, status: "RUNNING", mode: "PRODUCTION" }, select: { id: true, context: true } }),
+  cancel: cancelWorkflowInstance,
+  finish: async (id) => {
+    // Same as Cancel in the console: the run reads Cancelled, and an approval it was waiting on is no longer needed.
+    await prisma.workflowInstance.update({ where: { id }, data: { status: "CANCELLED", completedAt: new Date() } });
+    await prisma.workflowTask.deleteMany({ where: { instanceId: id, status: "PENDING" } });
+  },
+};
+
+/** The customer has answered the quote, so its follow-up run has nothing left to do: stop it now rather than
+ * leaving it asleep until its next check. Returns how many runs were stopped; never throws (the answer stands). */
+export async function stopQuoteChase(quoteId: string, deps: StopDeps = realStopDeps): Promise<number> {
+  let stopped = 0;
+  try {
+    for (const run of await deps.findRunning(AUTOMATION_IDS.quoteChase)) {
+      if ((run.context as { trigger?: { quoteId?: string } } | null)?.trigger?.quoteId !== quoteId) continue;
+      await deps.cancel(run.id).catch((err) => console.warn(`[automation] Temporal cancel failed for ${run.id}:`, err instanceof Error ? err.message : err));
+      await deps.finish(run.id);
+      stopped++;
+    }
+  } catch (err) {
+    console.error("[automation] could not stop the quote follow-up:", err instanceof Error ? err.message : err);
+  }
+  return stopped;
+}

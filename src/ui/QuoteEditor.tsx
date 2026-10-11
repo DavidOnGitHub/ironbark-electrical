@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Input } from "@kabosh-digital/m-street-kit/ui/input";
 import { computeTotals, lineTotalCents, DEPOSIT_PCT, GST_RATE_PCT } from "../domain/quotes/calc";
 import { formatMoney, parseMoney, centsToInput } from "../lib/money";
 import type { ActionState } from "../actions/shared";
-import type { SuggestResult, Suggestion } from "../domain/quotes/suggest";
+import type { SuggestResult } from "../domain/quotes/suggest";
 import { ActionForm } from "./ActionForm";
 
 export interface EditorLine {
@@ -64,7 +64,7 @@ export function QuoteEditor({
   bundles?: EditorBundle[];
   /** The enquiry's wording, offered as the starting point for "Suggest lines". */
   enquiryText?: string;
-  /** Proposes price-list lines for a description; the person reviews them before they are added. */
+  /** Proposes price-list lines for a description; a new quote adds them straight away. */
   suggest?: (description: string) => Promise<SuggestResult>;
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
@@ -72,10 +72,6 @@ export function QuoteEditor({
   const [nextKey, setNextKey] = useState(initialLines.length);
   const [pick, setPick] = useState("");
   const [pickBundle, setPickBundle] = useState("");
-  const [describe, setDescribe] = useState(enquiryText ?? "");
-  const [result, setResult] = useState<SuggestResult | null>(null);
-  const [chosen, setChosen] = useState<Set<string>>(new Set());
-  const [suggesting, startSuggest] = useTransition();
 
   const parsed = rows.map((r) => ({ qty: Number(r.quantity), cents: parseMoney(r.price) }));
   const valid = rows.map((r, i) => r.description.trim() !== "" && Number.isFinite(parsed[i]!.qty) && parsed[i]!.qty > 0 && parsed[i]!.cents !== null);
@@ -94,24 +90,18 @@ export function QuoteEditor({
     setRows((rs) => [...rs, ...lines.map((l, i) => ({ key: nextKey + i, source: "MANUAL", priceItemId: l.priceItemId ?? null, description: l.description, quantity: String(l.quantity), unit: l.unit, price: centsToInput(l.unitPriceCents) }))]);
     setNextKey((k) => k + lines.length);
   };
-  const [suggestError, setSuggestError] = useState<string | null>(null);
-  const runSuggest = () =>
-    startSuggest(async () => {
-      setSuggestError(null);
-      try {
-        const r = await suggest!(describe);
-        setResult(r);
-        setChosen(new Set(r.suggestions.map((x) => `${x.kind}:${x.id}`)));
-      } catch {
-        setResult(null);
-        setSuggestError("Suggestions are not available right now. Add lines by hand, or reload the page and try again.");
-      }
-    });
-  const addChosen = () => {
-    if (!result) return;
-    addLines(result.suggestions.filter((x: Suggestion) => chosen.has(`${x.kind}:${x.id}`)).flatMap((x) => x.lines));
-    setResult(null);
-  };
+  // A new quote with no lines yet: look at the enquiry straight away and add whatever
+  // matches the price list. The office reviews/edits the lines below same as any other -
+  // no separate review step before they land on the quote.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current || !suggest || initialLines.length > 0 || (enquiryText ?? "").trim() === "") return;
+    autoRan.current = true;
+    suggest(enquiryText!)
+      .then((r: SuggestResult) => addLines(r.suggestions.flatMap((x) => x.lines)))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <ActionForm action={action} submitLabel={saveLabel} successMessage="Saved." className="gap-4">
@@ -177,52 +167,6 @@ export function QuoteEditor({
           >
             Add bundle
           </Button>
-        </div>
-      ) : null}
-
-      {suggest ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-dashed p-3" data-testid="suggest-panel">
-          <label className="text-sm font-medium" htmlFor="describe-work">Suggest lines from the enquiry</label>
-          <textarea id="describe-work" value={describe} onChange={(e) => setDescribe(e.target.value)} rows={3} placeholder="Describe the work, or paste the customer's email..." className="w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm" />
-          <div>
-            <Button type="button" variant="outline" disabled={suggesting || describe.trim() === ""} onClick={runSuggest}>
-              {suggesting ? "Looking at the price list..." : "Suggest lines"}
-            </Button>
-          </div>
-          {suggestError ? <p role="alert" className="text-sm text-destructive">{suggestError}</p> : null}
-          {result ? (
-            <div className="flex flex-col gap-2 text-sm" data-testid="suggestions">
-              <p className="text-xs text-muted-foreground">
-                {result.source === "ai" ? "Suggested by AI from your price list." : "Matched against your price list by keyword."} Tick the ones you want, then click &ldquo;Add selected lines&rdquo; - nothing is added until you do. {result.note ?? ""}
-              </p>
-              {result.suggestions.length === 0 ? <p className="text-muted-foreground">Nothing in the price list matched. Add lines by hand.</p> : null}
-              {result.suggestions.map((x) => {
-                const key = `${x.kind}:${x.id}`;
-                return (
-                  <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border bg-card p-2.5">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={chosen.has(key)}
-                      onChange={(e) => setChosen((c) => { const n = new Set(c); if (e.target.checked) n.add(key); else n.delete(key); return n; })}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="font-medium">{x.kind === "bundle" ? `Bundle: ${x.name}` : `${x.quantity} x ${x.name}`}</span>
-                      <span className="block text-xs text-muted-foreground">{x.reason}</span>
-                      {x.kind === "bundle" ? <span className="block text-xs text-muted-foreground">{x.lines.map((l) => `${l.quantity} x ${l.description}`).join(", ")}</span> : null}
-                    </span>
-                    <span className="tabular-nums">{formatMoney(x.totalCents)}</span>
-                  </label>
-                );
-              })}
-              {result.suggestions.length > 0 ? (
-                <div className="flex gap-2">
-                  <Button type="button" disabled={chosen.size === 0} onClick={addChosen}>Add selected lines</Button>
-                  <Button type="button" variant="ghost" onClick={() => setResult(null)}>Dismiss</Button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
 

@@ -1,4 +1,4 @@
-import { auth } from "@kabosh-digital/m-street-kit/auth";
+import { auth, redirectIfMfaPending } from "@kabosh-digital/m-street-kit/auth";
 import RunPage from "@kabosh-digital/m-street-kit/pages/instances/[id]";
 import { reviewsForInstance } from "../../../src/domain/approvals";
 import { TaskReview } from "../../../src/ui/TaskReview";
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 /** The console's run page, with what the run is waiting for approval on shown above it. */
 export default async function InstancePage(props: Parameters<typeof RunPage>[0]) {
   const { id } = await props.params;
+  await redirectIfMfaPending(`/instances/${id}`);
   const session = await auth();
   const reviews = session?.user?.id ? await reviewsForInstance(id, { id: session.user.id, roles: (session.user.roles ?? []) as string[] }) : [];
   return (

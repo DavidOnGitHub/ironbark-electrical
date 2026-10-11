@@ -64,8 +64,19 @@ describe("email templates", () => {
 
 describe("the templated email step", () => {
   it("renders the template and, in a test run, sends nothing", async () => {
-    const out = await send({ template: "quote_reminder", params: { to: "pat@example.com", variables: { clientFirstName: "Pat", title: "Lights", number: "Q-1", totalText: "$100.00", validUntil: "1/1/2027" } } });
+    const out = await send({ template: "quote_reminder", params: { to: "pat@example.com", variables: { clientFirstName: "Pat", title: "Lights", number: "Q-1", totalText: "$100.00", validUntil: "1/1/2027", acceptUrl: "https://x.test/accept/abc" } } });
     expect(out).toEqual({ sent: true, to: "pat@example.com", subject: "Following up on quote Q-1" });
+  });
+  it("adds the quote's accept link itself when an older run did not map it", async () => {
+    const c = await createClient({ type: "PERSON", name: "Pat Smith", email: "pat@example.com", preferredContact: "EMAIL", tags: [] }, priya);
+    const q = await createQuote({ clientId: c.id, title: "Lights" }, priya);
+    await replaceQuoteLines(q.id, [{ description: "Work", quantity: 1, unitPriceCents: 100000 }], priya);
+    await markQuoteSent(q.id, priya);
+    const vars = { clientFirstName: "Pat", title: "Lights", number: "Q-1", lines: "-", totalText: "$1", depositNote: "", validUntil: "1/1/2027" };
+    const out = await send({ template: "quote_send", params: { to: "pat@example.com", variables: vars } }, { ...testMode, trigger: { quoteId: q.id } });
+    expect(out.sent).toBe(true);
+    // without a quote in the run there is nothing to fill in, so the gap is still reported
+    await expect(send({ template: "quote_send", params: { to: "pat@example.com", variables: vars } })).rejects.toThrow(/\{\{acceptUrl\}\}/);
   });
   it("stops with a clear message when a variable has no value, even in a test run", async () => {
     await expect(send({ template: "quote_reminder", params: { to: "pat@example.com", variables: { clientFirstName: "Pat" } } })).rejects.toThrow(/needs .*\{\{title\}\}/);
@@ -75,7 +86,7 @@ describe("the templated email step", () => {
     await expect(send({ params: { to: "a@b.c" } })).rejects.toThrow(/template/); // the step's own schema refuses a config with no template
   });
   it("outside a test run it needs a connected Gmail account", async () => {
-    await expect(send({ template: "enquiry_ack", params: { to: "a@b.c", variables: { subject: "Hi", message: "Hello" } } }, {})).rejects.toThrow(/connect a Gmail account/);
+    await expect(send({ template: "enquiry_reply", params: { to: "a@b.c", variables: { subject: "Hi", message: "Hello" } } }, {})).rejects.toThrow(/connect a Gmail account/);
   });
   it("getQuote supplies every variable the quote templates need", async () => {
     const c = await createClient({ type: "PERSON", name: "Pat Smith", email: "pat@example.com", preferredContact: "EMAIL", tags: [] }, priya);
@@ -86,12 +97,13 @@ describe("the templated email step", () => {
     process.env.EMAIL_ALLOWLIST = "*";
     const loaded = (await runStep("getQuote", { params: { quoteId: q.id } }, {})) as Record<string, any>;
     expect(loaded.clientFirstName).toBe("Pat");
-    const mail = await renderTemplate("quote_send", { clientFirstName: loaded.clientFirstName, title: loaded.title, number: loaded.number, lines: loaded.lines, totalText: loaded.totalText, depositNote: loaded.depositNote, validUntil: loaded.validUntil });
+    const mail = await renderTemplate("quote_send", { clientFirstName: loaded.clientFirstName, title: loaded.title, number: loaded.number, lines: loaded.lines, totalText: loaded.totalText, depositNote: loaded.depositNote, validUntil: loaded.validUntil, acceptUrl: loaded.acceptUrl });
+    expect(mail.html).toContain(loaded.acceptUrl);
     expect(mail.subject).toContain(loaded.number);
     expect(mail.text).toContain("Work (1 each)");
     expect(mail.html).toContain("<li");
     // the same variables mapped by the workflow's own refs also work
-    const viaRefs = await send({ template: "quote_send", params: { to: "pat@example.com", variables: { clientFirstName: ref("load.clientFirstName"), title: ref("load.title"), number: ref("load.number"), lines: ref("load.lines"), totalText: ref("load.totalText"), depositNote: ref("load.depositNote"), validUntil: ref("load.validUntil") } } }, { ...testMode, load: loaded });
+    const viaRefs = await send({ template: "quote_send", params: { to: "pat@example.com", variables: { clientFirstName: ref("load.clientFirstName"), title: ref("load.title"), number: ref("load.number"), lines: ref("load.lines"), totalText: ref("load.totalText"), depositNote: ref("load.depositNote"), validUntil: ref("load.validUntil"), acceptUrl: ref("load.acceptUrl") } } }, { ...testMode, load: loaded });
     expect(viaRefs.sent).toBe(true);
     delete process.env.EMAIL_ALLOWLIST;
   });

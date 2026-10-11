@@ -10,6 +10,7 @@ import {
   createQuote,
   decideQuote,
   extendQuoteValidity,
+  getQuote,
   markQuoteSent,
   QuoteLineSchema,
   replaceQuoteLines,
@@ -17,7 +18,8 @@ import {
   type SuggestResult,
   updateQuoteDetails,
 } from "../domain/quotes";
-import { afterQuoteSent } from "../automation";
+import { afterQuoteSent, stopQuoteChase } from "../automation";
+import { isAllowedRecipient } from "../integrations/allowlist";
 import { bundleLines, listBundles, listPriceItems } from "../domain/pricing";
 import { errorMessage, text, type ActionState } from "./shared";
 
@@ -61,6 +63,14 @@ export async function saveQuoteLinesAction(_prev: ActionState, formData: FormDat
   return { error: null, ok: true };
 }
 
+/** What actually happens after "Send quote", in words the office can trust. */
+function sendOutcome(started: boolean, email: string): string {
+  if (!started) return "The quote is now Sent, but nothing was emailed: the quote automation is off or not published. Send it to the customer yourself.";
+  if (email === "") return "Quote sent. The customer has no email address, so a task asks someone to send it.";
+  if (!isAllowedRecipient(email)) return "Quote sent. It is waiting for approval in Tasks and goes to the customer once approved.";
+  return "Quote sent to the customer. We will remind them if they have not answered.";
+}
+
 export async function markQuoteSentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRole(Access.QUOTES_WRITE);
   const quoteId = text(formData, "quoteId");
@@ -71,12 +81,13 @@ export async function markQuoteSentAction(_prev: ActionState, formData: FormData
     return { error: errorMessage(err) };
   }
   // The quote-and-chase workflow (if published) takes it from here; a failure to start it never undoes the send.
-  await afterQuoteSent(quoteId);
+  const started = await afterQuoteSent(quoteId);
+  const email = (await getQuote(quoteId))?.client.email ?? "";
   revalidatePath(`/quotes/${quoteId}`);
   revalidatePath("/quotes");
   revalidatePath("/requests");
   revalidatePath("/");
-  return { error: null, ok: true };
+  return { error: null, ok: true, message: sendOutcome(started.started, email) };
 }
 
 export async function decideQuoteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -91,6 +102,7 @@ export async function decideQuoteAction(_prev: ActionState, formData: FormData):
   } catch (err) {
     return { error: errorMessage(err) };
   }
+  await stopQuoteChase(quoteId);
   revalidatePath(`/quotes/${quoteId}`);
   revalidatePath("/quotes");
   revalidatePath("/jobs");

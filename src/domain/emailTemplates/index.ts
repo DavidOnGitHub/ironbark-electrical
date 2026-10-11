@@ -1,10 +1,10 @@
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { appDb } from "../../db/app";
-import { DEFAULT_TEMPLATES } from "./defaults";
+import { DEFAULT_TEMPLATES, LEGACY_QUOTE_TEMPLATES } from "./defaults";
 import { findPlaceholders, renderEmail, slugKey, type Brand, type Variables } from "./render";
 
 export * from "./render";
-export { DEFAULT_TEMPLATES } from "./defaults";
+export { DEFAULT_TEMPLATES, LEGACY_QUOTE_TEMPLATES } from "./defaults";
 
 export const STEP_KEY = "sendTemplatedEmail";
 
@@ -88,7 +88,13 @@ export async function deleteTemplate(id: string) {
 export async function ensureDefaultTemplates(): Promise<number> {
   let created = 0;
   for (const d of DEFAULT_TEMPLATES) {
-    if (await getTemplateByKey(d.key)) continue;
+    const existing = await getTemplateByKey(d.key);
+    if (existing) {
+      // An untouched earlier default moves to the current wording; anything the business edited stays.
+      const legacy = LEGACY_QUOTE_TEMPLATES[d.key]?.some((l) => l.subject === existing.subject && l.body === existing.body);
+      if (legacy) await appDb.emailTemplate.update({ where: { id: existing.id }, data: { subject: d.subject, body: d.body, variables: findPlaceholders(d.subject, d.body) } });
+      continue;
+    }
     await appDb.emailTemplate.create({ data: { key: d.key, name: d.name, description: d.description, subject: d.subject, body: d.body, variables: findPlaceholders(d.subject, d.body) } });
     created++;
   }

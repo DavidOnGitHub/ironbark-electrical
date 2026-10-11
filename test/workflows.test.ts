@@ -84,23 +84,20 @@ describe("the chasing cadences follow the requirements", () => {
 });
 
 describe("safety rules", () => {
-  it("nothing but the acknowledgement is sent without a person approving it (enquiry workflow)", () => {
+  it("the enquiry workflow sends one email, and only after a person approves it", () => {
     const sends = enquiryToReply.nodes.filter((n) => n.stepKey === "sendTemplatedEmail").map((n) => n.id);
-    expect(sends.sort()).toEqual(["acknowledge", "send_reply"]);
+    expect(sends).toEqual(["send_reply"]);
     // the proposed reply is only reachable through the approval decision
     const into = enquiryToReply.edges.filter((e) => e.toNodeId === "send_reply");
     expect(into).toHaveLength(1);
     expect(into[0]!.fromNodeId).toBe("decision_approved");
     expect(into[0]!.condition).toMatchObject({ field: "approve_reply.approved", op: "eq", value: true });
   });
-  it("the enquiry workflow only auto-acknowledges senders on the allowlist, but a person can still approve a reply to anyone", () => {
-    const to = enquiryToReply.edges.filter((e) => e.toNodeId === "acknowledge");
-    expect(to).toHaveLength(1);
-    expect(to[0]).toMatchObject({ fromNodeId: "decision_can_email", condition: { field: "log_enquiry.canEmail", op: "eq", value: true } });
-    expect(enquiryToReply.edges.find((e) => e.fromNodeId === "decision_can_email" && !e.condition)!.toNodeId).toBe("log_not_emailed");
-    // an off-list sender skips only the automatic acknowledgement: it still reaches the approval task
-    expect(enquiryToReply.edges.filter((e) => e.fromNodeId === "log_not_emailed").map((e) => e.toNodeId)).toEqual(["decision_emergency"]);
+  it("every enquiry, whoever sent it, reaches the approval task; emergencies are phoned first", () => {
+    expect(enquiryToReply.edges.filter((e) => e.fromNodeId === "log_enquiry").map((e) => e.toNodeId)).toEqual(["decision_emergency"]);
     expect(enquiryToReply.edges.find((e) => e.fromNodeId === "decision_emergency" && !e.condition)!.toNodeId).toBe("approve_reply");
+    expect(enquiryToReply.edges.find((e) => e.fromNodeId === "decision_emergency" && e.condition)!.toNodeId).toBe("emergency_task");
+    expect(enquiryToReply.edges.find((e) => e.fromNodeId === "emergency_task")!.toNodeId).toBe("approve_reply");
   });
   it("the inbox trigger is narrowed to the plus-alias, never the whole mailbox", () => {
     const wired = wireConnectors(enquiryToReply, { emailConnectorId: "conn_gmail", gmailAccount: "david8959@gmail.com" });

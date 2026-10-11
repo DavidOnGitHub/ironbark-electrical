@@ -86,7 +86,7 @@ export function ActionForm({
           {state.error}
         </p>
       ) : null}
-      {state.ok && successMessage ? <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p> : null}
+      {state.ok && (state.message ?? successMessage) ? <p className="text-sm text-green-700 dark:text-green-400">{state.message ?? successMessage}</p> : null}
       <div>
         <Button type="submit" variant={variant} disabled={pending} className={buttonClassName}>
           {pending ? pendingLabel : submitLabel}

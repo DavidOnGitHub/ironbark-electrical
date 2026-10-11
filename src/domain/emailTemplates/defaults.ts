@@ -16,36 +16,28 @@ const SIGN = "Kind regards,\nThe team at Ironbark Electrical";
 
 export const DEFAULT_TEMPLATES: TemplateDefault[] = [
   {
-    key: "enquiry_ack",
-    name: "Enquiry - acknowledgement",
-    description: "Sent at once when a new enquiry arrives. The AI writes the message; this adds the branding.",
-    subject: "Re: {{subject}}",
-    body: "{{message}}",
-    sample: { subject: "Quote for 6 downlights", message: "Hi Pat,\n\nThanks for getting in touch about the downlights. We have your message and will be in touch shortly.\n\nKind regards,\nThe team at Ironbark Electrical" },
-  },
-  {
     key: "enquiry_reply",
     name: "Enquiry - approved reply",
     description: "The reply the office approves for a new enquiry. The AI drafts the message.",
     subject: "Re: {{subject}}",
     body: "{{message}}",
-    sample: { subject: "Quote for 6 downlights", message: "Hi Pat,\n\nHappy to help. We can send an electrician to look at it on Thursday morning or Friday afternoon - which suits you?\n\nKind regards,\nThe team at Ironbark Electrical" },
+    sample: { subject: "Quote for 6 downlights", message: "Hi Pat,\n\nThanks for your email - we've received it and will reply to your request soon.\n\nKind regards,\nThe team at Ironbark Electrical" },
   },
   {
     key: "quote_send",
     name: "Quote - sent to the customer",
-    description: "Emailed when a quote is marked as sent.",
+    description: "Emailed when a quote is sent.",
     subject: "Your quote {{number}} from Ironbark Electrical - {{title}}",
-    body: `Hi {{clientFirstName}},\n\nThanks for choosing us to look at "{{title}}". Here is your quote {{number}}:\n\n{{lines}}\n\n**Total including GST: {{totalText}}**\n\n{{depositNote}}\n\nThis quote is valid until {{validUntil}}. To go ahead, just reply to this email and we will lock in a date.\n\n${SIGN}`,
-    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "Q-1042", lines: "- Electrician (3 hour): $330.00\n- LED downlight supply and fit (6 each): $540.00", totalText: "$957.00", depositNote: "", validUntil: "16/10/2026" },
+    body: `Hi {{clientFirstName}},\n\nThanks for choosing us to look at "{{title}}". Here is your quote {{number}}:\n\n{{lines}}\n\n**Total including GST: {{totalText}}**\n\n{{depositNote}}\n\nThis quote is valid until {{validUntil}}.\n\n[Accept or decline this quote online]({{acceptUrl}})\n\nPrefer to talk it through? Just reply to this email.\n\n${SIGN}`,
+    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "Q-1042", lines: "- Electrician (3 hour): $330.00\n- LED downlight supply and fit (6 each): $540.00", totalText: "$957.00", depositNote: "", validUntil: "16/10/2026", acceptUrl: "https://example.com/accept/abc" },
   },
   {
     key: "quote_reminder",
     name: "Quote - friendly reminder",
     description: "Sent a day after the quote if the customer has not answered.",
     subject: "Following up on quote {{number}}",
-    body: `Hi {{clientFirstName}},\n\nJust checking in on quote {{number}} for "{{title}}" ({{totalText}} including GST). It is valid until {{validUntil}}.\n\nIf you have any questions, or would like us to adjust anything, reply here or call us and we will sort it out. If you are ready to go ahead, reply "yes" and we will book you in.\n\n${SIGN}`,
-    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "Q-1042", totalText: "$957.00", validUntil: "16/10/2026" },
+    body: `Hi {{clientFirstName}},\n\nJust checking in on quote {{number}} for "{{title}}" ({{totalText}} including GST). It is valid until {{validUntil}}.\n\nIf you are ready to go ahead, you can accept online and we will book you in:\n\n[Accept or decline this quote online]({{acceptUrl}})\n\nIf you have any questions, or would like us to adjust anything, reply here or call us and we will sort it out.\n\n${SIGN}`,
+    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "Q-1042", totalText: "$957.00", validUntil: "16/10/2026", acceptUrl: "https://example.com/accept/abc" },
   },
   {
     key: "invoice_send",
@@ -88,3 +80,20 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
     sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", reviewUrl: "https://example.com/review" },
   },
 ];
+
+/** Earlier default wording for the quote emails (before the accept link). A stored template still equal to one of
+ * these was never edited, so it is safe to move it to the current default; an edited one is left alone. */
+export const LEGACY_QUOTE_TEMPLATES: Record<string, { subject: string; body: string }[]> = {
+  quote_send: [
+    {
+      subject: "Your quote {{number}} from Ironbark Electrical - {{title}}",
+      body: `Hi {{clientFirstName}},\n\nThanks for choosing us to look at "{{title}}". Here is your quote {{number}}:\n\n{{lines}}\n\n**Total including GST: {{totalText}}**\n\n{{depositNote}}\n\nThis quote is valid until {{validUntil}}. To go ahead, just reply to this email and we will lock in a date.\n\n${SIGN}`,
+    },
+  ],
+  quote_reminder: [
+    {
+      subject: "Following up on quote {{number}}",
+      body: `Hi {{clientFirstName}},\n\nJust checking in on quote {{number}} for "{{title}}" ({{totalText}} including GST). It is valid until {{validUntil}}.\n\nIf you have any questions, or would like us to adjust anything, reply here or call us and we will sort it out. If you are ready to go ahead, reply "yes" and we will book you in.\n\n${SIGN}`,
+    },
+  ],
+};

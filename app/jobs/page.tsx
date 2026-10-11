@@ -15,7 +15,7 @@ export default async function JobsPage(props: { searchParams: Promise<{ status?:
   await requireBusinessPage(Access.JOBS_READ);
   const { status, view } = await props.searchParams;
   const filter = JOB_STATUS_ORDER.find((s) => s === status) as JobStatusValue | undefined;
-  const jobs = await listJobs({ status: filter, activeOnly: !filter && view !== "all" });
+  const jobs = await listJobs({ status: filter, activeOnly: !filter && view === "active" });
   const labels = await staffLabelMap();
   const tab = (href: string, label: string, active: boolean) => (
     <Link key={label} href={href}>
@@ -26,10 +26,10 @@ export default async function JobsPage(props: { searchParams: Promise<{ status?:
     <div className="flex flex-col gap-5">
       <PageHeader title="Jobs" subtitle="Work won from approved quotes, from scheduling to done." />
       <div className="flex flex-wrap gap-2">
-        {tab("/jobs", "Active", !filter && view !== "all")}
+        {tab("/jobs", "All", !filter && view !== "active")}
+        {tab("/jobs?view=active", "Active", !filter && view === "active")}
         {tab("/jobs?status=UNSCHEDULED", "To schedule", filter === "UNSCHEDULED")}
         {tab("/jobs?status=COMPLETED", "Completed", filter === "COMPLETED")}
-        {tab("/jobs?view=all", "All", view === "all" && !filter)}
       </div>
       <Card className="overflow-x-auto p-0">
         <table className="w-full text-sm">

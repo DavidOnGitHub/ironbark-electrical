@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
+import { CustomerPage } from "../../../src/ui/CustomerPage";
 
 export const dynamic = "force-dynamic";
 
@@ -6,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function PayPage(props: { searchParams: Promise<{ invoice?: string }> }) {
   const { invoice } = await props.searchParams;
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 py-10">
+    <CustomerPage width="max-w-md">
       <Card>
         <CardHeader>
           <CardTitle>Payment not completed</CardTitle>
@@ -17,6 +18,6 @@ export default async function PayPage(props: { searchParams: Promise<{ invoice?:
           <p className="mt-3">Ironbark Electrical</p>
         </CardContent>
       </Card>
-    </div>
+    </CustomerPage>
   );
 }

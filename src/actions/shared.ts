@@ -7,6 +7,8 @@ export interface ActionState {
   /** Possible duplicate clients; the form shows them and offers "create anyway". */
   duplicates?: DuplicateMatch[];
   ok?: boolean;
+  /** Shown instead of the form's fixed success text, when what happened depends on the outcome. */
+  message?: string;
   /** A scheduling clash: the form offers "Book anyway". */
   conflict?: boolean;
 }

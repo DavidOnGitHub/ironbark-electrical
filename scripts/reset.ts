@@ -1,3 +1,4 @@
+import { createInterface } from "node:readline/promises";
 import { appDb } from "../src/db/app";
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { DEMO_PASSWORD, DEMO_USERS, seedBusiness, seedUsers } from "./seedData";
@@ -5,6 +6,20 @@ import { seedPriceList, seedQuotesAndJobs } from "./seedPhase2";
 import { seedInvoicing } from "./seedInvoicing";
 import { seedDemoInbox } from "./seedDemoInbox";
 import { clearAutomationRuns, seedWorkflows } from "./workflowSeed";
+
+// This DELETES all business data (clients, quotes, jobs, invoices, price list, email templates). It never runs
+// by itself: only when you run this script, and only after you type "reset" (or pass --yes on purpose).
+if (!process.argv.includes("--yes")) {
+  if (!process.stdin.isTTY) {
+    console.error("Refusing to reset: this deletes all business data. Run it yourself in a terminal, or pass --yes.");
+    process.exit(1);
+  }
+  const answer = await createInterface({ input: process.stdin, output: process.stdout }).question(`This will DELETE all business data in ${process.env.APP_DATABASE_URL?.replace(/\/\/[^@]*@/, "//") ?? "the app database"}.\nType "reset" to continue: `);
+  if (answer.trim() !== "reset") {
+    console.log("Cancelled. Nothing was changed.");
+    process.exit(0);
+  }
+}
 
 // Back to the seed state: stop any automation runs, wipe the business tables, re-create the demo accounts, reseed.
 const runs = await clearAutomationRuns();

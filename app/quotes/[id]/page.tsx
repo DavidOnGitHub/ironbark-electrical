@@ -4,7 +4,7 @@ import { hasAnyRole } from "@kabosh-digital/m-street-kit/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
 import { Access } from "../../../src/access";
 import { requireBusinessPage } from "../../../src/guard";
-import { getQuote, DEPOSIT_PCT, GST_RATE_PCT } from "../../../src/domain/quotes";
+import { acceptUrlFor, ensureAcceptToken, getQuote, DEPOSIT_PCT, GST_RATE_PCT } from "../../../src/domain/quotes";
 import { bundleLines, listBundles, listPriceItems } from "../../../src/domain/pricing";
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { formatSite } from "../../../src/domain/clients";
@@ -27,6 +27,7 @@ export default async function QuotePage(props: { params: Promise<{ id: string }>
   const canWrite = hasAnyRole(user.roles, Access.QUOTES_WRITE);
   const [timeline, priceItems, bundles] = await Promise.all([listEntityTimeline("quote", id), quote.status === "DRAFT" && canWrite ? listPriceItems({ activeOnly: true }) : Promise.resolve([]), quote.status === "DRAFT" && canWrite ? listBundles({ activeOnly: true }) : Promise.resolve([])]);
   const status = quote.effectiveStatus;
+  const acceptToken = status === "SENT" || status === "EXPIRED" ? await ensureAcceptToken(id) : null;
   const editable = quote.status === "DRAFT" && canWrite;
 
   return (
@@ -111,8 +112,8 @@ export default async function QuotePage(props: { params: Promise<{ id: string }>
             <Card>
               <CardHeader><CardTitle className="text-base">Send</CardTitle></CardHeader>
               <CardContent className="flex flex-col gap-2 text-sm">
-                <p className="text-muted-foreground">Check the lines and totals, then mark it as sent. That starts the {14}-day validity and moves the enquiry to Quoted. Emailing the quote to the customer arrives with the quote-and-chase workflow.</p>
-                <ActionForm action={markQuoteSentAction} submitLabel="Mark as sent" successMessage="Marked as sent.">
+                <p className="text-muted-foreground">Check the lines and totals, then send. The customer gets the quote by email, the {14}-day validity starts and the enquiry moves to Quoted. We remind them if they have not answered. An address not on the allowlist waits for approval in Tasks first.</p>
+                <ActionForm action={markQuoteSentAction} submitLabel="Send quote" pendingLabel="Sending..." successMessage="Quote sent.">
                   <input type="hidden" name="quoteId" value={quote.id} />
                 </ActionForm>
               </CardContent>
@@ -123,6 +124,13 @@ export default async function QuotePage(props: { params: Promise<{ id: string }>
               <CardHeader><CardTitle className="text-base">The customer&rsquo;s answer</CardTitle></CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {status === "EXPIRED" ? <p className="text-sm text-amber-700 dark:text-amber-400">This quote has expired. Extend it to record an answer.</p> : null}
+                {status === "SENT" && acceptToken ? (
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm" data-testid="accept-link">
+                    <p>The quote email has a link where the customer can accept or decline. Their answer is recorded here by itself.</p>
+                    <a href={acceptUrlFor(acceptToken)} target="_blank" rel="noreferrer" className="mt-1 block break-all text-xs underline">{acceptUrlFor(acceptToken)}</a>
+                    <p className="mt-2 text-xs text-muted-foreground">If they answer by phone or email instead, record it below.</p>
+                  </div>
+                ) : null}
                 {status === "SENT" ? (
                   <>
                     <ActionForm action={decideQuoteAction} submitLabel="Customer approved" successMessage="Recorded.">
