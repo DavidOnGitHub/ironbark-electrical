@@ -101,6 +101,7 @@ export function JobStatusChip({ status }: { status: JobStatusValue }) {
 }
 
 import { INVOICE_STATUS_LABEL, type EffectiveInvoiceStatus } from "../domain/invoicing/calc";
+import { SITE_VISIT_STATUS_LABEL, type SiteVisitStatusValue } from "../domain/siteVisits/status";
 
 const INVOICE_STYLE: Record<EffectiveInvoiceStatus, Tone> = {
   DRAFT: "neutral",
@@ -117,6 +118,12 @@ export function InvoiceStatusChip({ status }: { status: EffectiveInvoiceStatus }
       {INVOICE_STATUS_LABEL[status]}
     </Chip>
   );
+}
+
+const VISIT_STYLE: Record<SiteVisitStatusValue, Tone> = { SCHEDULED: "prog", COMPLETED: "ok", CANCELLED: "neutral" };
+
+export function SiteVisitChip({ status }: { status: SiteVisitStatusValue }) {
+  return <Chip tone={VISIT_STYLE[status]}>{SITE_VISIT_STATUS_LABEL[status]}</Chip>;
 }
 
 /** Job numbers look like cable labels: hi-vis with dark text. */

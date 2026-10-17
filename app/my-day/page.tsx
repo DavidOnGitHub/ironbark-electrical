@@ -6,10 +6,12 @@ import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
 import { JOB_TRANSITIONS, listJobsForTechnician, JOB_STATUS_LABEL, type JobStatusValue, technicianCanMoveJob } from "../../src/domain/jobs";
 import { fieldAddNoteAction, fieldChangeStatusAction } from "../../src/actions/jobs";
+import { fieldCompleteSiteVisitAction } from "../../src/actions/siteVisits";
+import { listVisitsForTechnician } from "../../src/domain/siteVisits";
 import { dayKey, formatDayKey, formatDayTime, formatTime } from "../../src/lib/tz";
 import { ActionForm } from "../../src/ui/ActionForm";
 import { Field, PageHeader, SelectField, TextAreaField } from "../../src/ui/fields";
-import { JobStatusChip, JobTag } from "../../src/ui/chips";
+import { JobStatusChip, JobTag, SiteVisitChip } from "../../src/ui/chips";
 
 export const dynamic = "force-dynamic";
 
@@ -32,27 +34,68 @@ export default async function MyDayPage() {
     );
   }
   const today = dayKey(new Date());
-  const jobs = await listJobsForTechnician(user.id, today, 8);
+  const [jobs, visits] = await Promise.all([listJobsForTechnician(user.id, today, 8), listVisitsForTechnician(user.id, today, 8)]);
   const byDay = new Map<string, typeof jobs>();
   for (const j of jobs) {
     const key = j.scheduledStart ? dayKey(j.scheduledStart) : today;
     byDay.set(key, [...(byDay.get(key) ?? []), j]);
   }
-  const days = [...byDay.keys()].sort();
+  const visitsByDay = new Map<string, typeof visits>();
+  for (const v of visits) visitsByDay.set(dayKey(v.scheduledStart), [...(visitsByDay.get(dayKey(v.scheduledStart)) ?? []), v]);
+  const days = [...new Set([...byDay.keys(), ...visitsByDay.keys()])].sort();
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="My day" subtitle={`Hi ${user.name?.split(" ")[0] ?? "there"} - today and the next 7 days.`} />
       {days.length === 0 ? (
         <Card>
-          <CardHeader><CardTitle className="text-base">No jobs scheduled</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Nothing scheduled</CardTitle></CardHeader>
           <CardContent className="text-sm text-muted-foreground">Nothing booked for you in the next week.</CardContent>
         </Card>
       ) : null}
       {days.map((day) => (
         <section key={day} className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold">{day === today ? "Today" : formatDayKey(day)}</h2>
-          {byDay.get(day)!.map((j) => {
+          {(visitsByDay.get(day) ?? []).map((v) => {
+            const site = v.request.site;
+            const address = site ? [site.line1, site.line2, `${site.suburb} ${site.state} ${site.postcode}`].filter(Boolean).join(", ") : null;
+            const phone = v.request.client?.phone;
+            return (
+              <Card key={v.id} data-testid="field-visit" className="border-l-[6px] border-l-teal-accent">
+                <CardHeader>
+                  <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+                    <span>Site visit: {v.request.summary}</span>
+                    <SiteVisitChip status={v.status} />
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">{formatDayTime(v.scheduledStart)} - {formatTime(v.scheduledEnd)}</p>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 text-sm">
+                  <div className="grid gap-1.5">
+                    {v.request.client ? <p className="font-medium">{v.request.client.name}</p> : null}
+                    {address ? <p>{address}</p> : null}
+                    {site?.accessNotes ? <p><span className="text-xs text-muted-foreground">Access: </span>{site.accessNotes}</p> : null}
+                    {site?.switchboardNotes ? <p><span className="text-xs text-muted-foreground">Switchboard: </span>{site.switchboardNotes}</p> : null}
+                    {v.request.description ? <p className="whitespace-pre-wrap text-muted-foreground">{v.request.description}</p> : null}
+                  </div>
+                  {phone || address ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {phone ? <a className={TAP_LINK} href={`tel:${phone.replace(/\s/g, "")}`}>Call</a> : <span />}
+                      {address ? <a className={TAP_LINK} href={`https://maps.google.com/?q=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer">Directions</a> : <span />}
+                    </div>
+                  ) : null}
+                  {v.status === "SCHEDULED" ? (
+                    <ActionForm action={fieldCompleteSiteVisitAction} submitLabel="Finish inspection" resetOnSuccess buttonClassName="h-12 w-full text-base sm:h-9 sm:w-auto sm:text-sm">
+                      <input type="hidden" name="visitId" value={v.id} />
+                      <TextAreaField label="What did you find? What will the job need?" name="findings" rows={4} placeholder="Old fuse board, 3 circuits to add, roof space accessible, needs 2 people..." />
+                    </ActionForm>
+                  ) : v.findings ? (
+                    <p className="whitespace-pre-wrap rounded-md border p-3">{v.findings}</p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
+          {(byDay.get(day) ?? []).map((j) => {
             const moves = JOB_TRANSITIONS[j.status].filter((to) => technicianCanMoveJob(j.status, to));
             const address = j.site ? [j.site.line1, j.site.line2, `${j.site.suburb} ${j.site.state} ${j.site.postcode}`].filter(Boolean).join(", ") : null;
             return (

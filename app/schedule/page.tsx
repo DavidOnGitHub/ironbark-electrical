@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-stre
 import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
 import { weekSchedule } from "../../src/domain/jobs";
+import { weekVisits } from "../../src/domain/siteVisits";
 import { listTechnicians } from "../../src/domain/shared/staff";
 import { addDaysKey, dayKey, formatDayKey, formatTime, weekDayKeys, weekStartKey } from "../../src/lib/tz";
 import { PageHeader } from "../../src/ui/fields";
-import { JobStatusChip } from "../../src/ui/chips";
+import { JobStatusChip, SiteVisitChip } from "../../src/ui/chips";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,8 @@ export default async function SchedulePage(props: { searchParams: Promise<{ week
   const today = dayKey(new Date());
   const start = weekStartKey(week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : today);
   const days = weekDayKeys(start);
-  const [{ scheduled, unscheduled }, technicians] = await Promise.all([weekSchedule(start), listTechnicians()]);
+  const [{ scheduled, unscheduled }, technicians, visits] = await Promise.all([weekSchedule(start), listTechnicians(), weekVisits(start)]);
+  const visitCell = (techId: string, day: string) => visits.filter((v) => v.assignedUserId === techId && dayKey(v.scheduledStart) === day);
   const cell = (techId: string, day: string) => scheduled.filter((j) => j.assignedUserId === techId && dayKey(j.scheduledStart!) === day);
   const known = new Set(technicians.map((t) => t.id));
   const orphan = scheduled.filter((j) => j.assignedUserId && !known.has(j.assignedUserId));
@@ -55,6 +57,14 @@ export default async function SchedulePage(props: { searchParams: Promise<{ week
                 {days.map((d) => (
                   <td key={d} className={`px-2 py-2 ${d === today ? "bg-muted/30" : ""}`}>
                     <div className="flex flex-col gap-1.5">
+                      {visitCell(t.id, d).map((v) => (
+                        <Link key={v.id} href={`/requests/${v.request.id}`} data-testid="schedule-visit" className="rounded-md border border-dashed bg-card p-1.5 text-xs hover:bg-muted">
+                          <span className="font-semibold">{formatTime(v.scheduledStart)}-{formatTime(v.scheduledEnd)}</span>
+                          <span className="block truncate">Site visit: {v.request.client?.name ?? v.request.summary}</span>
+                          <span className="block truncate text-muted-foreground">{v.request.site?.suburb ?? ""}</span>
+                          <SiteVisitChip status={v.status} />
+                        </Link>
+                      ))}
                       {cell(t.id, d).map((j) => (
                         <Link key={j.id} href={`/jobs/${j.id}`} className="rounded-md border bg-card p-1.5 text-xs hover:bg-muted">
                           <span className="font-semibold">{formatTime(j.scheduledStart!)}-{formatTime(j.scheduledEnd!)}</span>

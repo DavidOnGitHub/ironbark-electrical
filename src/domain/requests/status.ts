@@ -5,7 +5,7 @@ import type { RequestStatus } from "ironbark-electrical-client";
 export const REQUEST_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   NEW: ["CONTACTED", "SITE_VISIT_BOOKED", "QUOTED", "LOST"],
   CONTACTED: ["SITE_VISIT_BOOKED", "QUOTED", "LOST"],
-  SITE_VISIT_BOOKED: ["QUOTED", "LOST"],
+  SITE_VISIT_BOOKED: ["CONTACTED", "QUOTED", "LOST"],
   QUOTED: ["CONTACTED", "WON", "LOST"],
   WON: [],
   LOST: ["NEW"],

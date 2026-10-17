@@ -5,6 +5,7 @@ import { Access } from "../../../src/access";
 import { requireBusinessPage } from "../../../src/guard";
 import { getClient, listClients, formatSite } from "../../../src/domain/clients";
 import { getRequest } from "../../../src/domain/requests";
+import { latestCompletedVisit } from "../../../src/domain/siteVisits";
 import { createQuoteAction } from "../../../src/actions/quotes";
 import { ActionForm } from "../../../src/ui/ActionForm";
 import { PageHeader, SelectField, Field, TextAreaField } from "../../../src/ui/fields";
@@ -15,6 +16,7 @@ export default async function NewQuotePage(props: { searchParams: Promise<{ clie
   await requireBusinessPage(Access.QUOTES_WRITE);
   const { clientId, requestId, siteId } = await props.searchParams;
   const request = requestId ? await getRequest(requestId) : null;
+  const visit = request ? await latestCompletedVisit(request.id) : null;
   const effectiveClientId = clientId ?? request?.clientId ?? undefined;
   const client = effectiveClientId ? await getClient(effectiveClientId) : null;
 
@@ -49,6 +51,12 @@ export default async function NewQuotePage(props: { searchParams: Promise<{ clie
           <CardTitle className="text-base">Details</CardTitle>
         </CardHeader>
         <CardContent>
+          {visit?.findings ? (
+            <div className="mb-4 rounded-lg border border-teal-accent/40 bg-muted/40 p-3 text-sm" data-testid="visit-findings">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">From the site visit</p>
+              <p className="mt-1 whitespace-pre-wrap">{visit.findings}</p>
+            </div>
+          ) : null}
           <ActionForm action={createQuoteAction} submitLabel="Create draft and add lines">
             <input type="hidden" name="clientId" value={client.id} />
             {request ? <input type="hidden" name="requestId" value={request.id} /> : null}
@@ -59,7 +67,7 @@ export default async function NewQuotePage(props: { searchParams: Promise<{ clie
               defaultValue={siteId ?? request?.siteId ?? client.sites[0]?.id ?? ""}
               options={[{ value: "", label: "No site" }, ...client.sites.map((s) => ({ value: s.id, label: formatSite(s) }))]}
             />
-            <TextAreaField label="Notes for the customer" name="notes" rows={3} placeholder="Scope, exclusions, access arrangements..." />
+            <TextAreaField label="Notes for the customer" name="notes" rows={3} defaultValue={visit?.findings ? `Based on our site inspection: ${visit.findings}` : undefined} placeholder="Scope, exclusions, access arrangements..." />
           </ActionForm>
         </CardContent>
       </Card>

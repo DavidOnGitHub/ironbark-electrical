@@ -1,6 +1,7 @@
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { getTemporalClient, TASK_QUEUE } from "@kabosh-digital/workflow-temporal";
 import { appDb } from "../src/db/app";
+import { reconcileRuns } from "../src/automation/reconcile";
 import { isAllowedRecipient } from "../src/integrations/allowlist";
 
 /** Is the demo ready to show? Run before every walkthrough: `pnpm demo:check`. Exit code 1 if anything essential fails. */
@@ -43,6 +44,12 @@ await check("Automations are published", async () => {
   if (defs.length === 0) return ["fail", "workflows missing - run `pnpm workflows:seed --publish` (keeps your data)"];
   if (process.env.AUTOMATIONS === "off") return ["warn", "AUTOMATIONS=off - nothing will start by itself"];
   return live === defs.length ? ["ok", `${live} of ${defs.length} published`] : ["warn", `${live} of ${defs.length} published - run \`pnpm workflows:seed --publish\``];
+});
+
+await check("Open tasks match live workflows", async () => {
+  const r = await reconcileRuns();
+  if (r.skipped) return ["warn", `${r.skipped} run(s) could not be checked against Temporal`];
+  return ["ok", r.closedRuns || r.removedTasks ? `cleaned up: ${r.closedRuns} lost run(s), ${r.removedTasks} orphaned task(s)` : "no orphaned tasks"];
 });
 
 await check("Gmail is connected", async () => {

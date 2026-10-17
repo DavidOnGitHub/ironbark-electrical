@@ -216,12 +216,32 @@ export async function seedQuotesAndJobs(userIds: Record<string, string>, items: 
   let pkgIdx = 0;
   const nextPkg = () => PKG_KEYS[pkgIdx++ % PKG_KEYS.length]!;
   let drafts = 0;
+  let siteVisitsSeeded = 0;
   for (const r of requests) {
     const base = { clientId: r.clientId!, siteId: r.siteId, requestId: r.id };
     const ageDays = (now.getTime() - r.receivedAt.getTime()) / DAY;
     if (r.status === "QUOTED") {
       await makeQuote({ ...base, pkg: nextPkg(), status: "SENT", createdDaysAgo: ageDays - 0.5, sentDaysAgo: Math.max(0.2, ageDays - 1) });
-    } else if (r.status === "CONTACTED" || r.status === "SITE_VISIT_BOOKED") {
+    } else if (r.status === "SITE_VISIT_BOOKED") {
+      // The older one has been inspected (and has a draft quote built from the findings); the newer one is booked for tomorrow.
+      const done = siteVisitsSeeded === 0;
+      const tech = techs[siteVisitsSeeded % techs.length]!;
+      siteVisitsSeeded++;
+      const start = done ? ago(2, 10) : slot(1, 9);
+      await appDb.siteVisit.create({
+        data: {
+          requestId: r.id,
+          assignedUserId: tech,
+          status: done ? "COMPLETED" : "SCHEDULED",
+          scheduledStart: start,
+          scheduledEnd: new Date(start.getTime() + 3_600_000),
+          findings: done ? "Old rewireable fuses and no safety switch. Needs a new switchboard with RCDs, 3 extra circuits for the kitchen, and ceiling access is easy. Two people, about one day." : null,
+          completedAt: done ? new Date(start.getTime() + 3_000_000) : null,
+        },
+      });
+      await event({ at: done ? start : ago(0.5), actorLabel: "Priya Nair", actorUserId: office, clientId: r.clientId!, entityType: "request", entityId: r.id, kind: "SCHEDULED", summary: `Site visit booked for ${done ? "Jordan" : "Mia"}` });
+      if (done) await makeQuote({ ...base, pkg: nextPkg(), status: "DRAFT", createdDaysAgo: 1, emptyDraft: false });
+    } else if (r.status === "CONTACTED") {
       if (drafts < 3) {
         drafts++;
         await makeQuote({ ...base, pkg: nextPkg(), status: "DRAFT", createdDaysAgo: Math.max(0.2, ageDays - 1), emptyDraft: drafts === 3 });

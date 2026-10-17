@@ -7,6 +7,11 @@ describe("request status rules", () => {
     expect(canTransition("CONTACTED", "QUOTED")).toBe(true);
     expect(canTransition("QUOTED", "WON")).toBe(true);
   });
+  it("lets an enquiry go through a site visit, and back when the visit is cancelled", () => {
+    expect(canTransition("CONTACTED", "SITE_VISIT_BOOKED")).toBe(true);
+    expect(canTransition("SITE_VISIT_BOOKED", "QUOTED")).toBe(true);
+    expect(canTransition("SITE_VISIT_BOOKED", "CONTACTED")).toBe(true);
+  });
   it("blocks skipping to won and moving out of won", () => {
     expect(canTransition("NEW", "WON")).toBe(false);
     expect(canTransition("WON", "LOST")).toBe(false);

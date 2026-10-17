@@ -57,6 +57,12 @@ enum RequestStatus {
   LOST
 }
 
+enum SiteVisitStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 enum PriceKind {
   LABOUR
   CALL_OUT
@@ -189,10 +195,33 @@ model Request {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  quotes Quote[]
+  quotes     Quote[]
+  siteVisits SiteVisit[]
 
   @@index([status, receivedAt])
   @@index([clientId])
+}
+
+/// An electrician looking at the job before it is quoted. Client and site come from the request.
+model SiteVisit {
+  id             String          @id @default(cuid())
+  requestId      String
+  request        Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  status         SiteVisitStatus @default(SCHEDULED)
+  /// Platform user id of the technician.
+  assignedUserId String
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  /// What the technician found and what the job needs; carried into the quote.
+  findings       String?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([assignedUserId, scheduledStart])
+  @@index([requestId])
+  @@index([status])
 }
 
 /// The unified timeline: every module records what happened here, whether a
