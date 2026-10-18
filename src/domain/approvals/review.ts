@@ -3,7 +3,7 @@
  * works out, from that step's settings and what the run has produced so far, exactly what that step will do -
  * for an email step, the email itself. Nothing is sent or changed here.
  */
-import { resolveParams, str } from "../../steps/runtime";
+import { emailVariables, resolveParams, str } from "../../steps/runtime";
 import type { RenderedEmail } from "../emailTemplates/render";
 
 export interface GraphNode {
@@ -14,8 +14,11 @@ export interface GraphNode {
 }
 
 export type Review =
-  | { kind: "email"; stepLabel: string; to: string; subject: string; html: string; text: string }
+  | { kind: "email"; stepLabel: string; to: string; subject: string; html: string; text: string; attachments?: string[] }
   | { kind: "plain-email"; stepLabel: string; to: string; subject: string; body: string }
+  | { kind: "quote"; stepLabel: string; quoteId: string; number: string; title: string; clientName: string; status: string; lines: { description: string; quantity: string; totalText: string }[]; subtotalText: string; gstText: string; totalText: string; notes: string | null; problem: string | null }
+  | { kind: "invoice"; stepLabel: string; invoiceId: string; number: string; title: string; clientName: string; status: string; lines: { description: string; quantity: string; totalText: string }[]; subtotalText: string; gstText: string; totalText: string; creditText: string | null; balanceText: string; notes: string | null; problem: string | null }
+  | { kind: "booking"; stepLabel: string; jobNumber: string; title: string; clientName: string; address: string | null; requestedText: string | null; technician: string | null; totalText: string | null; problem: string | null }
   | { kind: "fields"; stepLabel: string; rows: { label: string; value: string }[] }
   | { kind: "problem"; stepLabel: string; message: string };
 
@@ -32,10 +35,10 @@ export async function buildReview(nodes: GraphNode[], reviewsNodeId: string | un
   const params = resolveParams(cfg.params as Record<string, unknown> | undefined, context);
 
   if (node.stepKey === "sendTemplatedEmail") {
-    const vars = Object.fromEntries(Object.entries((params.variables ?? {}) as Record<string, unknown>).map(([k, v]) => [k, v == null ? undefined : str(v)]));
+    const vars = emailVariables(params);
     try {
       const mail = await render(str(cfg.template), vars);
-      return { kind: "email", stepLabel, to: str(params.to), subject: mail.subject, html: mail.html, text: mail.text };
+      return { kind: "email", stepLabel, to: str(params.to), subject: mail.subject, html: mail.html, text: mail.text, ...(str(params.attachInvoiceId) ? { attachments: ["The invoice as a PDF"] } : {}) };
     } catch (err) {
       return { kind: "problem", stepLabel, message: err instanceof Error ? err.message : "The email could not be prepared." };
     }

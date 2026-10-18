@@ -6,7 +6,7 @@ import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
 import { Access } from "../../../src/access";
 import { requireBusinessPage } from "../../../src/guard";
-import { getJob, JOB_STATUS_LABEL, JOB_TRANSITIONS } from "../../../src/domain/jobs";
+import { activeHold, getJob, JOB_STATUS_LABEL, JOB_TRANSITIONS } from "../../../src/domain/jobs";
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { formatSite } from "../../../src/domain/clients";
 import { listTechnicians, staffLabelMap } from "../../../src/domain/shared/staff";
@@ -67,6 +67,12 @@ export default async function JobPage(props: { params: Promise<{ id: string }> }
               ) : <p className="text-muted-foreground">No site recorded.</p>}
               <dl className="grid gap-1.5 text-xs text-muted-foreground">
                 <div>Quoted (ex GST): {formatMoney(job.quotedSubtotalCents)}{approvedExtra ? ` + ${formatMoney(approvedExtra)} approved variations` : ""}</div>
+                {activeHold(job) ? (
+                  <div className="rounded-md border border-dashed p-2 text-foreground" data-testid="job-hold">
+                    Held for the customer: {formatDayTime(activeHold(job)!.start)} to {formatDayTime(activeHold(job)!.end)} - {labels.get(activeHold(job)!.userId) ?? "technician"}.
+                    <span className="block text-xs text-muted-foreground">Waiting for the office to approve it under <a className="underline" href="/tasks">Tasks</a>, or schedule the job yourself below.</span>
+                  </div>
+                ) : null}
                 {job.scheduledStart && job.scheduledEnd ? <div>Booked: {formatDayTime(job.scheduledStart)} to {formatDayTime(job.scheduledEnd)}{job.assignedUserId ? ` - ${labels.get(job.assignedUserId) ?? ""}` : ""}</div> : null}
               </dl>
             </CardContent>

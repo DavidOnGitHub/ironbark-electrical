@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateGraph, type WorkflowDefinitionGraph } from "@kabosh-digital/workflow-types";
 import { getStepCatalog } from "@kabosh-digital/workflow-temporal/catalog";
-import { invoiceChase, ironSparkWorkflows, quoteChase, reviewRequest, enquiryToReply, wireConnectors } from "../src/workflows";
+import { invoiceChase, ironSparkWorkflows, quoteChase, reviewRequest, enquiryToReply, visitToQuote, jobBooking, jobToInvoice, wireConnectors } from "../src/workflows";
 import { ironSparkStepDefs } from "../src/steps/defs";
 import { DAYS } from "../src/workflows/build";
 
@@ -77,9 +77,9 @@ describe("the chasing cadences follow the requirements", () => {
     expect(cumulativeDays(quoteChase, "reminder")).toBe(1);
     expect(cumulativeDays(quoteChase, "owner_call")).toBe(4);
   });
-  it("review request: asks after a day, nudges 3 days after that", () => {
-    expect(cumulativeDays(reviewRequest, "send_review")).toBe(1);
-    expect(cumulativeDays(reviewRequest, "send_reminder", ["decision_replied"])).toBe(4);
+  it("review request: thanks and asks straight away, nudges 3 days after that", () => {
+    expect(cumulativeDays(reviewRequest, "send_review")).toBe(0);
+    expect(cumulativeDays(reviewRequest, "send_reminder", ["decision_replied"])).toBe(3);
   });
 });
 
@@ -92,6 +92,34 @@ describe("safety rules", () => {
     expect(into).toHaveLength(1);
     expect(into[0]!.fromNodeId).toBe("decision_approved");
     expect(into[0]!.condition).toMatchObject({ field: "approve_reply.approved", op: "eq", value: true });
+  });
+  it("a quote drafted from a site visit is only sent after a person approves it", () => {
+    const sends = visitToQuote.nodes.filter((n) => n.stepKey === "sendQuote").map((n) => n.id);
+    expect(sends).toEqual(["send_quote"]);
+    const into = visitToQuote.edges.filter((e) => e.toNodeId === "send_quote");
+    expect(into).toHaveLength(1);
+    expect(into[0]!.fromNodeId).toBe("decision_approved");
+    expect(into[0]!.condition).toMatchObject({ field: "approve_quote.approved", op: "eq", value: true });
+    expect(visitToQuote.edges.filter((e) => e.toNodeId === "approve_quote").map((e) => e.fromNodeId)).toEqual(["decision_drafted"]);
+  });
+  it("a job is only put in the calendar after a person approves the customer's day, and a declined day is freed", () => {
+    const into = jobBooking.edges.filter((e) => e.toNodeId === "confirm");
+    expect(into).toHaveLength(1);
+    expect(into[0]!.fromNodeId).toBe("decision_approved");
+    expect(into[0]!.condition).toMatchObject({ field: "approve_booking.approved", op: "eq", value: true });
+    const toRelease = jobBooking.edges.filter((e) => e.toNodeId === "release");
+    expect(toRelease).toHaveLength(1);
+    expect(toRelease[0]!.condition).toBeUndefined(); // the only other way out of the decision
+    expect(jobBooking.edges.filter((e) => e.toNodeId === "approve_booking").map((e) => e.fromNodeId)).toEqual(["load"]);
+  });
+  it("an invoice is only issued after a person approves it, and the customer email carries the PDF", () => {
+    const into = jobToInvoice.edges.filter((e) => e.toNodeId === "send_invoice");
+    expect(into).toHaveLength(1);
+    expect(into[0]!.fromNodeId).toBe("decision_approved");
+    expect(into[0]!.condition).toMatchObject({ field: "approve_invoice.approved", op: "eq", value: true });
+    expect(jobToInvoice.edges.filter((e) => e.toNodeId === "approve_invoice").map((e) => e.fromNodeId)).toEqual(["decision_drafted"]);
+    const email = invoiceChase.nodes.find((n) => n.id === "send_invoice")!;
+    expect(((email.config as { params: { attachInvoiceId?: unknown } }).params).attachInvoiceId).toEqual({ $ref: "trigger.invoiceId" });
   });
   it("every enquiry, whoever sent it, reaches the approval task; emergencies are phoned first", () => {
     expect(enquiryToReply.edges.filter((e) => e.fromNodeId === "log_enquiry").map((e) => e.toNodeId)).toEqual(["decision_emergency"]);

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
-import { createInvoiceFromJob, InvoiceLineSchema, issueInvoice, recordDeposit, recordPayment, replaceInvoiceLines, voidInvoice } from "../domain/invoicing";
+import { createInvoiceFromJob, getInvoice, InvoiceLineSchema, issueInvoice, recordDeposit, recordPayment, replaceInvoiceLines, voidInvoice } from "../domain/invoicing";
 import { parseMoney } from "../lib/money";
 import { afterInvoiceIssued, afterInvoicePaid } from "../automation";
 import { ensurePaymentLink } from "../integrations/payments";
@@ -78,6 +78,24 @@ export async function recordPaymentAction(_prev: ActionState, formData: FormData
   }
   refresh(invoiceId);
   return { error: null, ok: true };
+}
+
+/** One click for the common case: the whole balance arrived by bank transfer. Starts the thank-you and review request. */
+export async function markInvoicePaidAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRole(Access.INVOICES_WRITE);
+  const invoiceId = text(formData, "invoiceId");
+  if (!invoiceId) return { error: "Missing invoice." };
+  try {
+    const current = await getInvoice(invoiceId);
+    if (!current) return { error: "Invoice not found." };
+    if (current.balanceCents <= 0) return { error: "Nothing is owing on this invoice." };
+    const invoice = await recordPayment(invoiceId, { amountCents: current.balanceCents, method: "BANK", reference: text(formData, "reference") || "Direct bank transfer" }, userActor(user));
+    if (invoice.status === "PAID") await afterInvoicePaid(invoiceId);
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+  refresh(invoiceId);
+  return { error: null, ok: true, message: "Marked as paid. The customer is being thanked and asked for a review." };
 }
 
 export async function voidInvoiceAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

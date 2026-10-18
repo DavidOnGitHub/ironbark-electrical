@@ -4,7 +4,7 @@ export const REVIEW_ID = "def_ironspark_review_request";
 
 const FEEDBACK_PROMPT = `You read a customer's reply to a request for a review of an electrician's work. Decide whether the reply is negative: a complaint, disappointment, a problem with the work, price, tidiness or timing. Thanks and praise are positive. Always answer by calling submit_result.`;
 
-/** Review request: started when an invoice is paid. A day later it asks for a review, three days later
+/** Review request: started when an invoice is paid. It thanks the customer and asks for a review straight away, three days later
  * it nudges once if there is no reply, and an unhappy reply goes straight to the owner. */
 export const reviewRequest = defineWorkflow(
   { id: REVIEW_ID, name: "Review request" },
@@ -12,12 +12,11 @@ export const reviewRequest = defineWorkflow(
     { id: "trigger", type: "TRIGGER", stepKey: "manual", label: "An invoice was paid", config: { fields: [{ name: "invoiceId", description: "The invoice's id", example: "", required: true }] } },
     { id: "load_invoice", type: "ACTION", stepKey: "getInvoice", label: "Read the invoice", config: { params: { invoiceId: ref("trigger.invoiceId") } } },
     { id: "decision_email", type: "DECISION", label: "Do we have their email?" },
-    { id: "wait_1", type: "DELAY", label: "Wait a day", config: { seconds: 1 * DAYS } },
     {
       id: "send_review",
       type: "ACTION",
       stepKey: "sendTemplatedEmail",
-      label: "Ask for a review",
+      label: "Thank them and ask for a review",
       config: { template: "review_request", params: { to: ref("load_invoice.clientEmail"), variables: { clientFirstName: ref("load_invoice.clientFirstName"), title: ref("load_invoice.jobTitle"), reviewUrl: ref("load_invoice.reviewUrl") } } },
       retryPolicy: GMAIL_RETRY,
     },
@@ -63,9 +62,8 @@ export const reviewRequest = defineWorkflow(
   [
     { from: "trigger", to: "load_invoice" },
     { from: "load_invoice", to: "decision_email" },
-    { from: "decision_email", to: "wait_1", when: { field: "load_invoice.hasEmail", op: "eq", value: true }, label: "Has email" },
+    { from: "decision_email", to: "send_review", when: { field: "load_invoice.hasEmail", op: "eq", value: true }, label: "Has email" },
     { from: "decision_email", to: "skip", label: "No email" },
-    { from: "wait_1", to: "send_review" },
     { from: "send_review", to: "wait_2" },
     { from: "wait_2", to: "check_replies" },
     { from: "check_replies", to: "decision_replied" },

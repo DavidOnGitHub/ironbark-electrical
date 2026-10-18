@@ -103,6 +103,16 @@ export async function cancelSiteVisit(visitId: string, actor: Actor) {
   return visit;
 }
 
+/** When each technician is committed to a booked site visit between two instants (for availability). */
+export async function listBusyWindows(from: Date, to: Date) {
+  const rows = await appDb.siteVisit.findMany({ where: { status: "SCHEDULED", scheduledStart: { lt: to }, scheduledEnd: { gt: from } }, select: { assignedUserId: true, scheduledStart: true, scheduledEnd: true } });
+  return rows.map((r) => ({ userId: r.assignedUserId, start: r.scheduledStart, end: r.scheduledEnd }));
+}
+
+export async function getSiteVisit(id: string) {
+  return appDb.siteVisit.findUnique({ where: { id }, include: { request: { select: { id: true, summary: true, description: true, clientId: true, siteId: true } } } });
+}
+
 export async function listVisitsForRequest(requestId: string) {
   return appDb.siteVisit.findMany({ where: { requestId }, orderBy: { scheduledStart: "desc" } });
 }

@@ -60,3 +60,11 @@ export const QUOTE_STATUS_LABEL: Record<QuoteStatusValue, string> = {
   DECLINED: "Declined",
   EXPIRED: "Expired",
 };
+
+/** How long a job is likely to take, from the quote's labour: the hours on its "hour" lines, kept between one hour and one
+ * working day (a longer job books its first day), and three hours when the quote has no labour hours at all. */
+export function jobDurationMinutes(lines: { unit: string; quantity: number | string | { toString(): string } }[]): number {
+  const hours = lines.filter((l) => l.unit.trim().toLowerCase() === "hour").reduce((sum, l) => sum + Number(l.quantity.toString()), 0);
+  if (!(hours > 0)) return 180;
+  return Math.min(480, Math.max(60, Math.round(hours * 60)));
+}

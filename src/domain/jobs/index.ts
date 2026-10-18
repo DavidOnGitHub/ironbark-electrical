@@ -8,7 +8,7 @@ import { z } from "zod";
 import { appDb, type Db, type Prisma } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
-import { startOfDay } from "../../lib/tz";
+import { formatDayTime, startOfDay } from "../../lib/tz";
 import {
   canMoveJob,
   JOB_STATUS_LABEL,
@@ -114,6 +114,81 @@ export async function findConflicts(userId: string, start: Date, end: Date, excl
     .map((j) => ({ ...j, scheduledStart: j.scheduledStart!, scheduledEnd: j.scheduledEnd! }));
 }
 
+/** How long a customer's picked time is held while the office decides. */
+export const HOLD_DAYS = 3;
+const holdCutoff = (now = new Date()) => new Date(now.getTime() - HOLD_DAYS * 86_400_000);
+
+/** The customer's held time on a job, or null when there is none (or it has lapsed). */
+export function activeHold(job: { status: string; requestedUserId: string | null; requestedStart: Date | null; requestedEnd: Date | null; requestedAt: Date | null }, now = new Date()) {
+  if (job.status !== "UNSCHEDULED" || !job.requestedUserId || !job.requestedStart || !job.requestedEnd || !job.requestedAt) return null;
+  if (job.requestedAt.getTime() < holdCutoff(now).getTime()) return null;
+  return { userId: job.requestedUserId, start: job.requestedStart, end: job.requestedEnd, at: job.requestedAt };
+}
+
+/** When each technician is committed to a job - or holding a customer's picked time - between two instants (for availability). */
+export async function listBusyWindows(from: Date, to: Date) {
+  const [booked, held] = await Promise.all([
+    appDb.job.findMany({
+      where: { assignedUserId: { not: null }, scheduledStart: { lt: to }, scheduledEnd: { gt: from }, status: { in: ["SCHEDULED", "IN_PROGRESS", "ON_HOLD"] } },
+      select: { assignedUserId: true, scheduledStart: true, scheduledEnd: true },
+    }),
+    appDb.job.findMany({
+      where: { status: "UNSCHEDULED", requestedUserId: { not: null }, requestedStart: { lt: to }, requestedEnd: { gt: from }, requestedAt: { gte: holdCutoff() } },
+      select: { requestedUserId: true, requestedStart: true, requestedEnd: true },
+    }),
+  ]);
+  return [
+    ...booked.flatMap((r) => (r.assignedUserId && r.scheduledStart && r.scheduledEnd ? [{ userId: r.assignedUserId, start: r.scheduledStart, end: r.scheduledEnd }] : [])),
+    ...held.flatMap((r) => (r.requestedUserId && r.requestedStart && r.requestedEnd ? [{ userId: r.requestedUserId, start: r.requestedStart, end: r.requestedEnd }] : [])),
+  ];
+}
+
+export class JobHoldError extends Error {}
+
+export async function getJobByQuote(quoteId: string) {
+  return appDb.job.findUnique({ where: { quoteId }, include: { client: true, site: true, quote: { select: { id: true, number: true, totalCents: true } } } });
+}
+
+/** Holds the time a customer picked for their job: it blocks that technician's calendar until the office approves it. Picking again moves the hold.
+ * `fresh` is true when the job had no hold before (the first pick is what asks the office to decide). */
+export async function holdJobSlot(jobId: string, input: { userId: string; start: Date; end: Date }, actor: Actor, techLabel: string) {
+  if (!(input.end.getTime() > input.start.getTime())) throw new JobHoldError("The end must be after the start.");
+  const current = await appDb.job.findUniqueOrThrow({ where: { id: jobId } });
+  if (current.status !== "UNSCHEDULED") throw new JobHoldError("This job already has a time. Contact us if you need to change it.");
+  const fresh = !activeHold(current);
+  const clashes = [...(await findConflicts(input.userId, input.start, input.end, jobId))].map((j) => j.number);
+  const otherHolds = await appDb.job.findMany({
+    where: { id: { not: jobId }, status: "UNSCHEDULED", requestedUserId: input.userId, requestedStart: { lt: input.end }, requestedEnd: { gt: input.start }, requestedAt: { gte: holdCutoff() } },
+    select: { number: true },
+  });
+  if (clashes.length + otherHolds.length > 0) throw new JobHoldError("Sorry, that time has just been taken. Please choose another.");
+  const job = await appDb.$transaction(async (tx) => {
+    const saved = await tx.job.update({ where: { id: jobId }, data: { requestedUserId: input.userId, requestedStart: input.start, requestedEnd: input.end, requestedAt: new Date() } });
+    await recordActivity(tx, { actor, entityType: "job", entityId: jobId, clientId: saved.clientId, kind: "UPDATED", summary: `${saved.number}: customer asked for ${formatDayTime(input.start)} with ${techLabel}, held for the office to approve` });
+    return saved;
+  });
+  return { job, fresh };
+}
+
+/** Lets go of a held time (the office declined it, or it is no longer wanted). */
+export async function releaseJobHold(jobId: string, actor: Actor) {
+  return appDb.$transaction(async (tx) => {
+    const current = await tx.job.findUniqueOrThrow({ where: { id: jobId } });
+    if (!current.requestedStart) return current;
+    const job = await tx.job.update({ where: { id: jobId }, data: { requestedUserId: null, requestedStart: null, requestedEnd: null, requestedAt: null } });
+    await recordActivity(tx, { actor, entityType: "job", entityId: jobId, clientId: job.clientId, kind: "UPDATED", summary: `${job.number}: the time the customer asked for was released` });
+    return job;
+  });
+}
+
+/** Approves the held time: the job is scheduled for that technician and time, and the hold is cleared. */
+export async function confirmJobHold(jobId: string, actor: Actor, techLabel: string) {
+  const current = await appDb.job.findUniqueOrThrow({ where: { id: jobId } });
+  const hold = activeHold(current);
+  if (!hold) throw new JobHoldError(current.status === "UNSCHEDULED" ? "There is no held time any more (it may have lapsed or been changed)." : "This job already has a time.");
+  return scheduleJob(jobId, { assignedUserId: hold.userId, start: hold.start, end: hold.end }, actor, techLabel);
+}
+
 export const ScheduleInputSchema = z
   .object({ assignedUserId: z.string().min(1, "Choose a technician"), start: z.date(), end: z.date(), allowConflict: z.boolean().default(false) })
   .refine((v) => v.end.getTime() > v.start.getTime(), { message: "The end must be after the start", path: ["end"] })
@@ -133,7 +208,7 @@ export async function scheduleJob(jobId: string, input: ScheduleInput, actor: Ac
   return appDb.$transaction(async (tx) => {
     const job = await tx.job.update({
       where: { id: jobId },
-      data: { assignedUserId: v.assignedUserId, scheduledStart: v.start, scheduledEnd: v.end, status: "SCHEDULED" },
+      data: { assignedUserId: v.assignedUserId, scheduledStart: v.start, scheduledEnd: v.end, status: "SCHEDULED", requestedUserId: null, requestedStart: null, requestedEnd: null, requestedAt: null },
     });
     await recordActivity(tx, {
       actor,
@@ -275,7 +350,7 @@ export async function getJobForTechnician(userId: string, jobId: string) {
 export async function weekSchedule(weekStartDay: string, days = 7) {
   const from = startOfDay(weekStartDay);
   const to = new Date(from.getTime() + days * 86_400_000);
-  const [scheduled, unscheduled] = await Promise.all([
+  const [scheduled, unscheduled, held] = await Promise.all([
     appDb.job.findMany({
       where: { scheduledStart: { gte: from, lt: to }, status: { in: ["SCHEDULED", "IN_PROGRESS", "ON_HOLD", "COMPLETED"] } },
       orderBy: { scheduledStart: "asc" },
@@ -286,8 +361,13 @@ export async function weekSchedule(weekStartDay: string, days = 7) {
       orderBy: { createdAt: "asc" },
       include: { client: { select: { id: true, name: true } }, site: { select: { suburb: true } } },
     }),
+    appDb.job.findMany({
+      where: { status: "UNSCHEDULED", requestedUserId: { not: null }, requestedStart: { gte: from, lt: to }, requestedAt: { gte: holdCutoff() } },
+      orderBy: { requestedStart: "asc" },
+      include: { client: { select: { id: true, name: true } }, site: { select: { suburb: true } } },
+    }),
   ]);
-  return { scheduled, unscheduled };
+  return { scheduled, unscheduled, held };
 }
 
 export async function countJobsByStatus(): Promise<Record<JobStatusValue, number>> {

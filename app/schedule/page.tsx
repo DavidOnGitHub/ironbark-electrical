@@ -18,7 +18,8 @@ export default async function SchedulePage(props: { searchParams: Promise<{ week
   const today = dayKey(new Date());
   const start = weekStartKey(week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : today);
   const days = weekDayKeys(start);
-  const [{ scheduled, unscheduled }, technicians, visits] = await Promise.all([weekSchedule(start), listTechnicians(), weekVisits(start)]);
+  const [{ scheduled, unscheduled, held }, technicians, visits] = await Promise.all([weekSchedule(start), listTechnicians(), weekVisits(start)]);
+  const heldCell = (techId: string, day: string) => held.filter((j) => j.requestedUserId === techId && j.requestedStart && dayKey(j.requestedStart) === day);
   const visitCell = (techId: string, day: string) => visits.filter((v) => v.assignedUserId === techId && dayKey(v.scheduledStart) === day);
   const cell = (techId: string, day: string) => scheduled.filter((j) => j.assignedUserId === techId && dayKey(j.scheduledStart!) === day);
   const known = new Set(technicians.map((t) => t.id));
@@ -63,6 +64,14 @@ export default async function SchedulePage(props: { searchParams: Promise<{ week
                           <span className="block truncate">Site visit: {v.request.client?.name ?? v.request.summary}</span>
                           <span className="block truncate text-muted-foreground">{v.request.site?.suburb ?? ""}</span>
                           <SiteVisitChip status={v.status} />
+                        </Link>
+                      ))}
+                      {heldCell(t.id, d).map((j) => (
+                        <Link key={j.id} href={`/jobs/${j.id}`} data-testid="schedule-held" className="rounded-md border border-dashed bg-card p-1.5 text-xs hover:bg-muted">
+                          <span className="font-semibold">{formatTime(j.requestedStart!)}-{formatTime(j.requestedEnd!)}</span>
+                          <span className="block truncate">{j.number} {j.client.name}</span>
+                          <span className="block truncate text-muted-foreground">{j.site?.suburb ?? ""}</span>
+                          <span className="text-muted-foreground">Held - awaiting approval</span>
                         </Link>
                       ))}
                       {cell(t.id, d).map((j) => (

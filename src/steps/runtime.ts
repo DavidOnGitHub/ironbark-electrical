@@ -22,3 +22,12 @@ export function isTestRun(context: WorkflowContext): boolean {
 }
 
 export const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+/** The variables of a templated email from its resolved params: the mapped ones, with `variableDefaults` standing in for any
+ * that has no value (for example the AI's draft, when no person edited it in their approval). */
+export function emailVariables(params: Record<string, unknown>): Record<string, string | undefined> {
+  const toText = (v: unknown) => (v == null ? undefined : str(v));
+  const vars = Object.fromEntries(Object.entries((params.variables ?? {}) as Record<string, unknown>).map(([k, v]) => [k, toText(v)]));
+  for (const [k, v] of Object.entries((params.variableDefaults ?? {}) as Record<string, unknown>)) if (vars[k] === undefined) vars[k] = toText(v);
+  return vars;
+}

@@ -1,4 +1,5 @@
 /** Requests (enquiries) module - the public API. */
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { appDb, type Prisma } from "../../db/app";
 import type { RequestStatus } from "ironbark-electrical-client";
@@ -83,6 +84,33 @@ export async function listRequests(filter: RequestListFilter = {}) {
 
 export async function getRequest(id: string) {
   return appDb.request.findUnique({ where: { id }, include: { client: true, site: true } });
+}
+
+/** The secret behind the enquiry's "pick a time" link; created once, then always the same. */
+export async function ensureBookingToken(requestId: string): Promise<string> {
+  const current = await appDb.request.findUniqueOrThrow({ where: { id: requestId }, select: { bookingToken: true } });
+  if (current.bookingToken) return current.bookingToken;
+  // Only fill an empty slot, so two callers at once end up with the same token.
+  await appDb.request.updateMany({ where: { id: requestId, bookingToken: null }, data: { bookingToken: randomBytes(24).toString("base64url") } });
+  return (await appDb.request.findUniqueOrThrow({ where: { id: requestId }, select: { bookingToken: true } })).bookingToken!;
+}
+
+/** The enquiry behind a booking link; null for an unknown token. */
+export async function getRequestByBookingToken(token: string) {
+  if (!token || token.length < 16) return null;
+  return appDb.request.findUnique({ where: { bookingToken: token }, include: { client: { include: { sites: true } }, site: true } });
+}
+
+/** Fills in contact details the enquirer gave on the booking page; never overwrites ones already recorded. */
+export async function fillRequestContact(id: string, contact: { contactName?: string; contactPhone?: string }, actor: Actor) {
+  const current = await appDb.request.findUniqueOrThrow({ where: { id } });
+  const data = { ...(!current.contactName && contact.contactName ? { contactName: contact.contactName } : {}), ...(!current.contactPhone && contact.contactPhone ? { contactPhone: contact.contactPhone } : {}) };
+  if (Object.keys(data).length === 0) return current;
+  return appDb.$transaction(async (tx) => {
+    const request = await tx.request.update({ where: { id }, data });
+    await recordActivity(tx, { actor, entityType: "request", entityId: id, clientId: request.clientId, kind: "UPDATED", summary: `Contact details added by the customer: ${request.summary}` });
+    return request;
+  });
 }
 
 export async function countByStatus(): Promise<Record<RequestStatus, number>> {

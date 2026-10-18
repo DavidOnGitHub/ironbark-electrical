@@ -3,8 +3,11 @@ import { enquiryToReply } from "./enquiryToReply";
 import { invoiceChase } from "./invoiceChase";
 import { quoteChase } from "./quoteChase";
 import { reviewRequest } from "./reviewRequest";
+import { visitToQuote } from "./visitToQuote";
+import { jobBooking } from "./jobBooking";
+import { jobToInvoice } from "./jobToInvoice";
 
-export const ironSparkWorkflows: WorkflowDefinitionGraph[] = [enquiryToReply, quoteChase, invoiceChase, reviewRequest];
+export const ironSparkWorkflows: WorkflowDefinitionGraph[] = [enquiryToReply, visitToQuote, quoteChase, jobBooking, jobToInvoice, invoiceChase, reviewRequest];
 
 import { inboxAlias } from "../integrations/allowlist";
 
@@ -26,4 +29,4 @@ export function wireConnectors(graph: WorkflowDefinitionGraph, { emailConnectorI
   };
 }
 
-export { enquiryToReply, quoteChase, invoiceChase, reviewRequest };
+export { enquiryToReply, quoteChase, invoiceChase, reviewRequest, visitToQuote, jobBooking, jobToInvoice };

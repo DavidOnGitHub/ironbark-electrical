@@ -18,10 +18,10 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
   {
     key: "enquiry_reply",
     name: "Enquiry - approved reply",
-    description: "The reply the office approves for a new enquiry. The AI drafts the message.",
+    description: "The reply the office approves for a new enquiry: the AI drafts the message, and the link to pick a site visit time is added below it.",
     subject: "Re: {{subject}}",
-    body: "{{message}}",
-    sample: { subject: "Quote for 6 downlights", message: "Hi Pat,\n\nThanks for your email - we've received it and will reply to your request soon.\n\nKind regards,\nThe team at Ironbark Electrical" },
+    body: `{{message}}\n\n[Choose a time for our electrician to visit]({{bookingUrl}})\n\n${SIGN}`,
+    sample: { subject: "Quote for 6 downlights", message: "Hi Pat,\n\nThanks for your email. To give you an accurate quote, one of our electricians will pop out for a quick look - it's free and takes about an hour. Pick a time that suits you with the link below.", bookingUrl: "https://example.com/book/abc" },
   },
   {
     key: "quote_send",
@@ -40,12 +40,28 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
     sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "Q-1042", totalText: "$957.00", validUntil: "16/10/2026", acceptUrl: "https://example.com/accept/abc" },
   },
   {
+    key: "job_booked",
+    name: "Job - booked",
+    description: "Emailed when the office confirms the day the customer picked for the work.",
+    subject: "You're booked in: {{title}} on {{whenText}}",
+    body: `Hi {{clientFirstName}},\n\nThanks for choosing a day. Your job is confirmed:\n\n**{{title}}**\n**{{whenText}}** with {{technician}}\n{{addressText}}\n\nWe will give you a call if anything changes. If you need to move it, just reply to this email.\n\n${SIGN}`,
+    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", whenText: "Tue 21 Oct, 8:00 am - 12:00 pm", technician: "Jordan Lee", addressText: "12 Wattle Cres, Newtown NSW 2042" },
+  },
+  {
+    key: "job_reschedule",
+    name: "Job - please choose another day",
+    description: "Emailed when the office cannot do the day the customer picked.",
+    subject: "Please choose another day for {{title}}",
+    body: `Hi {{clientFirstName}},\n\nThank you for accepting our quote. Unfortunately we cannot do {{requestedText}} after all, and we are sorry about that.\n\nPlease choose another day that suits you:\n\n[Choose a new day]({{acceptUrl}})\n\n${SIGN}`,
+    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", requestedText: "Tue 21 Oct, 8:00 am", acceptUrl: "https://example.com/accept/abc" },
+  },
+  {
     key: "invoice_send",
     name: "Invoice - sent to the customer",
-    description: "Emailed when an invoice is issued, with the card pay link.",
+    description: "Emailed when an invoice is issued, with the invoice attached as a PDF and our bank transfer details.",
     subject: "Invoice {{number}} from Ironbark Electrical - {{balanceText}} due",
-    body: `Hi {{clientFirstName}},\n\nThank you for having us out. Here is your invoice {{number}} for "{{title}}".\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,
-    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "INV-3011", balanceText: "$957.00", dueNote: "Due by: 09/10/2026", payBlock: "[Pay securely by card](https://example.com/pay)\n\nYou can also pay by bank transfer - reply to this email for our details." },
+    body: `Hi {{clientFirstName}},\n\nThank you for having us out. Here is your invoice {{number}} for "{{title}}" - the PDF is attached.\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,
+    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "INV-3011", balanceText: "$957.00", dueNote: "Due by: 09/10/2026", payBlock: "**Pay by direct bank transfer**\nAccount name: Ironbark Electrical Pty Ltd\nBSB: 123-456\nAccount number: 1234 5678\nReference: INV-3011" },
   },
   {
     key: "invoice_reminder",
@@ -65,10 +81,10 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
   },
   {
     key: "review_request",
-    name: "Review - request",
-    description: "Sent a day after an invoice is paid.",
-    subject: "How did we go?",
-    body: `Hi {{clientFirstName}},\n\nWe hope you are happy with the work on "{{title}}". If you have a minute, a short review helps other locals find a reliable electrician:\n\n[Leave a review]({{reviewUrl}})\n\nIf anything was not right, reply to this email and the owner will personally make it right.\n\nThank you!\n${SIGN}`,
+    name: "Review - thank you and request",
+    description: "Sent as soon as an invoice is paid: thanks the customer and asks for a review.",
+    subject: "Thank you - and how did we go?",
+    body: `Hi {{clientFirstName}},\n\nThank you for your payment and for choosing us for "{{title}}" - we really appreciate it. If you have a minute, a short review helps other locals find a reliable electrician:\n\n[Leave a review]({{reviewUrl}})\n\nIf anything was not right, reply to this email and the owner will personally make it right.\n\nThank you!\n${SIGN}`,
     sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", reviewUrl: "https://example.com/review" },
   },
   {
@@ -84,6 +100,19 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
 /** Earlier default wording for the quote emails (before the accept link). A stored template still equal to one of
  * these was never edited, so it is safe to move it to the current default; an edited one is left alone. */
 export const LEGACY_QUOTE_TEMPLATES: Record<string, { subject: string; body: string }[]> = {
+  invoice_send: [
+    {
+      subject: "Invoice {{number}} from Ironbark Electrical - {{balanceText}} due",
+      body: `Hi {{clientFirstName}},\n\nThank you for having us out. Here is your invoice {{number}} for "{{title}}".\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,
+    },
+  ],
+  review_request: [
+    {
+      subject: "How did we go?",
+      body: `Hi {{clientFirstName}},\n\nWe hope you are happy with the work on "{{title}}". If you have a minute, a short review helps other locals find a reliable electrician:\n\n[Leave a review]({{reviewUrl}})\n\nIf anything was not right, reply to this email and the owner will personally make it right.\n\nThank you!\n${SIGN}`,
+    },
+  ],
+  enquiry_reply: [{ subject: "Re: {{subject}}", body: "{{message}}" }],
   quote_send: [
     {
       subject: "Your quote {{number}} from Ironbark Electrical - {{title}}",

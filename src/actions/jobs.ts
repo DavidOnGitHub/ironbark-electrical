@@ -17,6 +17,7 @@ import {
   JOB_STATUS_ORDER,
 } from "../domain/jobs";
 import { parseMoney } from "../lib/money";
+import { afterJobCompleted } from "../automation";
 import { sydneyLocalToDate } from "../lib/tz";
 import { errorMessage, text, type ActionState } from "./shared";
 
@@ -70,6 +71,7 @@ export async function changeJobStatusAction(_prev: ActionState, formData: FormDa
   if (!jobId || !to || !JOB_STATUS_ORDER.includes(to)) return { error: "Choose a status." };
   try {
     await changeJobStatus(jobId, to, userActor(user));
+    if (to === "COMPLETED") await afterJobCompleted(jobId); // drafts the invoice for approval (if published); a failure never undoes the status change
   } catch (err) {
     return { error: errorMessage(err) };
   }
@@ -110,6 +112,7 @@ export async function fieldChangeStatusAction(_prev: ActionState, formData: Form
   if (!jobId || !to || !JOB_STATUS_ORDER.includes(to)) return { error: "Choose a status." };
   try {
     await changeJobStatus(jobId, to, userActor(user), { technicianUserId: user.id });
+    if (to === "COMPLETED") await afterJobCompleted(jobId);
   } catch (err) {
     return { error: err instanceof JobAccessError ? err.message : errorMessage(err) };
   }

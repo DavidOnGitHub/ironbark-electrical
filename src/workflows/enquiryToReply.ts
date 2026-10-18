@@ -5,7 +5,7 @@ export const ENQUIRY_ID = "def_ironspark_enquiry_to_reply";
 const TRIAGE_SYSTEM_PROMPT = `You read the shared inbox of Ironbark Electrical, a small residential and light-commercial electrical contractor in Sydney.
 Decide whether the email is a genuine enquiry from a customer who wants electrical work, a quote or a repair. Newsletters, sales pitches, invoices, receipts and spam are NOT enquiries.
 Classify the enquiry (FAULT_REPAIR, NEW_INSTALL, QUOTE_REQUEST or OTHER) and its urgency: EMERGENCY only when there is a safety risk (burning smell, smoke, sparks, shocks, a hot switchboard); URGENT when they have no power or need help the same day; otherwise ROUTINE.
-Extract the customer's name and phone number if present. Write: a one-line summary; and a proposed reply (replyDraft) that thanks them once, confirms we have received their email, and lets them know we will reply to their request soon, in a warm, plain, Australian tone. Do not suggest a site visit or call-out time, and do not ask the customer for a preferred time - that comes in a later email. Nobody else emails the customer first, so the reply must stand on its own. For an EMERGENCY, begin the reply by telling them to switch off at the main switch if it is safe to do so, keep clear, and call (02) 5550 0142 now. Never promise a price.
+Extract the customer's name and phone number if present. Write: a one-line summary; and a proposed reply (replyDraft) that thanks them once, confirms we have received their email, and - for a quote request or new install - explains that to quote accurately one of our electricians will come out for a free site visit of about an hour, and that they can pick a time that suits them using the link below the message. For a fault or repair, say we will get an electrician out as soon as we can and that they can pick a time with the link. Write in a warm, plain, Australian tone. Do not write the link or a sign-off yourself - both are added automatically below your message - and do not propose specific dates or times. Nobody else emails the customer first, so the reply must stand on its own. For an EMERGENCY, begin the reply by telling them to switch off at the main switch if it is safe to do so, keep clear, and call (02) 5550 0142 now. Never promise a price.
 Always answer by calling submit_result.`;
 
 const RESPONSE_SCHEMA = {
@@ -76,7 +76,7 @@ export const enquiryToReply = defineWorkflow(
       id: "approve_reply",
       type: "HUMAN_TASK",
       label: "Office approves the reply",
-      config: { taskType: "approve_reply", assigneeRole: "EDITOR", approval: true, reviewsNodeId: "send_reply", description: "Read the reply below. Approve to send it as written, or reject to reply by hand." },
+      config: { taskType: "approve_reply", assigneeRole: "EDITOR", approval: true, reviewsNodeId: "send_reply", editsVariable: "message", editHint: "The \"Choose a time\" link and the sign-off are added automatically below your message.", description: "Read the email below. Edit the message if you want to change it, then approve to send, or reject to reply by hand." },
     },
     { id: "decision_approved", type: "DECISION", label: "Approved?" },
     {
@@ -84,7 +84,7 @@ export const enquiryToReply = defineWorkflow(
       type: "ACTION",
       stepKey: "sendTemplatedEmail",
       label: "Send the approved reply",
-      config: { template: "enquiry_reply", params: { to: ref("trigger.from"), inReplyTo: ref("trigger.message_id"), variables: { subject: ref("trigger.subject"), message: ref("triage.replyDraft") } }, terminal: true },
+      config: { template: "enquiry_reply", params: { to: ref("trigger.from"), inReplyTo: ref("trigger.message_id"), variables: { subject: ref("trigger.subject"), message: ref("approve_reply.message"), bookingUrl: ref("log_enquiry.bookingUrl") }, variableDefaults: { message: ref("triage.replyDraft") } }, terminal: true },
       retryPolicy: GMAIL_RETRY,
     },
     { id: "log_rejected", type: "ACTION", stepKey: "logAudit", label: "Reply by hand", config: { event: "reply_rejected", params: { requestId: ref("log_enquiry.requestId") }, terminal: true } },

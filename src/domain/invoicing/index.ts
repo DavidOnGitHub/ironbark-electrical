@@ -24,6 +24,7 @@ import {
 } from "./calc";
 
 export * from "./calc";
+export * from "./pdf";
 
 const blank = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
 const actorId = (actor: Actor) => (actor.type === "USER" ? actor.userId : actor.label);

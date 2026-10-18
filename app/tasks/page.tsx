@@ -4,8 +4,9 @@ import { CompleteTaskForm } from "@kabosh-digital/m-street-kit/components/Comple
 import { formatRelativeTime } from "@kabosh-digital/m-street-kit/format";
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { parseHumanTaskOutputFields } from "@kabosh-digital/workflow-types";
-import { reviewForTask } from "../../src/domain/approvals";
+import { editableForTask, reviewForTask } from "../../src/domain/approvals";
 import { PageHeader } from "../../src/ui/fields";
+import { ApprovalForm } from "../../src/ui/ApprovalForm";
 import { TaskReview } from "../../src/ui/TaskReview";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export default async function TasksPage() {
   const rows = await Promise.all(
     tasks.map(async (t) => {
       const graph = ((t.instance.definition.publishedGraph ?? t.instance.definition.graph) as { nodes?: { id: string; label?: string }[] } | null) ?? {};
-      return { task: t, label: graph.nodes?.find((n) => n.id === t.nodeId)?.label ?? t.nodeId, review: await reviewForTask(t) };
+      return { task: t, label: graph.nodes?.find((n) => n.id === t.nodeId)?.label ?? t.nodeId, review: await reviewForTask(t), editable: editableForTask(t) };
     }),
   );
 
@@ -46,7 +47,7 @@ export default async function TasksPage() {
       <PageHeader title="Tasks" subtitle="Runs waiting for a person. For an approval, what you are approving is shown below." />
       {rows.length === 0 ? <p className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No pending tasks. Nothing is waiting on a person right now.</p> : null}
       <ul className="flex flex-col gap-4">
-        {rows.map(({ task, label, review }) => (
+        {rows.map(({ task, label, review, editable }) => (
           <li key={task.id} className="rounded-md border border-l-4 border-l-hivis bg-card p-4" data-testid="task-card">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -57,6 +58,9 @@ export default async function TasksPage() {
               <Link href={`/instances/${task.instanceId}`} className="text-sm font-semibold text-link hover:underline">View run &rarr;</Link>
             </div>
             {review ? <TaskReview review={review} /> : null}
+            {editable && user && canComplete(user, task) ? (
+              <ApprovalForm taskId={task.id} instanceId={task.instanceId} nodeId={task.nodeId} draft={editable.text} hint={editable.hint} />
+            ) : (
             <CompleteTaskForm
               taskId={task.id}
               instanceId={task.instanceId}
@@ -66,6 +70,7 @@ export default async function TasksPage() {
               approval={(task.input as { approval?: unknown } | null)?.approval === true}
               outputFields={parseHumanTaskOutputFields(task.input)}
             />
+            )}
           </li>
         ))}
       </ul>

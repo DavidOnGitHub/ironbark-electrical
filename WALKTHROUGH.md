@@ -1,59 +1,77 @@
-# Demo walkthrough - "A Monday morning at Ironbark Electrical" (about 10 minutes)
+# Demo walkthrough - "A Monday morning at Ironbark Electrical" (about 11 minutes)
 
 For a prospect who runs a small business on email, spreadsheets and a patchwork of apps. The point to land:
 **"your business, your process"** - the same platform that runs this electrician can run theirs.
 
 Say "this is a fictional electrician" once, early. After that, tell the story as if it were their business.
 
+The thread that runs through it: **the system does the work, a person approves what the customer sees.** Four times the
+office gets a task, reads exactly what will happen, can edit it, and approves. Everything between is automatic.
+
 ## Before you start (5 minutes)
 
 ```bash
 cd ~/dev/ironbark-electrical
+pnpm install                    # once after pulling (adds the PDF library)
+pnpm app:migrate                # once after pulling (new tables and columns)
 docker compose up -d            # from the platform repo, if Postgres/Temporal are not running
 # pnpm demo:reset              # ONLY for a brand-new start: DELETES all data (asks you to type "reset"). Never run automatically.
-pnpm workflows:seed --publish   # after a workflow change; keeps all your data
+pnpm workflows:seed --publish   # after a workflow change; keeps all your data, but replaces edits made in the workflow builder
 pnpm dev                        # terminal 1: http://localhost:3200
 pnpm worker                     # terminal 2: runs the automations
-stripe listen --api-key "$STRIPE_SECRET_KEY" --forward-to localhost:3200/api/stripe/webhook   # terminal 3: only for the payment moment
+stripe listen --api-key "$STRIPE_SECRET_KEY" --forward-to localhost:3200/api/stripe/webhook   # terminal 3: only if you want the optional card payment
 pnpm demo:check                 # PASS on every line you need
 ```
 
-The seeded site visits (one done with findings, one booked for tomorrow) only exist after a `pnpm demo:reset`. On older data the
-*Site visit booked* enquiries have no visit behind them; book one by hand as in the story. After pulling this change, run
-`pnpm app:migrate` once and restart `pnpm dev` and `pnpm worker`.
+`pnpm workflows:seed --publish` publishes **seven** workflows: *Enquiry to reply*, *Site visit to quote*, *Quote and chase*,
+*Job booking*, *Job to invoice*, *Invoice and payment chase* and *Review request*. Without them the matching step simply does
+not start by itself (the office can still do it by hand).
 
 `pnpm demo:check` tells you what is missing and how to fix it. Needed for the full real-integration version:
-Gmail connected (Owner > Connected apps), Stripe test keys in `.env`, and the Stripe webhook secret that
-`stripe listen` prints. Without Gmail the emails become tasks for a person; without Stripe there is no pay link.
-Everything else still works, so the demo degrades gracefully - say so if it happens.
+Gmail connected (Owner > Connected apps), and the customer's address on `EMAIL_ALLOWLIST` (automatic emails only go to
+allowlisted addresses). Without Gmail the emails become tasks for a person. Everything else still works, so the demo degrades
+gracefully - say so if it happens.
 
-Sign in as **Office (`office@ironbark.test`, password `Ironbark-demo-1`)** for the main story. Keep a second
-window signed in as **a technician on a phone-sized window** (`jordan@ironbark.test`).
-The Owner account asks for an authenticator code the first time (platform rule); skip it unless you want to
-show that off.
+**You play the customer, too.** Use a second email address you can read (on `EMAIL_ALLOWLIST`) as the customer, and a **private
+browser window** for the customer's links. The links in the emails use `APP_BASE_URL` (`http://localhost:3200`), so open them
+on the same computer. Keep a third window signed in as **a technician on a phone-sized window** (`jordan@ironbark.test`).
+
+Sign in as **Office (`office@ironbark.test`, password `Ironbark-demo-1`)** for the main story. The Owner account asks for an
+authenticator code the first time (platform rule); skip it unless you want to show that off.
+
+The seeded data (a done site visit with findings, one booked for tomorrow) only exists after a `pnpm demo:reset`.
 
 ## The story
 
-| Min | Role | What you do | What you say |
+| Min | Who | What you do | What you say |
 |---|---|---|---|
 | 0:00 | Office | Open the **Dashboard**. Optionally open **Schedule** first: the dashed cards are site visits. | "Sam runs a small electrical business. This is what needs attention at 7am: new enquiries, open quotes, money owed, and who is on the tools today." Point at the yellow-edged tile and the red overdue amount. |
-| 1:00 | - | Send an email to the demo inbox alias (`you+ironbark@gmail.com`), for example "Hi, can you quote on six downlights in our lounge room?" from any other address. The customer gets one reply, and only after the office approves it. | "A customer emails the business, like they always do." |
-| 1:30 | Office | Open **Runs** (Automation section). Open the live *Enquiry to reply* run. | "An AI reads it, decides it is a real enquiry, logs it, and writes a reply - but it does not send anything until a person approves it." |
-| 2:30 | Office | Go to **Tasks** (Automation section), open *Office approves the reply*, **Approve**. Check the demo inbox for the email. | "One click. The customer has an answer in minutes, and it is on their history. Emergencies would have phoned the owner first." |
-| 3:30 | Office | **Requests**: open *Quote to rewire 1960s house* > **Create a client from this enquiry**. In the **Site inspection** card pick **Jordan Lee**, keep tomorrow's 9:00 default, **Book a site visit**. The enquiry moves to *Site visit booked*. | "A rewire is not something you price from an email. Like any good tradie, Sam looks first. One click books an electrician, and the enquiry shows it is waiting on the visit. A simple job, like swapping a light, can be quoted straight away - it is the office's call." |
-| 4:15 | Technician (phone window) | **My day**: the **Site visit** card shows the address, access and switchboard notes, **Call** and **Directions**. Type what was found (for example "Old fuse board, 3 circuits to add, roof space easy") and **Finish inspection**. | "At the house, the technician records what they found on their phone. No prices, no paperwork to bring back to the office." |
-| 4:45 | Office | Back on the request (reload): the findings are on the **Site inspection** card. **Create a quote from the visit**. The findings sit above the form and are copied into the customer notes. The enquiry's wording is matched to the price list and a bundle (or items with quantities) is proposed, already ticked. Untick what is wrong, **Add selected lines**, then **Save lines**. | "The quote starts from what the electrician actually saw. It proposes lines from our own price list - it cannot invent a price. The office checks them. Bundles add a whole job in one click, and GST and the deposit rule over $1,500 are automatic. No spreadsheet." |
-| 5:45 | Office | **Send quote**. The email has an **Accept or decline** link (shown on the quote page too): open it in a private window and click **Accept this quote**; or, on the quote page, record the answer by hand with **Customer approved**. | "Sending the quote starts a follow-up automation (reminder after a day, owner calls after three more). Approving it creates the job and marks the enquiry won." You land on the new job. |
-| 6:30 | Office | On the job: pick **Jordan Lee**, tomorrow's default time, **Schedule**. The clash warning appears; choose **Mia Chen** (or **Book anyway**). | "It warns about double-booking before it happens." |
-| 7:00 | Technician (phone window) | **My day**: **Start / resume**, open **Add a note or variation**, add a note, **Mark complete**. | "The technician gets a phone-friendly list: Call, Directions, access notes - and never sees prices. A variation, like extra work, flows to the invoice after the office approves it." |
-| 7:45 | Office | Job page > **Create invoice**, review, **Issue invoice**. Show the **Payment link**. Open it in a new tab and pay with the Stripe test card `4242 4242 4242 4242`, any future date, any CVC. | "Deposit credited, GST right, a card link on the invoice. Overdue chasing starts by itself: day 1, 7, 14, 30." |
-| 8:30 | Office | The invoice flips to **Paid** by itself (Stripe's webhook). Open the client's page to show the **timeline**. | "Payment recorded without anyone typing. Everything the automations did is on the client's history, so nobody has to ask what happened." A review request goes out a day later. |
-| 9:00 | Office | **Dashboard**, then **Reports**. | "The owner sees conversion, how fast customers decide, how long jobs take to invoice and get paid, and what each technician brought in. Bookkeepers get a CSV." |
-| 9:30 | Office | **Works for...** - open the industry that matches the prospect. | "This is an electrician. Here is what each part becomes for a clinic, a cleaner, an agency, a wholesaler - and the first automation we would build for you." |
+| 1:00 | Customer | From your customer address, email the demo inbox alias (`you+ironbark@gmail.com`): "Hi, can you quote on six downlights in our lounge room? Pat". | "A customer emails the business, like they always do." |
+| 1:30 | Office | **Tasks**: open *Office approves the reply*. Read the email preview: it offers a free site visit and has a **Choose a time** button. Change a sentence in the message box, then **Approve and send**. | "An AI read the email, logged the enquiry and drafted the reply. Nothing goes out until a person approves it - and the office can rewrite it first. The button is added for them: they never chase dates by email." |
+| 2:30 | Customer (private window) | Open the **Choose a time** link in the email. Only free times are listed. Fill in a phone number and the address, pick tomorrow at 9:00, **Book this time**. | "The customer picks a time themselves. The system only offers times that are really free - working hours, travel time between jobs, and it chooses the electrician. It asks for the address, so the visit is fully set up." |
+| 3:15 | Office | **Requests**: the enquiry is now *Site visit booked*, with a client and site created. Open **Schedule**: the visit is there. | "Nobody typed anything. The client, the address and the booking all came from the customer." |
+| 3:45 | Technician (phone window) | **My day**: the **Site visit** card shows the address, access notes, **Call** and **Directions**. Type what was found (for example "Old fuse board, 3 circuits to add, roof space easy") and **Finish inspection**. | "At the house, the technician records what they found on their phone. No prices, no paperwork to bring back." |
+| 4:30 | Office | **Tasks**: open *Office checks the draft quote*. The quote is already built from the findings, using lines from our price list. Optionally **Open the quote to edit it**, change a line, come back. **Approve**. | "The AI turned the electrician's notes into a priced quote - but it can only pick from our own price list, it cannot invent a price. The office reads it, edits if needed, approves." |
+| 5:15 | Customer | Open the customer's inbox: the quote email arrived, with an **Accept or decline** link. Open it in the private window and **Accept this quote**. | "Approving started the follow-up: the customer is emailed, reminded after a day, and the owner is asked to phone after three more - and it all stops the moment they answer." |
+| 5:45 | Customer | Still on the page: it now asks them to **choose a day for the work**. Pick one. The page says the time is held for them. | "No back and forth about dates. The length of the job comes from the quote's labour hours, and that day is now held - nobody else can book it." |
+| 6:15 | Office | **Schedule**: the dashed *Held - awaiting approval* card. **Tasks**: open *Office approves the day*, **Approve**. The customer gets a "You're booked in" email. | "Third approval. The office stays in control of the calendar: approve it, or reject it and the customer is asked to choose again." |
+| 6:45 | Technician (phone window) | **My day**: the job is there. **Start / resume**, open **Add a note or variation**, add a note, **Mark complete**. | "It appears in his calendar the moment the office approves. A variation, like extra work, flows to the invoice after the office approves it." |
+| 7:30 | Office | **Tasks**: open *Office checks the draft invoice*. It was drafted the moment the job was marked complete. Click **Preview the PDF**, then **Approve**. | "The invoice writes itself from the quote, any variations and any deposit. GST is right. The office checks it - fourth and last approval." |
+| 8:15 | Customer | The invoice email arrived with the **PDF attached** and the bank transfer details (account name, BSB, account number, and the invoice number as the reference). | "A proper tax invoice, attached, with how to pay. Overdue chasing starts by itself: day 1, 7, 14, 30." |
+| 8:45 | Office | **Invoices**: open the invoice, **Bank transfer received - mark paid**. | "The money lands in the bank, the office clicks once." |
+| 9:15 | Customer | The inbox has a thank-you email that asks for a review. | "The customer is thanked straight away and asked for a review. If they do not reply, one gentle nudge three days later; an unhappy reply goes to the owner." |
+| 9:45 | Office | Open the client's page to show the **timeline**, then the **Dashboard** and **Reports**. | "Everything the automations did is on the client's history, so nobody has to ask what happened. The owner sees conversion, how fast customers decide, how long jobs take to invoice and get paid, and what each technician brought in. Bookkeepers get a CSV." |
+| 10:30 | Office | **Works for...** - open the industry that matches the prospect. | "This is an electrician. Here is what each part becomes for a clinic, a cleaner, an agency, a wholesaler - and the first automation we would build for you." |
 
-**Short on time?** Skip minutes 3:30 to 4:45 live: open the enquiry marked *Site visit booked* that already has a **Done** visit with findings, and go straight to **Create a quote from the visit**.
+**Short on time?** Start at 5:15. Open the seeded enquiry marked *Site visit booked* that already has a **Done** visit and a draft quote, **Send quote**
+on the quote page, then use the accept link in the email and carry on from there.
 
-**Optional, 30 seconds:** **Setup > Email templates** - open *Quote - sent to the customer*, change a line and watch the preview update. "Your wording, your look - no developer needed. The automations pick the change up on the next email."
+**Optional, 30 seconds:** **Setup > Email templates** - open *Enquiry - approved reply* or *Invoice - sent to the customer*, change a line and watch the preview
+update. "Your wording, your look - no developer needed. The automations pick the change up on the next email."
+
+**Optional card payment:** with Stripe test keys set up, the invoice email also has a card link. Open it in the private window and pay with
+`4242 4242 4242 4242`, any future date, any CVC; the invoice flips to **Paid** by itself (Stripe's webhook), and the thank-you follows. Skip it if you are
+showing bank transfer.
 
 Close with the question: **"Which of these steps is the one that costs you the most time today?"** The answer is
 the first automation to build.
@@ -68,12 +86,16 @@ rehearsed here**, so try it before relying on it.
 
 | Real | Simulated or limited |
 |---|---|
-| Gmail: inbound enquiry and outbound email (only to addresses on `EMAIL_ALLOWLIST`) | The AI triage in test runs uses a built-in mock |
-| Stripe test-mode card payment and webhook | Test mode only: no real money |
+| Gmail: inbound enquiry and outbound email (automatic emails only to addresses on `EMAIL_ALLOWLIST`) | The AI triage in test runs uses a built-in mock |
+| Availability: working hours, travel time, held days, the electrician chosen by code | Working hours (Mon-Fri 8-4), one-hour visits and a 12-hour notice are fixed settings |
+| Quote drafted from the findings with the AI when `ANTHROPIC_API_KEY` is set (price-list lines only) | Without the key it matches the wording to the price list by keyword |
+| The invoice PDF, built and attached to the email | The bank account is fictional (`BANK_*` in `.env` changes it); paying is "mark paid" by the office |
 | Temporal workflows with real waits (production mode) | Test mode caps waits at 5 seconds |
-| Users, roles, data, reports | Fictional business and data |
+| Optional Stripe test-mode card payment and webhook | Test mode only: no real money |
+| Users, roles, data, reports | Fictional business and data. The review link is a placeholder |
 
-Fully automatic email (quote and invoice chases, review requests) only goes to addresses on `EMAIL_ALLOWLIST`; with no allowlist none is sent and the step hands the job to a person. A reply a person has read and approved can go to any sender.
+Fully automatic email (quote and invoice chases, booking confirmations, the thank-you) only goes to addresses on `EMAIL_ALLOWLIST`; with no allowlist none is sent and the
+step hands the job to a person. A reply a person has read and approved can go to any sender.
 
 ## If something goes wrong
 
@@ -81,8 +103,17 @@ Fully automatic email (quote and invoice chases, review requests) only goes to a
 |---|---|
 | No email arrived | `pnpm demo:check`. Is the worker running? Is the recipient on `EMAIL_ALLOWLIST`? Is Gmail connected? |
 | The enquiry did not start a run | The mail must be sent **to** the `+ironbark` alias, from outside the connected account. |
-| Invoice has no payment link | Stripe keys missing in `.env`; restart `pnpm dev`. |
-| Invoice did not flip to Paid | `stripe listen` is not running, is logged into a different Stripe account than `STRIPE_SECRET_KEY` (start it with `--api-key "$STRIPE_SECRET_KEY"`), or its `whsec_...` is not in `STRIPE_WEBHOOK_SECRET`. Payments already made can be recorded afterwards with `pnpm payments:replay`. |
+| Tasks shows a problem instead of the email | You skipped `pnpm workflows:seed --publish` after pulling: the stored workflow predates the booking link. Run it. |
+| The customer's link does not open | It uses `APP_BASE_URL` (`http://localhost:3200`): open it on the same computer, with `pnpm dev` running. |
+| The booking page shows no times | Times are Monday to Friday, 8am to 4pm, at least 12 hours ahead, and a longer job needs room before closing. If everything is booked it says so; look at **Schedule**. |
+| No draft quote appeared after the visit | The *Site visit to quote* workflow is not published, or the enquiry already had a quote or no client. The run says why under **Runs**. Create the quote by hand from the request page instead. |
+| The draft quote has no lines | Nothing in the price list matched the wording. Open the quote and add lines (the task says so). |
+| "Approve the day" says the time is no longer held | Held days lapse after 3 days. Reject: the customer is emailed to choose another day. |
+| No invoice appeared after marking the job complete | The *Job to invoice* workflow is not published, or the job had no quote or already had an invoice. Create it by hand from the job page. |
+| The invoice email had no PDF | It is attached when the email is sent by the automation. If the invoice went by hand (a task), use **Download PDF** on the invoice page. |
+| No thank-you after "mark paid" | The customer's address is not on `EMAIL_ALLOWLIST`, or the *Review request* workflow is not published. |
+| Invoice has no card link | Stripe keys missing in `.env`; restart `pnpm dev`. The bank details are always there. |
+| Card payment did not flip the invoice to Paid | `stripe listen` is not running, is logged into a different Stripe account than `STRIPE_SECRET_KEY` (start it with `--api-key "$STRIPE_SECRET_KEY"`), or its `whsec_...` is not in `STRIPE_WEBHOOK_SECRET`. Payments already made can be recorded afterwards with `pnpm payments:replay`. |
 | The visit is not in the technician's My day | It is booked for a different technician, or more than a week ahead. Check the name on the request's **Site inspection** card. |
 | "Book a site visit" is missing | The enquiry is not linked to a client yet, or it has already been quoted. |
 | Page says something went wrong | Reload; if it repeats, check the `pnpm dev` terminal. |
@@ -90,9 +121,10 @@ Fully automatic email (quote and invoice chases, review requests) only goes to a
 
 ## Rehearsal log
 
-The human path (enquiry to client to quote to approval to job to schedule to technician to invoice to
-payment to dashboard and reports) was driven end to end in a browser against a clean seed with automations
-off: 21 checks, no errors. The four automations were walked in test mode through Temporal.
-The site inspection step (book, technician records findings, quote from the findings, schedule and My day cards) is covered by
-automated tests of the rules, but has not yet been walked through in a browser: rehearse minutes 3:30 to 4:45 once before showing it.
-The real Gmail, Stripe card and AI-assistant moments need a live rehearsal by you with your accounts.
+Every stage of this story has automated tests of its rules (availability and booking, edit-before-approve, the draft quote, the held day
+and its approval, the draft invoice, the PDF and its email attachment). **The whole chain has not yet been run end to end in a browser
+or through Temporal with real email:** rehearse the full story once, from your customer address, before showing it, and note here what you find.
+
+The earlier human-only path (enquiry to client to quote to approval to job to schedule to technician to invoice to payment to dashboard and
+reports) was driven end to end in a browser against a clean seed with automations off: 21 checks, no errors, before the automations
+described above were added. The real Gmail, Stripe card and AI-assistant moments need a live rehearsal by you with your accounts.

@@ -7,6 +7,7 @@ import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
 import { bookSiteVisit, cancelSiteVisit, completeSiteVisit, SiteVisitAccessError, SiteVisitConflictError } from "../domain/siteVisits";
 import { sydneyLocalToDate } from "../lib/tz";
+import { afterSiteVisitDone } from "../automation";
 import { errorMessage, text, type ActionState } from "./shared";
 
 function refresh(requestId?: string) {
@@ -59,6 +60,7 @@ export async function completeSiteVisitAction(_prev: ActionState, formData: Form
   if (!visitId) return { error: "Missing visit." };
   try {
     const visit = await completeSiteVisit(visitId, text(formData, "findings") ?? "", userActor(user));
+    await afterSiteVisitDone(visit.id); // the quote drafting automation (if published); a failure never undoes the visit
     refresh(visit.requestId);
   } catch (err) {
     return { error: errorMessage(err) };
@@ -74,6 +76,7 @@ export async function fieldCompleteSiteVisitAction(_prev: ActionState, formData:
   if (!visitId) return { error: "Missing visit." };
   try {
     const visit = await completeSiteVisit(visitId, text(formData, "findings") ?? "", userActor(user), { technicianUserId: user.id });
+    await afterSiteVisitDone(visit.id);
     refresh(visit.requestId);
   } catch (err) {
     return { error: err instanceof SiteVisitAccessError ? err.message : errorMessage(err) };

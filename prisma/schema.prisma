@@ -192,6 +192,8 @@ model Request {
   lostReason      String?
   /// Reference to the inbound email (message id), when it came from Gmail.
   rawEmailRef     String?
+  /// Secret in the "pick a time" link (/book/<token>) the customer is emailed; created when the enquiry is logged.
+  bookingToken    String?         @unique
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -385,6 +387,12 @@ model Job {
   assignedUserId      String?
   scheduledStart      DateTime?
   scheduledEnd        DateTime?
+  /// A time the customer picked from their quote link, held (it blocks the calendar) until the office approves it.
+  /// Scheduling the job clears it; a hold nobody acts on lapses (see HOLD_DAYS in the jobs module).
+  requestedUserId     String?
+  requestedStart      DateTime?
+  requestedEnd        DateTime?
+  requestedAt         DateTime?
   startedAt           DateTime?
   completedAt         DateTime?
   /// What was quoted, ex GST (the invoice starts from this plus approved variations).

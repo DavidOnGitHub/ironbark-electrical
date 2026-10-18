@@ -27,17 +27,34 @@ export function encodeHeader(value: string): string {
 
 const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64").replace(/(.{76})/g, "$1\r\n");
 
-export function buildMime(o: { to: string; subject: string; text: string; html: string; inReplyTo?: string; boundary?: string }): string {
-  const boundary = o.boundary ?? `ib_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+export interface EmailAttachment {
+  filename: string;
+  mimeType: string;
+  data: Uint8Array;
+}
+
+/** A header parameter value (a file name) as a quoted string: no quotes, backslashes or line breaks, non-ASCII as an encoded word. */
+const quotedName = (name: string) => encodeHeader(name.replace(/["\\]/g, "'"));
+
+export function buildMime(o: { to: string; subject: string; text: string; html: string; inReplyTo?: string; boundary?: string; attachments?: EmailAttachment[] }): string {
+  const id = `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  const boundary = o.boundary ?? `ib_${id}`;
+  const attachments = o.attachments ?? [];
+  const mixed = `${boundary}_mixed`;
   const head = [
     `To: ${o.to.replace(/[\r\n]+/g, " ")}`,
     `Subject: ${encodeHeader(o.subject)}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    attachments.length > 0 ? `Content-Type: multipart/mixed; boundary="${mixed}"` : `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ...(o.inReplyTo ? [`In-Reply-To: ${o.inReplyTo}`, `References: ${o.inReplyTo}`] : []),
   ].join("\r\n");
   const part = (type: string, body: string) => `--${boundary}\r\nContent-Type: ${type}; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(body)}\r\n`;
-  return `${head}\r\n\r\n${part("text/plain", o.text)}${part("text/html", o.html)}--${boundary}--\r\n`;
+  const alternative = `${part("text/plain", o.text)}${part("text/html", o.html)}--${boundary}--\r\n`;
+  if (attachments.length === 0) return `${head}\r\n\r\n${alternative}`;
+  const files = attachments
+    .map((a) => `--${mixed}\r\nContent-Type: ${a.mimeType}; name="${quotedName(a.filename)}"\r\nContent-Disposition: attachment; filename="${quotedName(a.filename)}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${Buffer.from(a.data).toString("base64").replace(/(.{76})/g, "$1\r\n")}\r\n`)
+    .join("");
+  return `${head}\r\n\r\n--${mixed}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}\r\n${files}--${mixed}--\r\n`;
 }
 
 async function gmail(token: string, method: "GET" | "POST", path: string, body?: unknown) {
@@ -46,7 +63,7 @@ async function gmail(token: string, method: "GET" | "POST", path: string, body?:
   return res.json() as Promise<{ id?: string; threadId?: string; payload?: { headers?: { name: string; value: string }[] } }>;
 }
 
-export async function sendHtmlEmail(connectorId: string, o: { to: string; subject: string; text: string; html: string; replyToMessageId?: string }): Promise<string> {
+export async function sendHtmlEmail(connectorId: string, o: { to: string; subject: string; text: string; html: string; replyToMessageId?: string; attachments?: EmailAttachment[] }): Promise<string> {
   if (!o.to.trim()) throw new Error("sendTemplatedEmail: the recipient is empty - nothing to send to");
   const connector = await resolveConnector(connectorId);
   const token = connector.secrets.accessToken;
@@ -59,7 +76,7 @@ export async function sendHtmlEmail(connectorId: string, o: { to: string; subjec
     threadId = original.threadId;
     inReplyTo = original.payload?.headers?.find((h) => h.name.toLowerCase() === "message-id")?.value;
   }
-  const raw = Buffer.from(buildMime({ to: o.to, subject: o.subject, text: o.text, html: o.html, inReplyTo }), "utf8").toString("base64url");
+  const raw = Buffer.from(buildMime({ to: o.to, subject: o.subject, text: o.text, html: o.html, inReplyTo, attachments: o.attachments }), "utf8").toString("base64url");
   const sent = await gmail(token, "POST", "/messages/send", { raw, ...(threadId ? { threadId } : {}) });
   return sent.id ?? "";
 }

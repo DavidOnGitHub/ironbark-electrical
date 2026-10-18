@@ -37,7 +37,7 @@ function triageEnquiry(p: Record<string, unknown>) {
     summary,
     contactName: name,
     contactPhone: phone,
-    replyDraft: `Hi ${first},\n\n${urgency === "EMERGENCY" ? "What you describe could be unsafe - please turn off the power at the main switch if you can do so safely, keep clear of the area, and call us on (02) 5550 0142 right now. Someone is being alerted to ring you straight away.\n\n" : ""}Thanks for getting in touch. ${category === "QUOTE_REQUEST" || category === "NEW_INSTALL" ? "We would be happy to quote this. The quickest way is a short site visit - we have availability later this week; let us know which day suits and we will confirm a time." : "We can send an electrician to look at this. We have availability in the next couple of days - let us know a morning or afternoon that suits and we will confirm."}\n\nKind regards,\nThe team at Ironbark Electrical`,
+    replyDraft: `Hi ${first},\n\n${urgency === "EMERGENCY" ? "What you describe could be unsafe - please turn off the power at the main switch if you can do so safely, keep clear of the area, and call us on (02) 5550 0142 right now. Someone is being alerted to ring you straight away.\n\n" : ""}Thanks for getting in touch. ${category === "QUOTE_REQUEST" || category === "NEW_INSTALL" ? "To give you an accurate quote, one of our electricians will come out for a free site visit of about an hour. Pick a time that suits you with the link below." : "We can send an electrician to look at this as soon as we can. Pick a time that suits you with the link below."}`,
   };
 }
 

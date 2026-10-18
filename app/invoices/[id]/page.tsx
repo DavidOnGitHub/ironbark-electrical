@@ -7,7 +7,7 @@ import { requireBusinessPage } from "../../../src/guard";
 import { getInvoice, GST_RATE_PCT } from "../../../src/domain/invoicing";
 import { listEntityTimeline } from "../../../src/domain/activity";
 import { formatSite } from "../../../src/domain/clients";
-import { createPaymentLinkAction, issueInvoiceAction, recordPaymentAction, saveInvoiceLinesAction, voidInvoiceAction } from "../../../src/actions/invoicing";
+import { createPaymentLinkAction, issueInvoiceAction, markInvoicePaidAction, recordPaymentAction, saveInvoiceLinesAction, voidInvoiceAction } from "../../../src/actions/invoicing";
 import { stripeConfigured } from "../../../src/integrations/payments";
 import { centsToInput, formatMoney } from "../../../src/lib/money";
 import { formatDayTime } from "../../../src/lib/tz";
@@ -15,6 +15,7 @@ import { ActionForm } from "../../../src/ui/ActionForm";
 import { Field, PageHeader, SelectField, TextAreaField } from "../../../src/ui/fields";
 import { InvoiceStatusChip } from "../../../src/ui/chips";
 import { QuoteEditor } from "../../../src/ui/QuoteEditor";
+import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { PrintButton } from "../../../src/ui/PrintButton";
 import { Timeline } from "../../../src/ui/Timeline";
 
@@ -47,7 +48,7 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
             {invoice.job.quote ? <Link className="underline" href={`/quotes/${invoice.job.quote.id}`}>quote {invoice.job.quote.number}</Link> : null}
           </span>
         }
-        actions={<PrintButton label="Print / save as PDF" />}
+        actions={<><Button asChild variant="outline"><a href={`/invoices/${invoice.id}/pdf`} target="_blank" rel="noreferrer" data-testid="invoice-pdf-link">Download PDF</a></Button><PrintButton label="Print" /></>}
       />
       {status === "OVERDUE" ? (
         <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
@@ -142,7 +143,12 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
           {canTakePayment ? (
             <Card>
               <CardHeader><CardTitle className="text-base">Record a payment</CardTitle></CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col gap-4">
+                <ActionForm action={markInvoicePaidAction} submitLabel={`Bank transfer received - mark paid (${formatMoney(invoice.balanceCents)})`} pendingLabel="Saving..." successMessage="Marked as paid.">
+                  <input type="hidden" name="invoiceId" value={invoice.id} />
+                  <p className="text-xs text-muted-foreground">Records the whole balance as received by bank transfer, then thanks the customer and asks for a review.</p>
+                </ActionForm>
+                <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Or record a different payment</p>
                 <ActionForm action={recordPaymentAction} submitLabel="Record payment" successMessage="Recorded." resetOnSuccess>
                   <input type="hidden" name="invoiceId" value={invoice.id} />
                   <Field label="Amount received ($)" name="amount" defaultValue={centsToInput(invoice.balanceCents)} required />

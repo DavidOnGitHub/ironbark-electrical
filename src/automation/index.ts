@@ -11,6 +11,9 @@ import { WorkflowDefinitionGraphSchema } from "@kabosh-digital/workflow-types";
 
 export const AUTOMATION_IDS = {
   enquiryToReply: "def_ironspark_enquiry_to_reply",
+  visitToQuote: "def_ironspark_visit_to_quote",
+  jobBooking: "def_ironspark_job_booking",
+  jobToInvoice: "def_ironspark_job_to_invoice",
   quoteChase: "def_ironspark_quote_chase",
   invoiceChase: "def_ironspark_invoice_chase",
   reviewRequest: "def_ironspark_review_request",
@@ -63,6 +66,9 @@ export async function startAutomation(key: AutomationKey, trigger: Record<string
   }
 }
 
+export const afterSiteVisitDone = (visitId: string) => startAutomation("visitToQuote", { visitId });
+export const afterJobSlotChosen = (jobId: string) => startAutomation("jobBooking", { jobId });
+export const afterJobCompleted = (jobId: string) => startAutomation("jobToInvoice", { jobId });
 export const afterQuoteSent = (quoteId: string) => startAutomation("quoteChase", { quoteId });
 export const afterInvoiceIssued = (invoiceId: string) => startAutomation("invoiceChase", { invoiceId });
 export const afterInvoicePaid = (invoiceId: string) => startAutomation("reviewRequest", { invoiceId });

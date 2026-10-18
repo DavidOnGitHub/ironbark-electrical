@@ -1,3 +1,4 @@
+import { bankTransferBlock } from "../lib/bank";
 /**
  * The wording of the emails the automations send (pure, so it is unit-tested and
  * easy to change). Plain, courteous, Australian; every message names the business,
@@ -46,32 +47,32 @@ export interface InvoiceMailInput {
   daysOverdue: number;
 }
 
-const payLine = (payUrl: string) => (payUrl ? `\nPay securely by card here: ${payUrl}\nYou can also pay by bank transfer - reply to this email for our details.\n` : "\nTo pay by bank transfer, reply to this email and we will send our details.\n");
+const payLine = (payUrl: string, number: string) => `\n${payUrl ? `Pay securely by card here: ${payUrl}\n\n` : ""}${bankTransferBlock(number).replace(/\*\*/g, "")}\n`;
 
 export function invoiceEmail(i: InvoiceMailInput) {
   return {
     subject: `Invoice ${i.number} from Ironbark Electrical - ${formatMoney(i.balanceCents)} due`,
-    body: `Hi ${firstName(i.clientName)},\n\nThank you for having us out. Here is your invoice ${i.number} for "${i.title}".\n\nAmount due: ${formatMoney(i.balanceCents)} including GST${i.dueAt ? `\nDue by: ${i.dueAt.toLocaleDateString("en-AU")}` : ""}\n${payLine(i.payUrl)}\nThank you,\n${SIGNOFF}`,
+    body: `Hi ${firstName(i.clientName)},\n\nThank you for having us out. Here is your invoice ${i.number} for "${i.title}".\n\nAmount due: ${formatMoney(i.balanceCents)} including GST${i.dueAt ? `\nDue by: ${i.dueAt.toLocaleDateString("en-AU")}` : ""}\n${payLine(i.payUrl, i.number)}\nThank you,\n${SIGNOFF}`,
   };
 }
 
 export function invoiceReminder(i: InvoiceMailInput) {
   return {
     subject: `Friendly reminder: invoice ${i.number}`,
-    body: `Hi ${firstName(i.clientName)},\n\nA quick reminder that invoice ${i.number} (${formatMoney(i.balanceCents)}) was due on ${i.dueAt?.toLocaleDateString("en-AU") ?? "the date on the invoice"}. It may simply have crossed in the mail - if you have already paid, thank you, and please ignore this.\n${payLine(i.payUrl)}\n${SIGNOFF}`,
+    body: `Hi ${firstName(i.clientName)},\n\nA quick reminder that invoice ${i.number} (${formatMoney(i.balanceCents)}) was due on ${i.dueAt?.toLocaleDateString("en-AU") ?? "the date on the invoice"}. It may simply have crossed in the mail - if you have already paid, thank you, and please ignore this.\n${payLine(i.payUrl, i.number)}\n${SIGNOFF}`,
   };
 }
 
 export function formalNotice(i: InvoiceMailInput) {
   return {
     subject: `Overdue: invoice ${i.number} - payment required`,
-    body: `Dear ${i.clientName},\n\nOur records show invoice ${i.number} for "${i.title}" is now ${i.daysOverdue} days overdue, with ${formatMoney(i.balanceCents)} outstanding.\n\nPlease arrange payment within 7 days of this notice, or contact us today if there is a problem we can help with.\n${payLine(i.payUrl)}\n${SIGNOFF}`,
+    body: `Dear ${i.clientName},\n\nOur records show invoice ${i.number} for "${i.title}" is now ${i.daysOverdue} days overdue, with ${formatMoney(i.balanceCents)} outstanding.\n\nPlease arrange payment within 7 days of this notice, or contact us today if there is a problem we can help with.\n${payLine(i.payUrl, i.number)}\n${SIGNOFF}`,
   };
 }
 
 export function reviewRequest(clientName: string, title: string, reviewUrl: string, reminder = false) {
   return {
-    subject: reminder ? "Would you mind sharing a quick review?" : "How did we go?",
-    body: `Hi ${firstName(clientName)},\n\n${reminder ? "Just a gentle nudge - " : ""}we hope you are happy with the work on "${title}". If you have a minute, a short review helps other locals find a reliable electrician:\n\n${reviewUrl}\n\nIf anything was not right, reply to this email and the owner will personally make it right.\n\nThank you!\n${SIGNOFF}`,
+    subject: reminder ? "Would you mind sharing a quick review?" : "Thank you - and how did we go?",
+    body: `Hi ${firstName(clientName)},\n\n${reminder ? "Just a gentle nudge - we hope you are happy with the work on" : "Thank you for your payment and for choosing us for"} "${title}". If you have a minute, a short review helps other locals find a reliable electrician:\n\n${reviewUrl}\n\nIf anything was not right, reply to this email and the owner will personally make it right.\n\nThank you!\n${SIGNOFF}`,
   };
 }

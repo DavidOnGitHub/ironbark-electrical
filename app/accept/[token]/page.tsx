@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@kabosh-digital/m-street-kit/ui/card";
 import { getQuoteByToken } from "../../../src/domain/quotes";
-import { answerQuoteAction } from "../../../src/actions/accept";
+import { answerQuoteAction, chooseJobSlotAction } from "../../../src/actions/accept";
+import { jobSlotPageData } from "../../../src/domain/booking";
+import { SlotPicker } from "../../../src/ui/SlotPicker";
 import { CustomerPage } from "../../../src/ui/CustomerPage";
 import { ActionForm } from "../../../src/ui/ActionForm";
 import { formatMoney } from "../../../src/lib/money";
@@ -28,6 +30,7 @@ function Notice({ title, children }: { title: string; children: React.ReactNode 
 export default async function AcceptQuotePage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
   const quote = await getQuoteByToken(token);
+  const slots = quote?.effectiveStatus === "APPROVED" ? await jobSlotPageData(token) : null;
 
   return (
     <CustomerPage>
@@ -82,7 +85,7 @@ export default async function AcceptQuotePage(props: { params: Promise<{ token: 
                 <ActionForm action={answerQuoteAction} submitLabel="Accept this quote" pendingLabel="Sending..." successMessage="Thank you.">
                   <input type="hidden" name="token" value={token} />
                   <input type="hidden" name="decision" value="APPROVED" />
-                  <p className="text-sm text-muted-foreground">We will be in touch to lock in a date.</p>
+                  <p className="text-sm text-muted-foreground">You will pick a date for the work next.</p>
                 </ActionForm>
                 <ActionForm action={answerQuoteAction} submitLabel="Decline" pendingLabel="Sending..." variant="outline" successMessage="Thank you.">
                   <input type="hidden" name="token" value={token} />
@@ -93,6 +96,44 @@ export default async function AcceptQuotePage(props: { params: Promise<{ token: 
                 <p className="text-xs text-muted-foreground">Questions first? Just reply to the email we sent you.</p>
               </CardContent>
             </Card>
+          ) : quote.effectiveStatus === "APPROVED" && slots?.state === "booked" ? (
+            <Card data-testid="job-booked">
+              <CardHeader><CardTitle>Your job is booked</CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-2 text-sm">
+                <p className="text-lg font-semibold">{slots.when}</p>
+                <p className="text-muted-foreground">{slots.technician} will be there{slots.address ? ` at ${slots.address}` : ""}. Need to change it? Reply to our email.</p>
+              </CardContent>
+            </Card>
+          ) : quote.effectiveStatus === "APPROVED" && slots ? (
+            <>
+              {slots.state === "held" ? (
+                <Card data-testid="job-held">
+                  <CardHeader><CardTitle>Thank you - quote accepted</CardTitle></CardHeader>
+                  <CardContent className="flex flex-col gap-2 text-sm">
+                    <p className="text-lg font-semibold">{slots.when}</p>
+                    <p className="text-muted-foreground">We are holding this time for you with {slots.technician}. The office will confirm it shortly and you will get an email. Prefer another day? Choose below.</p>
+                  </CardContent>
+                </Card>
+              ) : null}
+              {slots.days.length === 0 ? (
+                <Notice title="No days available right now">
+                  <p>We are fully booked for the next two weeks. Reply to our email and we will find a day that works.</p>
+                </Notice>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">{slots.state === "held" ? "Change the day" : "Thank you - now choose a day for the work"}</CardTitle>
+                    <p className="text-sm text-muted-foreground">Allow about {Math.round(slots.durationMinutes / 30) / 2} hours on site. Pick the time we should arrive.</p>
+                  </CardHeader>
+                  <CardContent>
+                    <ActionForm action={chooseJobSlotAction} submitLabel={slots.state === "held" ? "Change my time" : "Book this time"} pendingLabel="Booking..." successMessage="Thank you.">
+                      <input type="hidden" name="token" value={token} />
+                      <SlotPicker days={slots.days} />
+                    </ActionForm>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           ) : quote.effectiveStatus === "APPROVED" ? (
             <Notice title="Thank you - quote accepted">
               <p>We have your acceptance{quote.decidedAt ? ` (${date(quote.decidedAt)})` : ""} and will be in touch to lock in a date.</p>

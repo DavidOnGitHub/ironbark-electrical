@@ -191,6 +191,17 @@ export async function suggestWithAi(text: string, items: CatalogItem[], bundles:
   return parseAiSuggestions(textOut, items, bundles);
 }
 
+/** The lines a quote starts with when the suggestions are taken as they come: bundles and items flattened, and the same
+ * price-list entry appearing twice added together rather than repeated. */
+export function linesFromSuggestions(suggestions: Suggestion[]): SuggestedLine[] {
+  const merged = new Map<string, SuggestedLine>();
+  for (const line of suggestions.flatMap((s) => s.lines)) {
+    const seen = merged.get(line.priceItemId);
+    merged.set(line.priceItemId, seen ? { ...seen, quantity: seen.quantity + line.quantity } : { ...line });
+  }
+  return [...merged.values()];
+}
+
 export async function suggestLines(text: string, items: CatalogItem[], bundles: CatalogBundle[], ai?: AiOptions): Promise<SuggestResult> {
   const trimmed = text.trim();
   if (!trimmed) return { source: "keywords", suggestions: [], note: "Describe the work first." };

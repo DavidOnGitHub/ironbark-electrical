@@ -86,7 +86,7 @@ describe("the templated email step", () => {
     await expect(send({ params: { to: "a@b.c" } })).rejects.toThrow(/template/); // the step's own schema refuses a config with no template
   });
   it("outside a test run it needs a connected Gmail account", async () => {
-    await expect(send({ template: "enquiry_reply", params: { to: "a@b.c", variables: { subject: "Hi", message: "Hello" } } }, {})).rejects.toThrow(/connect a Gmail account/);
+    await expect(send({ template: "enquiry_reply", params: { to: "a@b.c", variables: { subject: "Hi", message: "Hello", bookingUrl: "https://example.com/book/abc" } } }, {})).rejects.toThrow(/connect a Gmail account/);
   });
   it("getQuote supplies every variable the quote templates need", async () => {
     const c = await createClient({ type: "PERSON", name: "Pat Smith", email: "pat@example.com", preferredContact: "EMAIL", tags: [] }, priya);
