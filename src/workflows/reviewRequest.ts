@@ -31,7 +31,6 @@ export const reviewRequest = defineWorkflow(
       config: {
         service: "ironspark-agent",
         operation: "classifyFeedback",
-        model: "claude-haiku-4-5",
         systemPrompt: FEEDBACK_PROMPT,
         promptTemplate: "{{body}}",
         params: { body: ref("check_replies.messages.0.body") },

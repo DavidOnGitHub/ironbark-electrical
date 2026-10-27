@@ -6,13 +6,13 @@ import { appDb } from "../src/db/app";
 import { addSite, createClient } from "../src/domain/clients";
 import { createQuote, decideQuote, markQuoteSent, replaceQuoteLines } from "../src/domain/quotes";
 import { changeJobStatus, scheduleJob } from "../src/domain/jobs";
-import { buildInvoicePdf, getInvoice, invoicePdfFilename, recordPayment, replaceInvoiceLines } from "../src/domain/invoicing";
+import { buildInvoicePdf, getInvoice, invoicePdfFilename, issueInvoice, recordPayment, replaceInvoiceLines } from "../src/domain/invoicing";
 import { bankDetails, bankTransferBlock } from "../src/lib/bank";
 import { buildMime } from "../src/integrations/gmailSend";
 import { buildReview } from "../src/domain/approvals/review";
-import { reviewForTask } from "../src/domain/approvals";
-import { draftInvoiceImpl, getInvoiceImpl, sendInvoiceImpl } from "../src/steps/impl";
-import { invoiceChase, jobToInvoice } from "../src/workflows";
+import { approvalOutput, editableFor } from "../src/domain/approvals/edit";
+import { draftInvoiceImpl, getInvoiceImpl } from "../src/steps/impl";
+import { invoiceChase } from "../src/workflows";
 import type { Actor } from "../src/domain/shared/actor";
 import { sydneyLocalToDate } from "../src/lib/tz";
 import { truncateAll } from "./helpers";
@@ -150,46 +150,53 @@ describe("drafting and sending the invoice", () => {
     await appDb.job.update({ where: { id: job.id }, data: { status: "IN_PROGRESS" } });
     expect(await draftInvoiceImpl({ params: { jobId: job.id } }, {} as never)).toMatchObject({ created: false, reason: expect.stringMatching(/completed job/) });
   });
-  it("issues an approved draft, once, and the job becomes invoiced", async () => {
+  it("issues a draft, once, and the job becomes invoiced", async () => {
     const { job } = await completedJob();
     const { invoiceId } = (await draftInvoiceImpl({ params: { jobId: job.id } }, {} as never)) as { invoiceId: string };
-    const out = (await sendInvoiceImpl({ params: { invoiceId } }, {} as never)) as { sent: boolean; followUpStarted: boolean };
-    expect(out).toMatchObject({ sent: true, followUpStarted: false }); // automations are off in tests
+    await issueInvoice(invoiceId, priya);
     const issued = (await getInvoice(invoiceId))!;
     expect(issued.status).toBe("SENT");
     expect(issued.dueAt).toBeInstanceOf(Date);
     expect((await appDb.job.findUnique({ where: { id: job.id } }))!.status).toBe("INVOICED");
-    expect(await sendInvoiceImpl({ params: { invoiceId } }, {} as never)).toMatchObject({ sent: false, reason: expect.stringMatching(/already been issued/) });
+    await expect(issueInvoice(invoiceId, priya)).rejects.toThrow(/Only a draft/);
   });
   it("changes nothing in a test run", async () => {
     const { job } = await completedJob();
     expect(await draftInvoiceImpl({ params: { jobId: job.id } }, testMode)).toMatchObject({ created: true, simulated: true });
     expect(await appDb.invoice.count()).toBe(0);
-    expect(await sendInvoiceImpl({ params: { invoiceId: "x" } }, testMode)).toMatchObject({ sent: true, simulated: true });
   });
   it("is marked paid by a bank transfer for the whole balance", async () => {
     const { job } = await completedJob();
     const { invoiceId } = (await draftInvoiceImpl({ params: { jobId: job.id } }, {} as never)) as { invoiceId: string };
-    await sendInvoiceImpl({ params: { invoiceId } }, {} as never);
+    await issueInvoice(invoiceId, priya);
     const open = (await getInvoice(invoiceId))!;
     const paid = await recordPayment(invoiceId, { amountCents: open.balanceCents, method: "BANK", reference: "Direct bank transfer" }, priya);
     expect(paid.status).toBe("PAID");
   });
 });
 
-describe("what the office approves", () => {
-  const task = (invoiceId: string) => ({ input: { reviewsNodeId: "send_invoice" }, instance: { context: { draft: { invoiceId } }, definition: { graph: jobToInvoice, publishedGraph: null } } });
-  it("shows the draft invoice with its lines and totals, ready to open and edit", async () => {
-    const { job } = await completedJob();
-    const { invoiceId } = (await draftInvoiceImpl({ params: { jobId: job.id } }, {} as never)) as { invoiceId: string };
-    const review = await reviewForTask(task(invoiceId));
-    expect(review).toMatchObject({ kind: "invoice", invoiceId, clientName: "Pat Smith", problem: null });
-    expect((review as { lines: unknown[] }).lines).toHaveLength(2);
+describe("approving the invoice email", () => {
+  const approve = invoiceChase.nodes.find((n) => n.id === "approve_send")!;
+  const context = { trigger: { invoiceId: "i1" }, load_invoice: { emailAddress: "pat@example.com", introText: "Thank you for having us out." } };
+  it("offers the intro as the editable message, and uses the edited text once approved", () => {
+    expect(editableFor(approve.config, invoiceChase.nodes as never, context as never)).toMatchObject({ variable: "message", text: "Thank you for having us out." });
+    const edited = { ...context, approve_send: { message: "Thanks Pat - invoice attached." } };
+    expect(editableFor(approve.config, invoiceChase.nodes as never, edited as never)?.text).toBe("Thanks Pat - invoice attached.");
+    expect(approvalOutput(approve.config, "approve", " Thanks Pat ")).toEqual({ ok: true, output: { approved: true, message: "Thanks Pat" } });
   });
-  it("warns once the invoice has gone out", async () => {
+  it("closes with nothing sent when rejected", () => {
+    expect(approvalOutput(approve.config, "reject", undefined)).toEqual({ ok: true, output: { approved: false } });
+  });
+  it("puts the message into the invoice email, ahead of the amount and how to pay", async () => {
     const { job } = await completedJob();
     const { invoiceId } = (await draftInvoiceImpl({ params: { jobId: job.id } }, {} as never)) as { invoiceId: string };
-    await sendInvoiceImpl({ params: { invoiceId } }, {} as never);
-    expect(await reviewForTask(task(invoiceId))).toMatchObject({ kind: "invoice", problem: expect.stringMatching(/already been issued/) });
+    const out = (await getInvoiceImpl({ params: { invoiceId } }, {} as never)) as { introText: string };
+    expect(out.introText).toContain("the PDF is attached");
+    const send = invoiceChase.nodes.find((n) => n.id === "send_invoice_approved")!;
+    const render = (await import("../src/domain/emailTemplates")).renderTemplate;
+    await (await import("../src/domain/emailTemplates")).ensureDefaultTemplates();
+    const review = await buildReview([send as never], "send_invoice_approved", { trigger: { invoiceId }, approve_send: { message: "Custom words here." }, load_invoice: { emailAddress: "pat@example.com", clientFirstName: "Pat", number: "INV-1", balanceText: "$1", dueNote: "", payBlock: "pay", jobTitle: "Job", introText: out.introText } }, render);
+    expect(review).toMatchObject({ kind: "email" });
+    expect((review as { text: string }).text).toContain("Custom words here.");
   });
 });

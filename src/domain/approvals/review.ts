@@ -17,7 +17,6 @@ export type Review =
   | { kind: "email"; stepLabel: string; to: string; subject: string; html: string; text: string; attachments?: string[] }
   | { kind: "plain-email"; stepLabel: string; to: string; subject: string; body: string }
   | { kind: "quote"; stepLabel: string; quoteId: string; number: string; title: string; clientName: string; status: string; lines: { description: string; quantity: string; totalText: string }[]; subtotalText: string; gstText: string; totalText: string; notes: string | null; problem: string | null }
-  | { kind: "invoice"; stepLabel: string; invoiceId: string; number: string; title: string; clientName: string; status: string; lines: { description: string; quantity: string; totalText: string }[]; subtotalText: string; gstText: string; totalText: string; creditText: string | null; balanceText: string; notes: string | null; problem: string | null }
   | { kind: "booking"; stepLabel: string; jobNumber: string; title: string; clientName: string; address: string | null; requestedText: string | null; technician: string | null; totalText: string | null; problem: string | null }
   | { kind: "fields"; stepLabel: string; rows: { label: string; value: string }[] }
   | { kind: "problem"; stepLabel: string; message: string };

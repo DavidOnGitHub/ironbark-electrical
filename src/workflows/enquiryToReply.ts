@@ -37,7 +37,6 @@ export const enquiryToReply = defineWorkflow(
       config: {
         service: "ironspark-agent",
         operation: "triageEnquiry",
-        model: "claude-haiku-4-5",
         systemPrompt: TRIAGE_SYSTEM_PROMPT,
         promptTemplate: "From: {{from}}\nSubject: {{subject}}\n\n{{body}}",
         params: { from: ref("trigger.from"), subject: ref("trigger.subject"), body: ref("trigger.body") },

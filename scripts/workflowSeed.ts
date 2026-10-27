@@ -7,9 +7,11 @@ export async function seedWorkflows(opts: { publish?: boolean } = {}) {
   await ensureDefaultTemplates(); // the workflows' email steps refer to these
   const owner = await prisma.user.findUnique({ where: { email: "office@ironbark.test" }, select: { id: true } });
   const gmail = await prisma.connector.findFirst({ where: { type: "EMAIL" }, orderBy: { createdAt: "asc" }, select: { id: true, config: true } });
+  const llm = await prisma.connector.findFirst({ where: { type: "LLM_PROVIDER" }, orderBy: { createdAt: "asc" }, select: { id: true, config: true } });
+  const llmWiring = llm ? { connectorId: llm.id, provider: (llm.config as { provider?: string } | null)?.provider } : undefined;
   const done: { name: string; published: boolean }[] = [];
   for (const base of ironSparkWorkflows) {
-    const graph = wireConnectors(base, { emailConnectorId: gmail?.id, gmailAccount: (gmail?.config as { fromAddress?: string } | null)?.fromAddress });
+    const graph = wireConnectors(base, { emailConnectorId: gmail?.id, gmailAccount: (gmail?.config as { fromAddress?: string } | null)?.fromAddress, llm: llmWiring });
     const data = {
       name: graph.name,
       graph: graph as unknown as Prisma.InputJsonValue,
@@ -20,7 +22,7 @@ export async function seedWorkflows(opts: { publish?: boolean } = {}) {
     await prisma.workflowDefinition.upsert({ where: { id: graph.id }, create: { id: graph.id, ownerId: owner?.id ?? null, ...data }, update: { ownerId: owner?.id ?? null, ...data } });
     done.push({ name: graph.name, published: !!opts.publish });
   }
-  return { done, gmailConnected: !!gmail };
+  return { done, gmailConnected: !!gmail, llmConnected: !!llm };
 }
 
 /** Cancels any automation runs still going and clears their records (a demo reset starts clean). */

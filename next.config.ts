@@ -1,4 +1,10 @@
 import type { NextConfig } from "next";
+import path from "node:path"; // TEMP avatar preview
+
+/** `next dev` only: React's development build uses eval() for debugging (rebuilding stack traces), which the CSP would
+ * otherwise block with "eval() is not supported in this environment". Production builds never need it, so the
+ * production policy stays without 'unsafe-eval'. */
+const devScriptSrc = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
 
 const securityHeaders = [
   // Clickjacking: never frame the console. (The full CSP below also carries
@@ -26,7 +32,7 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value:
       "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' https://apis.google.com; " +
+      `script-src 'self' 'unsafe-inline'${devScriptSrc} https://apis.google.com; ` +
       "style-src 'self' 'unsafe-inline'; " +
       "img-src 'self' data: blob: https://*.googleusercontent.com https://www.gstatic.com; " +
       "font-src 'self'; " +
@@ -51,6 +57,17 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework (X-Powered-By: Next.js) - CASA 6.2.1.
   // The console ships as TypeScript source (see the kit's package.json).
   transpilePackages: ["@kabosh-digital/m-street-kit"],
+  // TEMP avatar preview: linked ~/dev/automation packages + single React copy. Remove after.
+  turbopack: {
+    root: path.resolve(process.cwd(), ".."),
+    resolveAlias: {
+      react: "./ironbark-electrical/node_modules/react",
+      "react/jsx-runtime": "./ironbark-electrical/node_modules/react/jsx-runtime",
+      "react/jsx-dev-runtime": "./ironbark-electrical/node_modules/react/jsx-dev-runtime",
+      "react-dom": "./ironbark-electrical/node_modules/react-dom",
+      "react-dom/client": "./ironbark-electrical/node_modules/react-dom/client",
+    },
+  },
   poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: [...securityHeaders, ...hstsHeader] }];

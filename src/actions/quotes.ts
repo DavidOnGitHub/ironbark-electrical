@@ -18,7 +18,7 @@ import {
   type SuggestResult,
   updateQuoteDetails,
 } from "../domain/quotes";
-import { afterQuoteSent, stopQuoteChase } from "../automation";
+import { afterQuoteSent, rejectStaleQuoteApprovals, stopQuoteChase } from "../automation";
 import { isAllowedRecipient } from "../integrations/allowlist";
 import { bundleLines, listBundles, listPriceItems } from "../domain/pricing";
 import { errorMessage, text, type ActionState } from "./shared";
@@ -81,6 +81,8 @@ export async function markQuoteSentAction(_prev: ActionState, formData: FormData
     return { error: errorMessage(err) };
   }
   // The quote-and-chase workflow (if published) takes it from here; a failure to start it never undoes the send.
+  // An earlier "check the draft quote" approval is now out of date: reject it so only the new task is left pending.
+  await rejectStaleQuoteApprovals(quoteId);
   const started = await afterQuoteSent(quoteId);
   const email = (await getQuote(quoteId))?.client.email ?? "";
   revalidatePath(`/quotes/${quoteId}`);

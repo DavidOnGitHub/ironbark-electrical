@@ -60,8 +60,8 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
     name: "Invoice - sent to the customer",
     description: "Emailed when an invoice is issued, with the invoice attached as a PDF and our bank transfer details.",
     subject: "Invoice {{number}} from Ironbark Electrical - {{balanceText}} due",
-    body: `Hi {{clientFirstName}},\n\nThank you for having us out. Here is your invoice {{number}} for "{{title}}" - the PDF is attached.\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,
-    sample: { clientFirstName: "Pat", title: "Install 6 LED downlights", number: "INV-3011", balanceText: "$957.00", dueNote: "Due by: 09/10/2026", payBlock: "**Pay by direct bank transfer**\nAccount name: Ironbark Electrical Pty Ltd\nBSB: 123-456\nAccount number: 1234 5678\nReference: INV-3011" },
+    body: `Hi {{clientFirstName}},\n\n{{message}}\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,
+    sample: { clientFirstName: "Pat", message: "Thank you for having us out. Here is your invoice INV-3011 for \"Install 6 LED downlights\" - the PDF is attached.", title: "Install 6 LED downlights", number: "INV-3011", balanceText: "$957.00", dueNote: "Due by: 09/10/2026", payBlock: "**Pay by direct bank transfer**\nAccount name: Ironbark Electrical Pty Ltd\nBSB: 123-456\nAccount number: 1234 5678\nReference: INV-3011" },
   },
   {
     key: "invoice_reminder",
@@ -101,6 +101,10 @@ export const DEFAULT_TEMPLATES: TemplateDefault[] = [
  * these was never edited, so it is safe to move it to the current default; an edited one is left alone. */
 export const LEGACY_QUOTE_TEMPLATES: Record<string, { subject: string; body: string }[]> = {
   invoice_send: [
+    {
+      subject: "Invoice {{number}} from Ironbark Electrical - {{balanceText}} due",
+      body: `Hi {{clientFirstName}},\n\nThank you for having us out. Here is your invoice {{number}} for "{{title}}" - the PDF is attached.\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,
+    },
     {
       subject: "Invoice {{number}} from Ironbark Electrical - {{balanceText}} due",
       body: `Hi {{clientFirstName}},\n\nThank you for having us out. Here is your invoice {{number}} for "{{title}}".\n\n**Amount due: {{balanceText}} including GST**\n{{dueNote}}\n\n{{payBlock}}\n\nThank you,\n${SIGN}`,

@@ -12,9 +12,9 @@ import { activeHold, confirmJobHold, getJob, releaseJobHold, ScheduleConflictErr
 import { formatSite } from "../domain/clients";
 import { staffLabelMap } from "../domain/shared/staff";
 import { formatDayTime, formatTime } from "../lib/tz";
-import { afterInvoiceIssued, afterInvoicePaid, afterQuoteSent } from "../automation";
+import { afterQuoteSent } from "../automation";
 import { bookingUrlFor, bookingUrlForRequest } from "../domain/booking";
-import { buildInvoicePdf, createInvoiceFromJob, getInvoice, InvoiceError, invoicePdfFilename, issueInvoice } from "../domain/invoicing";
+import { buildInvoicePdf, createInvoiceFromJob, getInvoice, InvoiceError, invoicePdfFilename } from "../domain/invoicing";
 import { bankTransferBlock } from "../lib/bank";
 import { ensurePaymentLink } from "../integrations/payments";
 import { isAllowedRecipient } from "../integrations/allowlist";
@@ -137,6 +137,8 @@ export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
     clientName: invoice.client.name,
     clientEmail: allowed ? email : "",
     hasEmail: allowed,
+    emailAddress: email,
+    hasEmailAddress: email !== "",
     status: invoice.effectiveStatus,
     isPaid: invoice.status === "PAID",
     isOpen: (invoice.status === "SENT" || invoice.status === "PARTIALLY_PAID") && invoice.balanceCents > 0,
@@ -158,6 +160,7 @@ export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
     jobTitle: invoice.job.title,
     dueDate: invoice.dueAt ? invoice.dueAt.toLocaleDateString("en-AU") : "the date on the invoice",
     dueNote: invoice.dueAt ? `Due by: ${invoice.dueAt.toLocaleDateString("en-AU")}` : "",
+    introText: `Thank you for having us out. Here is your invoice ${invoice.number} for "${invoice.job.title}" - the PDF is attached.`,
     payBlock: invoice.payUrl ? `[Pay securely by card](${invoice.payUrl})\n\n${bankTransferBlock(invoice.number)}` : bankTransferBlock(invoice.number),
     reviewUrl,
   };
@@ -349,26 +352,6 @@ export async function draftInvoiceImpl(config: Cfg, context: WorkflowContext) {
   }
 }
 
-/** Issues an approved draft invoice and starts the follow-up that emails it (with its PDF) and chases payment. */
-export async function sendInvoiceImpl(config: Cfg, context: WorkflowContext) {
-  const p = asParams(config, context);
-  if (isTestRun(context)) return { sent: true, followUpStarted: false, reason: "", simulated: true };
-  const invoiceId = str(p.invoiceId);
-  const invoice = await getInvoice(invoiceId);
-  if (!invoice) return { sent: false, followUpStarted: false, reason: "The invoice no longer exists.", simulated: false };
-  if (invoice.status !== "DRAFT") return { sent: false, followUpStarted: false, reason: "The invoice has already been issued.", simulated: false };
-  let issued;
-  try {
-    issued = await issueInvoice(invoiceId, invoicingActor);
-  } catch (err) {
-    if (err instanceof InvoiceError) return { sent: false, followUpStarted: false, reason: err.message, simulated: false };
-    throw err;
-  }
-  // An invoice already covered by a deposit is paid at once: skip chasing, go straight to the thank-you.
-  const started = issued.status === "PAID" ? await afterInvoicePaid(invoiceId) : await afterInvoiceIssued(invoiceId);
-  return { sent: true, followUpStarted: started.started, reason: started.started ? "" : "The invoice follow-up is not running, so nothing was emailed. Send it to the customer yourself.", simulated: false };
-}
-
 export const stepImpls: Record<string, (config: Cfg, context: WorkflowContext) => Promise<unknown>> = {
   findClient: findClientImpl,
   createEnquiry: createEnquiryImpl,
@@ -378,7 +361,6 @@ export const stepImpls: Record<string, (config: Cfg, context: WorkflowContext) =
   sendQuote: sendQuoteImpl,
   getJobBooking: getJobBookingImpl,
   draftInvoice: draftInvoiceImpl,
-  sendInvoice: sendInvoiceImpl,
   confirmJobBooking: confirmJobBookingImpl,
   releaseJobBooking: releaseJobBookingImpl,
   createPaymentLink: createPaymentLinkImpl,

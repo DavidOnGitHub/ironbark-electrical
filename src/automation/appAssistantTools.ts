@@ -20,6 +20,8 @@ import { listQuotes, getQuote, openQuoteStats } from "../domain/quotes";
 import { listInvoices, getInvoice, receivablesSummary } from "../domain/invoicing";
 import { listJobs, getJob, countJobsByStatus } from "../domain/jobs";
 import { listPriceItems, listBundles } from "../domain/pricing";
+import { businessReport, REPORT_WINDOWS, type ReportWindow } from "../domain/reports";
+import { DATASETS, PERIODS, TIME_GROUPS, runReport, type Dataset, type PeriodName } from "../domain/reports/query";
 import { formatMoney } from "../lib/money";
 import type { AppAssistantTool } from "@kabosh-digital/m-street-kit/lib/appAssistant";
 
@@ -28,6 +30,44 @@ const NUMBER_LIMIT = { type: "integer", minimum: 1, maximum: 100, description: "
 const EMPTY_SCHEMA = { type: "object", properties: {}, additionalProperties: false } as const;
 
 export const ironbarkAppAssistantTools: AppAssistantTool[] = [
+  {
+    name: "reportQuery",
+    description:
+      "Counts and totals business records over a date range, for insights and comparisons (this week vs last week, trends by month, who earns most). " +
+      "Pick a dataset and a period (or from/to), optionally group by day, week, month or a field, and set compareWithPrevious to also get the period just before with the percentage change. " +
+      "Totals are in dollars including GST where it says so. Weeks run Monday to Sunday in Sydney time. Always use this for any question about change over time instead of adding up lists yourself.",
+    paramsSchema: {
+      type: "object",
+      properties: {
+        dataset: { type: "string", enum: Object.keys(DATASETS), description: "enquiries, quotes, invoices, payments, jobs or siteVisits." },
+        dateField: { type: "string", description: `Which date to count by. enquiries: ${DATASETS.enquiries.dateFields.join("/")}; quotes: ${DATASETS.quotes.dateFields.join("/")}; invoices: ${DATASETS.invoices.dateFields.join("/")}; payments: paidAt; jobs: ${DATASETS.jobs.dateFields.join("/")}; siteVisits: ${DATASETS.siteVisits.dateFields.join("/")}. The first is the default.` },
+        period: { type: "string", enum: [...PERIODS], description: "A named period. Defaults to last30Days when neither period nor from/to is given." },
+        from: { type: "string", description: "First day, YYYY-MM-DD (Sydney). Use with to instead of period." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD, inclusive." },
+        groupBy: { type: "string", description: `${TIME_GROUPS.join(", ")}, or a field: status (all), category/urgency/source (enquiries), client (quotes/invoices/jobs), technician (jobs/siteVisits), method/kind (payments).` },
+        compareWithPrevious: { type: "boolean", description: "Also report the period immediately before, with the change." },
+      },
+      required: ["dataset"],
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      runReport({
+        dataset: args.dataset as Dataset,
+        dateField: typeof args.dateField === "string" ? args.dateField : undefined,
+        period: typeof args.period === "string" ? (args.period as PeriodName) : undefined,
+        from: typeof args.from === "string" ? args.from : undefined,
+        to: typeof args.to === "string" ? args.to : undefined,
+        groupBy: typeof args.groupBy === "string" ? args.groupBy : undefined,
+        compareWithPrevious: args.compareWithPrevious === true,
+      }),
+  },
+  {
+    name: "ownerReport",
+    description:
+      "The owner's performance numbers for the last 30, 90 or 365 days: enquiry funnel (quoted and won percentages), quote approval rate and median days to a decision, median days from job to invoice to paid, revenue by technician, and monthly receipts for six months.",
+    paramsSchema: { type: "object", properties: { days: { type: "integer", enum: [...REPORT_WINDOWS] } }, additionalProperties: false },
+    handler: async (args) => businessReport(((REPORT_WINDOWS as readonly number[]).includes(args.days as number) ? args.days : 30) as ReportWindow),
+  },
   {
     name: "listClients",
     description: "Lists customers (clients), optionally searching by name/email/phone/address or filtering by tag.",
@@ -161,6 +201,8 @@ export const ironbarkAppAssistantTools: AppAssistantTool[] = [
         totalText: formatMoney(q.totalCents),
         clientName: q.client.name,
         validUntil: q.validUntil,
+        sentAt: q.sentAt,
+        decidedAt: q.decidedAt,
       }));
     },
   },
@@ -219,6 +261,8 @@ export const ironbarkAppAssistantTools: AppAssistantTool[] = [
         daysOverdue: i.daysOverdue,
         clientName: i.client.name,
         dueAt: i.dueAt,
+        issuedAt: i.issuedAt,
+        paidAt: i.paidAt,
       }));
     },
   },
@@ -288,6 +332,7 @@ export const ironbarkAppAssistantTools: AppAssistantTool[] = [
         suburb: j.site?.suburb,
         scheduledStart: j.scheduledStart,
         scheduledEnd: j.scheduledEnd,
+        completedAt: j.completedAt,
       }));
     },
   },

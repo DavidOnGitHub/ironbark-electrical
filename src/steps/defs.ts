@@ -95,6 +95,8 @@ export const getInvoiceDef: StepCatalogEntry = {
     clientName: z.string(),
     clientEmail: z.string(),
     hasEmail: z.boolean(),
+    emailAddress: z.string(),
+    hasEmailAddress: z.boolean(),
     status: z.string(),
     isPaid: z.boolean(),
     isOpen: z.boolean(),
@@ -116,6 +118,7 @@ export const getInvoiceDef: StepCatalogEntry = {
     jobTitle: z.string(),
     dueDate: z.string(),
     dueNote: z.string(),
+    introText: z.string(),
     payBlock: z.string(),
     reviewUrl: z.string(),
   }),
@@ -146,15 +149,6 @@ export const draftInvoiceDef: StepCatalogEntry = {
   description: "Drafts the invoice for a completed job from its quote, approved variations and any deposit already paid. The invoice stays a draft for a person to check. Stops with a reason, instead of failing, when the job is not completed, has no quote, or already has an invoice. Does nothing in a test run.",
   configSchema: Params({ jobId: z.unknown() }),
   outputSchema: z.object({ created: z.boolean(), invoiceId: z.string(), number: z.string(), totalText: z.string(), reason: z.string(), simulated: z.boolean() }),
-};
-
-export const sendInvoiceDef: StepCatalogEntry = {
-  key: "sendInvoice",
-  label: "Issue a draft invoice",
-  kind: "ACTION",
-  description: "Issues a draft invoice (the 7-day payment terms start) and starts the invoice follow-up: the customer is emailed the invoice as a PDF with bank transfer details, then chased if it is not paid. An invoice already covered by a deposit goes straight to the thank-you and review request. Stops with a reason, instead of failing, when the invoice cannot be issued. Does nothing in a test run.",
-  configSchema: Params({ invoiceId: z.unknown() }),
-  outputSchema: z.object({ sent: z.boolean(), followUpStarted: z.boolean(), reason: z.string(), simulated: z.boolean() }),
 };
 
 export const getJobBookingDef: StepCatalogEntry = {
@@ -216,21 +210,20 @@ export const addTimelineNoteDef: StepCatalogEntry = {
   outputSchema: z.object({ recorded: z.boolean() }),
 };
 
-export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnquiryDef, getQuoteDef, getInvoiceDef, draftQuoteDef, sendQuoteDef, getJobBookingDef, confirmJobBookingDef, releaseJobBookingDef, draftInvoiceDef, sendInvoiceDef, createPaymentLinkDef, addTimelineNoteDef, sendTemplatedEmailDef()];
+export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnquiryDef, getQuoteDef, getInvoiceDef, draftQuoteDef, sendQuoteDef, getJobBookingDef, confirmJobBookingDef, releaseJobBookingDef, draftInvoiceDef, createPaymentLinkDef, addTimelineNoteDef, sendTemplatedEmailDef()];
 
 /** What the AI assistant is told about these steps, in the style of its built-in reference. */
 export const ironSparkAssistantSteps = [
   { key: "findClient", reference: 'findClient: {"params":{"email":"<address>","phone":"<number>"}} - returns {found,clientId,name}.' },
   { key: "createEnquiry", reference: 'createEnquiry: {"params":{"from":"<sender>","summary":"<one line>","description":"...","category":"FAULT_REPAIR|NEW_INSTALL|QUOTE_REQUEST|OTHER","urgency":"ROUTINE|URGENT|EMERGENCY","contactName":"...","contactPhone":"...","messageId":"<gmail id>"}} - logs the enquiry and links the client; returns {requestId,clientId,linked,isEmergency,canEmail}; canEmail is false when the sender is not allowed to receive automatic mail.' },
   { key: "getQuote", reference: 'getQuote: {"params":{"quoteId":"<id>"}} - returns {clientName,clientEmail,hasEmail,emailAddress,hasEmailAddress,isOpen,totalText,emailSubject,emailBody,reminderSubject,reminderBody}; isOpen is false once the customer has answered.' },
-  { key: "getInvoice", reference: 'getInvoice: {"params":{"invoiceId":"<id>"}} - returns {clientName,clientEmail,hasEmail,isPaid,isOpen,balanceText,daysOverdue,payUrl,invoiceSubject,invoiceBody,reminderSubject,reminderBody,noticeSubject,noticeBody,reviewSubject,reviewBody,reviewReminderSubject,reviewReminderBody,replyQuery}.' },
+  { key: "getInvoice", reference: 'getInvoice: {"params":{"invoiceId":"<id>"}} - returns {clientName,clientEmail,hasEmail,emailAddress,hasEmailAddress,isPaid,isOpen,balanceText,daysOverdue,payUrl,invoiceSubject,invoiceBody,reminderSubject,reminderBody,noticeSubject,noticeBody,reviewSubject,reviewBody,reviewReminderSubject,reviewReminderBody,replyQuery}.' },
   { key: "draftQuote", reference: 'draftQuote: {"params":{"visitId":"<site visit id>"}} - drafts a quote from the visit\'s findings using only price-list entries; returns {created,quoteId,number,title,lineCount,totalText,source,reason}.' },
   { key: "sendQuote", reference: 'sendQuote: {"params":{"quoteId":"<id>"}} - sends a draft quote and starts the follow-up; returns {sent,followUpStarted,reason}.' },
   { key: "getJobBooking", reference: 'getJobBooking: {"params":{"jobId":"<id>"}} - returns {jobNumber,title,clientName,clientFirstName,emailAddress,hasEmail,hasHold,requestedText,technician,addressText,acceptUrl}.' },
   { key: "confirmJobBooking", reference: 'confirmJobBooking: {"params":{"jobId":"<id>"}} - schedules the job for the time its customer picked; returns {confirmed,reason,whenText,technician}.' },
   { key: "releaseJobBooking", reference: 'releaseJobBooking: {"params":{"jobId":"<id>"}} - frees the time the customer picked; returns {released}.' },
   { key: "draftInvoice", reference: 'draftInvoice: {"params":{"jobId":"<id>"}} - drafts the invoice for a completed job; returns {created,invoiceId,number,totalText,reason}.' },
-  { key: "sendInvoice", reference: 'sendInvoice: {"params":{"invoiceId":"<id>"}} - issues a draft invoice and starts the invoice follow-up; returns {sent,followUpStarted,reason}.' },
   { key: "createPaymentLink", reference: 'createPaymentLink: {"params":{"invoiceId":"<id>"}} - returns {created,payUrl,provider}.' },
   { key: "sendTemplatedEmail", reference: 'sendTemplatedEmail: {"template":"<template key>","params":{"to":"<address>","inReplyTo":"<gmail id>","variables":{"<name>":"<value or $ref>"}}} - sends a branded email from an email template (Setup > Email templates); returns {sent,to,subject}.' },
   { key: "addTimelineNote", reference: 'addTimelineNote: {"params":{"clientId":"<id>","summary":"<what happened>","workflow":"<name>"}} - adds the line to the client\'s history.' },

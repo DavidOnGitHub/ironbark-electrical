@@ -112,14 +112,20 @@ describe("safety rules", () => {
     expect(toRelease[0]!.condition).toBeUndefined(); // the only other way out of the decision
     expect(jobBooking.edges.filter((e) => e.toNodeId === "approve_booking").map((e) => e.fromNodeId)).toEqual(["load"]);
   });
-  it("an invoice is only issued after a person approves it, and the customer email carries the PDF", () => {
-    const into = jobToInvoice.edges.filter((e) => e.toNodeId === "send_invoice");
-    expect(into).toHaveLength(1);
-    expect(into[0]!.fromNodeId).toBe("decision_approved");
-    expect(into[0]!.condition).toMatchObject({ field: "approve_invoice.approved", op: "eq", value: true });
-    expect(jobToInvoice.edges.filter((e) => e.toNodeId === "approve_invoice").map((e) => e.fromNodeId)).toEqual(["decision_drafted"]);
+  it("a drafted invoice is left for the office to issue (no task), and the customer email carries the PDF", () => {
+    expect(jobToInvoice.nodes.filter((n) => n.type === "HUMAN_TASK")).toEqual([]);
     const email = invoiceChase.nodes.find((n) => n.id === "send_invoice")!;
     expect(((email.config as { params: { attachInvoiceId?: unknown } }).params).attachInvoiceId).toEqual({ $ref: "trigger.invoiceId" });
+  });
+  it("emailing an issued invoice has one approval task: approve, edit the message first, or reject to close it", () => {
+    const approve = invoiceChase.nodes.find((n) => n.id === "approve_send")!;
+    expect(approve.config).toMatchObject({ approval: true, reviewsNodeId: "send_invoice_approved", editsVariable: "message" });
+    const out = invoiceChase.edges.filter((e) => e.fromNodeId === "decision_send_approved");
+    expect(out.find((e) => e.condition)!.toNodeId).toBe("send_invoice_approved");
+    // Rejecting closes the task: it goes to a note, not to a second "send by hand" task.
+    expect(out.find((e) => !e.condition)!.toNodeId).toBe("note_rejected");
+    const sent = invoiceChase.nodes.find((n) => n.id === "send_invoice_approved")!;
+    expect(((sent.config as { params: { variables: Record<string, unknown> } }).params).variables.message).toEqual({ $ref: "approve_send.message" });
   });
   it("every enquiry, whoever sent it, reaches the approval task; emergencies are phoned first", () => {
     expect(enquiryToReply.edges.filter((e) => e.fromNodeId === "log_enquiry").map((e) => e.toNodeId)).toEqual(["decision_emergency"]);

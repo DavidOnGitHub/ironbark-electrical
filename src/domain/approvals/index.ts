@@ -1,7 +1,6 @@
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { renderTemplate } from "../emailTemplates";
 import { getQuote } from "../quotes";
-import { getInvoice } from "../invoicing";
 import { activeHold, getJob } from "../jobs";
 import { formatSite } from "../clients";
 import { staffLabelMap } from "../shared/staff";
@@ -26,34 +25,7 @@ export async function reviewForTask(task: { input: unknown; instance: { context:
   const node = (graph.nodes ?? []).find((n) => n.id === reviewsNodeId);
   if (node?.stepKey === "sendQuote") return quoteReview(node, context);
   if (node?.stepKey === "confirmJobBooking") return bookingReview(node, context);
-  if (node?.stepKey === "sendInvoice") return invoiceReview(node, context);
   return buildReview(graph.nodes ?? [], reviewsNodeId, context, renderTemplate);
-}
-
-/** For an approval that issues an invoice: the invoice itself, so the office can read it (and open it to edit) before approving. */
-async function invoiceReview(node: GraphNode, context: Record<string, unknown>): Promise<Review> {
-  const stepLabel = node.label ?? node.id;
-  const invoiceId = str(resolveParams((node.config?.params ?? {}) as Record<string, unknown>, context as never).invoiceId);
-  const invoice = invoiceId ? await getInvoice(invoiceId) : null;
-  if (!invoice) return { kind: "problem", stepLabel, message: "The invoice could not be found. It may have been deleted." };
-  const problem = invoice.status !== "DRAFT" ? "This invoice has already been issued or voided." : invoice.lines.length === 0 || invoice.totalCents <= 0 ? "This invoice has no priced lines. Open it and add them before approving." : null;
-  return {
-    kind: "invoice",
-    stepLabel,
-    invoiceId: invoice.id,
-    number: invoice.number,
-    title: invoice.job.title,
-    clientName: invoice.client.name,
-    status: invoice.status,
-    lines: invoice.lines.map((l) => ({ description: l.description, quantity: `${Number(l.quantity)} ${l.unit}`, totalText: formatMoney(l.lineTotalCents) })),
-    subtotalText: formatMoney(invoice.subtotalCents),
-    gstText: formatMoney(invoice.gstCents),
-    totalText: formatMoney(invoice.totalCents),
-    creditText: invoice.creditCents > 0 ? formatMoney(invoice.creditCents) : null,
-    balanceText: formatMoney(invoice.balanceCents),
-    notes: invoice.notes,
-    problem,
-  };
 }
 
 /** For an approval that confirms a customer's picked day: the job, where, when and who - and a warning if the time is no longer held. */

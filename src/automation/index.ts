@@ -4,9 +4,9 @@
  * only if the owner has PUBLISHED it (a draft never runs for real) and automations
  * are not switched off. A failure here never undoes the business action; it is logged.
  */
-import { prisma } from "@kabosh-digital/workflow-schema";
+import { prisma, Prisma } from "@kabosh-digital/workflow-schema";
 import { startInstanceForDefinition } from "@kabosh-digital/workflow-temporal/instances";
-import { cancelWorkflowInstance } from "@kabosh-digital/workflow-temporal/client";
+import { cancelWorkflowInstance, signalCompleteTask } from "@kabosh-digital/workflow-temporal/client";
 import { WorkflowDefinitionGraphSchema } from "@kabosh-digital/workflow-types";
 
 export const AUTOMATION_IDS = {
@@ -105,4 +105,50 @@ export async function stopQuoteChase(quoteId: string, deps: StopDeps = realStopD
     console.error("[automation] could not stop the quote follow-up:", err instanceof Error ? err.message : err);
   }
   return stopped;
+}
+
+/** What rejecting a stale approval touches - parameters so tests can supply their own. */
+export interface RejectDeps {
+  findPending: (definitionId: string) => Promise<{ id: string; instanceId: string; nodeId: string; context: unknown }[]>;
+  markRejected: (taskId: string) => Promise<void>;
+  restore: (taskId: string) => Promise<void>;
+  signal: (instanceId: string, nodeId: string, output: unknown) => Promise<void>;
+}
+
+const realRejectDeps: RejectDeps = {
+  findPending: async (definitionId) => {
+    const tasks = await prisma.workflowTask.findMany({ where: { status: "PENDING", instance: { definitionId, status: "RUNNING", mode: "PRODUCTION" } }, select: { id: true, instanceId: true, nodeId: true, instance: { select: { context: true } } } });
+    return tasks.map((t) => ({ id: t.id, instanceId: t.instanceId, nodeId: t.nodeId, context: t.instance.context }));
+  },
+  markRejected: async (id) => {
+    await prisma.workflowTask.update({ where: { id }, data: { status: "COMPLETED", output: { approved: false }, completedAt: new Date() } });
+  },
+  restore: async (id) => {
+    await prisma.workflowTask.update({ where: { id }, data: { status: "PENDING", output: Prisma.JsonNull, completedAt: null } });
+  },
+  signal: signalCompleteTask,
+};
+
+/** The quote has just been sent by hand, so any earlier "check the draft quote" approval for it is out of date:
+ * reject each one (the run finishes as "left as a draft") so the only task still waiting is the new one.
+ * Returns how many were rejected; never throws (the send stands). */
+export async function rejectStaleQuoteApprovals(quoteId: string, deps: RejectDeps = realRejectDeps): Promise<number> {
+  let rejected = 0;
+  try {
+    for (const t of await deps.findPending(AUTOMATION_IDS.visitToQuote)) {
+      if ((t.context as { draft?: { quoteId?: string } } | null)?.draft?.quoteId !== quoteId) continue;
+      // Marked done before the run is signalled, and put back if the signal fails - as completing a task does.
+      await deps.markRejected(t.id);
+      try {
+        await deps.signal(t.instanceId, t.nodeId, { approved: false });
+        rejected++;
+      } catch (err) {
+        await deps.restore(t.id).catch(() => undefined);
+        console.warn(`[automation] could not reject the old approval ${t.id}:`, err instanceof Error ? err.message : err);
+      }
+    }
+  } catch (err) {
+    console.error("[automation] could not reject the old quote approvals:", err instanceof Error ? err.message : err);
+  }
+  return rejected;
 }
