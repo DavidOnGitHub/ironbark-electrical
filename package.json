@@ -25,6 +25,7 @@
     "reset": "tsx --env-file=.env scripts/reset.ts",
     "demo:check": "tsx --env-file=.env scripts/preflight.ts",
     "demo:reset": "tsx --env-file=.env scripts/reset.ts && tsx --env-file=.env scripts/seedWorkflows.ts --publish",
+    "temporal:namespace": "tsx --env-file=.env scripts/ensureTemporalNamespace.ts",
     "runs:reconcile": "tsx --env-file=.env scripts/reconcileRuns.ts",
     "payments:replay": "tsx --env-file=.env scripts/replayStripePayments.ts",
     "workflows:seed": "tsx --env-file=.env scripts/seedWorkflows.ts",
