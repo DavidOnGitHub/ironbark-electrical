@@ -1,0 +1,70 @@
+# Render Blueprint for Ironbark Electrical (staging). Shares Joystep's Temporal server and Postgres
+# instance: its own database (ironbark_electrical) and its own Temporal namespace (ironbark-electrical).
+# Both services must stay in region "oregon" - the private Temporal service is only reachable from there.
+# Secrets are `sync: false`: Render asks for them when the Blueprint is applied. The two database URLs use the
+# INTERNAL host of the Postgres instance (no domain suffix).
+services:
+  - type: web
+    name: ironbark-web
+    runtime: node
+    plan: free # sleeps after 15 minutes idle; no pre-deploy command on free, so migrations run at start
+    region: oregon
+    branch: staging
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    buildCommand: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc && corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm db:migrate && pnpm app:migrate && pnpm start
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_AUTH_TOKEN, sync: false } # classic PAT with read:packages
+      - { key: DATABASE_URL, sync: false } # postgresql://USER:PASS@<internal-host>:5432/ironbark_electrical?schema=public
+      - { key: APP_DATABASE_URL, sync: false } # same, but ?schema=ironbark-electrical
+      - { key: TEMPORAL_ADDRESS, value: "temporal-ldq3:7233" }
+      - { key: TEMPORAL_NAMESPACE, value: ironbark-electrical }
+      - { key: AUTH_SECRET, generateValue: true }
+      - { key: AUTH_TRUST_HOST, value: "true" }
+      - { key: AUTH_URL, sync: false } # the service's public URL
+      - { key: APP_BASE_URL, sync: false } # same URL
+      - { key: TRUSTED_PROXY_HOPS, value: "1" }
+      - { key: ADMIN_EMAILS, sync: false }
+      - { key: BRANDING_BUSINESS_NAME, value: Ironbark Electrical }
+      - { key: REVIEW_URL, value: "https://g.page/r/ironbark-electrical/review" }
+      - { key: AUTOMATIONS, value: "on" }
+      - { key: EMAIL_ALLOWLIST, sync: false } # default deny: leave empty to send no automated mail
+      - { key: DEMO_INBOX, sync: false }
+      - { key: DEMO_INBOX_TAG, value: ironbark }
+      - { key: CONNECTOR_ENCRYPTION_KEY, sync: false } # must be identical on the worker
+      - { key: GOOGLE_CONNECTOR_CLIENT_ID, sync: false }
+      - { key: GOOGLE_CONNECTOR_CLIENT_SECRET, sync: false }
+      - { key: STRIPE_SECRET_KEY, sync: false } # TEST mode key
+      - { key: STRIPE_WEBHOOK_SECRET, sync: false }
+
+  - type: worker
+    name: ironbark-worker
+    runtime: node
+    plan: starter
+    region: oregon
+    branch: staging
+    autoDeployTrigger: commit
+    buildCommand: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc && corepack enable && pnpm install --frozen-lockfile
+    # No .env file on Render, so call tsx directly (the package scripts pass --env-file=.env).
+    preDeployCommand: pnpm db:migrate && pnpm app:migrate && pnpm exec tsx scripts/ensureTemporalNamespace.ts
+    startCommand: pnpm exec tsx src/worker.ts
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_AUTH_TOKEN, sync: false }
+      - { key: DATABASE_URL, sync: false }
+      - { key: APP_DATABASE_URL, sync: false }
+      - { key: TEMPORAL_ADDRESS, value: "temporal-ldq3:7233" }
+      - { key: TEMPORAL_NAMESPACE, value: ironbark-electrical }
+      - { key: APP_BASE_URL, sync: false }
+      - { key: BRANDING_BUSINESS_NAME, value: Ironbark Electrical }
+      - { key: REVIEW_URL, value: "https://g.page/r/ironbark-electrical/review" }
+      - { key: AUTOMATIONS, value: "on" }
+      - { key: EMAIL_ALLOWLIST, sync: false }
+      - { key: DEMO_INBOX, sync: false }
+      - { key: DEMO_INBOX_TAG, value: ironbark }
+      - { key: CONNECTOR_ENCRYPTION_KEY, sync: false }
+      - { key: GOOGLE_CONNECTOR_CLIENT_ID, sync: false }
+      - { key: GOOGLE_CONNECTOR_CLIENT_SECRET, sync: false }
+      - { key: STRIPE_SECRET_KEY, sync: false }
