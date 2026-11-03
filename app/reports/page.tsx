@@ -30,6 +30,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             {w === 365 ? "12 months" : `${w} days`}
           </Link>
         ))}
+        {/* A file download from a route handler, not a page: a plain anchor is right. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/invoices/export" className="ml-auto rounded-md border px-3 py-1 hover:bg-muted" data-testid="export-link">Export invoices and payments (CSV)</a>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
