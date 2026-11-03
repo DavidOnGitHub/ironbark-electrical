@@ -16,10 +16,10 @@ describe("recipient allowlist (deny by default)", () => {
     expect(isAllowedRecipient("someone@notironbark.test", e)).toBe(false);
   });
   it("treats Gmail plus-tags and dots as the same mailbox", () => {
-    const e = env("david8959@gmail.com");
-    expect(isAllowedRecipient("david8959+pat@gmail.com", e)).toBe(true);
-    expect(isAllowedRecipient("david.8959+x@googlemail.com", e)).toBe(true);
-    expect(isAllowedRecipient("david8960+pat@gmail.com", e)).toBe(false);
+    const e = env("owner@gmail.com");
+    expect(isAllowedRecipient("owner+pat@gmail.com", e)).toBe(true);
+    expect(isAllowedRecipient("o.wner+x@googlemail.com", e)).toBe(true);
+    expect(isAllowedRecipient("other+pat@gmail.com", e)).toBe(false);
   });
   it("does not apply Gmail rules to other domains", () => {
     const e = env("a.b@example.com");
@@ -27,7 +27,7 @@ describe("recipient allowlist (deny by default)", () => {
     expect(isAllowedRecipient("a.b+tag@example.com", e)).toBe(true);
   });
   it("works on 'Name <address>' as it arrives in a From header", () => {
-    expect(isAllowedRecipient("Pat Smith <david8959+pat@gmail.com>", env("david8959@gmail.com"))).toBe(true);
+    expect(isAllowedRecipient("Pat Smith <owner+pat@gmail.com>", env("owner@gmail.com"))).toBe(true);
     expect(bareAddress("Pat Smith <PAT@x.com>")).toBe("pat@x.com");
   });
   it("'*' allows everyone, but only when written explicitly; an empty address is never allowed", () => {
@@ -37,7 +37,7 @@ describe("recipient allowlist (deny by default)", () => {
   it("parses the list tidily and builds the inbox alias", () => {
     expect(parseAllowlist(" A@x.com ,, @y.org ")).toEqual(["a@x.com", "@y.org"]);
     expect(canonicalEmail("Dav.id+x@Gmail.com")).toBe("david@gmail.com");
-    expect(inboxAlias("david8959@gmail.com")).toBe("david8959+ironbark@gmail.com");
-    expect(inboxAlias("david8959+old@gmail.com", "demo")).toBe("david8959+demo@gmail.com");
+    expect(inboxAlias("owner@gmail.com")).toBe("owner+ironbark@gmail.com");
+    expect(inboxAlias("owner+old@gmail.com", "demo")).toBe("owner+demo@gmail.com");
   });
 });
