@@ -39,8 +39,6 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ironbark_electrical?schema=public
       APP_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ironbark_electrical?schema=ironbark-electrical
-      # Tests must never start real automations or send mail.
-      AUTOMATIONS: "off"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -52,11 +50,6 @@ jobs:
       # GITHUB_TOKEN cannot read them: a classic PAT with read:packages. pnpm 11
       # does not expand ${VAR} in registry credentials, so write the token out.
       - run: echo "//npm.pkg.github.com/:_authToken=${PACKAGES_READ_TOKEN}" >> ~/.npmrc
-        env:
-          PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
-      - run: |
-          echo "token length: ${#PACKAGES_READ_TOKEN}"
-          curl -s -o /dev/null -w "registry status: %{http_code}\n" -H "Authorization: Bearer ${PACKAGES_READ_TOKEN}" "https://npm.pkg.github.com/@kabosh-digital%2fm-street-kit"
         env:
           PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
       - run: pnpm install --frozen-lockfile
