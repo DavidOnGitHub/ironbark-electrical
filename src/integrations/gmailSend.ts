@@ -10,7 +10,6 @@ const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** Non-ASCII header text becomes RFC 2047 encoded words; line breaks are flattened (a header cannot hold one). */
 export function encodeHeader(value: string): string {
   const flat = value.replace(/\s*[\r\n]+\s*/g, " ").trim();
-  // eslint-disable-next-line no-control-regex
   if (/^[\x20-\x7e]*$/.test(flat)) return flat;
   const words: string[] = [];
   let current = "";
