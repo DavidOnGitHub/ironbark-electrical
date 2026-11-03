@@ -8,7 +8,8 @@ import { prisma, UserRole } from "@kabosh-digital/workflow-schema";
 import { appDb } from "../src/db/app";
 import { normalizeEmail, normalizePhone } from "../src/domain/clients/normalize";
 
-export const DEMO_PASSWORD = "Ironbark-demo-1";
+// The default is public (it is in this repo): set DEMO_PASSWORD when seeding any deployment reachable from the internet.
+export const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "Ironbark-demo-1";
 
 export const DEMO_USERS = [
   { email: "owner@ironbark.test", name: "Sam Walker", roles: [UserRole.ADMIN] },
