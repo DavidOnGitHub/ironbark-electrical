@@ -1,0 +1,11 @@
+name: ironbark-electrical
+description: Next.js business app for a fictional electrical contractor - clients, enquiries, quotes, jobs, invoices and Temporal automations.
+business_docs: ["docs/business/**/*.md"]
+context_files: ["CLAUDE.md", "AGENTS.md"]
+commands: {}
+specs_dir: specs
+sandbox:
+  image: node:22-bookworm-slim
+  network: none
+  allowed_hosts: []
+branching: { base: main, target: staging, prefix: ai/ }
