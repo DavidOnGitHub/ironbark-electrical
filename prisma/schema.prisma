@@ -498,3 +498,62 @@ model Payment {
   @@index([invoiceId])
   @@index([jobId, kind])
 }
+
+enum ItRequestKind {
+  FEATURE
+  ERROR
+  FINDING
+}
+
+/// The business's own view of an AI Builder session, so people never need to know its internal statuses.
+enum ItRequestStatus {
+  SUBMITTED
+  DRAFTING_SPEC
+  NEEDS_ANSWERS
+  SPEC_REVIEW
+  BUILDING
+  BUILD_FAILED
+  PR_OPEN
+  ACCEPTED
+  MERGED
+  CLOSED
+  FAILED
+}
+
+/// A change the IT assistant works on: one the business asked for, or one it noticed itself (an error or a security
+/// finding). Each is one AI Builder session; this row mirrors its progress and links it to what started it.
+model ItRequest {
+  id                String          @id @default(cuid())
+  /// IT-1001, IT-1002, ...
+  number            String          @unique
+  kind              ItRequestKind
+  title             String
+  description       String
+  status            ItRequestStatus @default(SUBMITTED)
+  /// The AI Builder session; null until it was created.
+  sessionId         String?         @unique
+  /// AI Builder's own status as last seen (for support; `status` is what the app uses).
+  sessionStatus     String?
+  prUrl             String?
+  previewUrl        String?
+  costUsd           Float?
+  /// Page context (route, role) or the error / finding details. Untrusted data: it is passed on as data, never as instructions.
+  context           Json?
+  /// The error or finding this came from, so a repeat does not open a second request.
+  sourceType        String?
+  sourceId          String?
+  /// feature | bugfix | maintenance; null means the default for the kind.
+  intent            String?
+  requestedByUserId String?
+  requestedByLabel  String
+  requestedByEmail  String?
+  lastError         String?
+  lastSyncedAt      DateTime?
+  /// Claim taken while a process creates the session, so two processes never create two.
+  startingAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([sourceType, sourceId])
+}

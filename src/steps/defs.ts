@@ -210,7 +210,24 @@ export const addTimelineNoteDef: StepCatalogEntry = {
   outputSchema: z.object({ recorded: z.boolean() }),
 };
 
-export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnquiryDef, getQuoteDef, getInvoiceDef, draftQuoteDef, sendQuoteDef, getJobBookingDef, confirmJobBookingDef, releaseJobBookingDef, draftInvoiceDef, createPaymentLinkDef, addTimelineNoteDef, sendTemplatedEmailDef()];
+export const requestCodeChangeDef: StepCatalogEntry = {
+  key: "requestCodeChange",
+  label: "Ask the IT assistant for a change",
+  kind: "ACTION",
+  description: "Hands an error, a security finding or a change request to the IT assistant, which works out a fix and opens it for a person to approve. Returns straight away; follow progress under IT. A repeat for the same source reuses the open request. Does nothing in a test run.",
+  configSchema: Params({
+    kind: z.unknown(),
+    title: z.unknown(),
+    description: z.unknown(),
+    context: z.unknown().optional(),
+    sourceType: z.unknown().optional(),
+    sourceId: z.unknown().optional(),
+    intent: z.unknown().optional(),
+  }),
+  outputSchema: z.object({ requested: z.boolean(), itRequestId: z.string(), number: z.string(), started: z.boolean(), reused: z.boolean(), reason: z.string(), simulated: z.boolean() }),
+};
+
+export const ironSparkStepDefs: StepCatalogEntry[] = [findClientDef, createEnquiryDef, getQuoteDef, getInvoiceDef, draftQuoteDef, sendQuoteDef, getJobBookingDef, confirmJobBookingDef, releaseJobBookingDef, draftInvoiceDef, createPaymentLinkDef, addTimelineNoteDef, sendTemplatedEmailDef(), requestCodeChangeDef];
 
 /** What the AI assistant is told about these steps, in the style of its built-in reference. */
 export const ironSparkAssistantSteps = [
@@ -226,5 +243,6 @@ export const ironSparkAssistantSteps = [
   { key: "draftInvoice", reference: 'draftInvoice: {"params":{"jobId":"<id>"}} - drafts the invoice for a completed job; returns {created,invoiceId,number,totalText,reason}.' },
   { key: "createPaymentLink", reference: 'createPaymentLink: {"params":{"invoiceId":"<id>"}} - returns {created,payUrl,provider}.' },
   { key: "sendTemplatedEmail", reference: 'sendTemplatedEmail: {"template":"<template key>","params":{"to":"<address>","inReplyTo":"<gmail id>","variables":{"<name>":"<value or $ref>"}}} - sends a branded email from an email template (Setup > Email templates); returns {sent,to,subject}.' },
+  { key: "requestCodeChange", reference: 'requestCodeChange: {"params":{"kind":"ERROR|FINDING|FEATURE","title":"<short>","description":"<what is wrong or wanted>","context":{...},"sourceType":"<e.g. error>","sourceId":"<stable id>"}} - asks the IT assistant for a change and returns straight away; returns {requested,itRequestId,number,started,reused,reason}.' },
   { key: "addTimelineNote", reference: 'addTimelineNote: {"params":{"clientId":"<id>","summary":"<what happened>","workflow":"<name>"}} - adds the line to the client\'s history.' },
 ];
