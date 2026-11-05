@@ -8,4 +8,4 @@ sandbox:
   image: node:22-bookworm-slim
   network: none
   allowed_hosts: []
-branching: { base: main, target: staging, prefix: ai/ }
+branching: { base: staging, target: staging, prefix: ai/ }
