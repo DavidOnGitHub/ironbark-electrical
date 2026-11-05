@@ -149,7 +149,7 @@ export default async function DashboardPage() {
               </Rows>
             </Panel>
           ) : null}
-          <Panel title="Recent activity">
+          <Panel title="Recent activities">
             <Rows empty="No activity yet.">
               {activity.map((e) => (
                 <Row
