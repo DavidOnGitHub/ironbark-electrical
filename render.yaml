@@ -30,6 +30,9 @@ services:
       - { key: BRANDING_BUSINESS_NAME, value: Ironbark Electrical }
       - { key: REVIEW_URL, value: "https://g.page/r/ironbark-electrical/review" }
       - { key: AUTOMATIONS, value: "on" }
+      - { key: AI_BUILDER_URL, value: "https://builder.mstreetsystem.com.au" }
+      - { key: AI_BUILDER_APP_ID, value: ironbark }
+      - { key: AI_BUILDER_TOKEN, sync: false } # the "ironbark" service token from AI Builder's SERVICE_TOKENS
       - { key: EMAIL_ALLOWLIST, sync: false } # default deny: leave empty to send no automated mail
       - { key: DEMO_INBOX, sync: false }
       - { key: DEMO_INBOX_TAG, value: ironbark }
@@ -61,6 +64,9 @@ services:
       - { key: BRANDING_BUSINESS_NAME, value: Ironbark Electrical }
       - { key: REVIEW_URL, value: "https://g.page/r/ironbark-electrical/review" }
       - { key: AUTOMATIONS, value: "on" }
+      - { key: AI_BUILDER_URL, value: "https://builder.mstreetsystem.com.au" }
+      - { key: AI_BUILDER_APP_ID, value: ironbark }
+      - { key: AI_BUILDER_TOKEN, sync: false } # the "ironbark" service token from AI Builder's SERVICE_TOKENS
       - { key: EMAIL_ALLOWLIST, sync: false }
       - { key: DEMO_INBOX, sync: false }
       - { key: DEMO_INBOX_TAG, value: ironbark }

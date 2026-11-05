@@ -1,0 +1,78 @@
+/**
+ * IT assistant statuses. Pure rules: how AI Builder's session statuses become the words the business
+ * sees, and which AI Builder intent a request starts. No database access here.
+ */
+
+export type ItKindValue = "FEATURE" | "ERROR" | "FINDING";
+export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "CLOSED" | "FAILED";
+export type AiIntent = "feature" | "bugfix" | "maintenance";
+
+export const IT_KIND_LABEL: Record<ItKindValue, string> = {
+  FEATURE: "Change request",
+  ERROR: "Error",
+  FINDING: "Security finding",
+};
+
+export const IT_STATUS_LABEL: Record<ItStatusValue, string> = {
+  SUBMITTED: "Submitted",
+  DRAFTING_SPEC: "Working out what to build",
+  NEEDS_ANSWERS: "Needs your answers",
+  SPEC_REVIEW: "Plan ready to approve",
+  BUILDING: "Building",
+  BUILD_FAILED: "Build needs attention",
+  PR_OPEN: "Ready to try",
+  ACCEPTED: "Accepted, merging",
+  MERGED: "Done",
+  CLOSED: "Closed without changes",
+  FAILED: "Failed",
+};
+
+/** Nothing more happens to these; the sync stops looking at them. */
+export const IT_TERMINAL: ItStatusValue[] = ["MERGED", "CLOSED"];
+export const isTerminal = (status: ItStatusValue): boolean => IT_TERMINAL.includes(status);
+
+/** AI Builder session status -> ours. Unknown statuses (a newer AI Builder) read as FAILED rather than silently stalling. */
+const SESSION_STATUS: Record<string, ItStatusValue> = {
+  working: "DRAFTING_SPEC",
+  awaiting_user: "NEEDS_ANSWERS",
+  spec_review: "SPEC_REVIEW",
+  // Approved but not buildable: the app has no git remote. Treated like a plan waiting for a developer.
+  approved: "SPEC_REVIEW",
+  building: "BUILDING",
+  build_failed: "BUILD_FAILED",
+  pr_open: "PR_OPEN",
+  accepted: "ACCEPTED",
+  merged: "MERGED",
+  closed: "CLOSED",
+  failed: "FAILED",
+};
+
+export function fromSessionStatus(sessionStatus: string): ItStatusValue {
+  return SESSION_STATUS[sessionStatus] ?? "FAILED";
+}
+
+/**
+ * What the business needs to do next, if anything. Drives the Tasks inbox and the "needs you" badge.
+ * Automated requests never wait for answers: they go straight to building, and a person reviews the result.
+ */
+export function waitingOnPerson(status: ItStatusValue): string | null {
+  switch (status) {
+    case "NEEDS_ANSWERS":
+      return "Answer the assistant's questions";
+    case "SPEC_REVIEW":
+      return "Approve the plan";
+    case "PR_OPEN":
+      return "Try the change and accept it";
+    case "BUILD_FAILED":
+    case "FAILED":
+      return "Ask a developer to take a look";
+    default:
+      return null;
+  }
+}
+
+/** The AI Builder intent for a request. Errors and findings are automated; `override` lets a dependency finding use `maintenance`. */
+export function intentFor(kind: ItKindValue, override?: AiIntent): AiIntent {
+  if (override) return override;
+  return kind === "FEATURE" ? "feature" : "bugfix";
+}

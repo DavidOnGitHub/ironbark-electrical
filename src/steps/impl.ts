@@ -23,6 +23,7 @@ import { sendHtmlEmail } from "../integrations/gmailSend";
 import { firstName, formalNotice, invoiceEmail, invoiceReminder, quoteEmail, quoteReminder, reviewRequest } from "./messages";
 import { emailVariables, isTestRun, resolveParams, str } from "./runtime";
 import { formatMoney } from "../lib/money";
+import { createItRequest, NewItRequestSchema, startItRequest } from "../domain/it";
 
 type Cfg = { params?: Record<string, unknown> };
 const asParams = (config: Cfg, context: WorkflowContext) => resolveParams(config.params, context);
@@ -352,6 +353,26 @@ export async function draftInvoiceImpl(config: Cfg, context: WorkflowContext) {
   }
 }
 
+/** Hands a change to the IT assistant and returns at once; the request's progress is followed under IT. */
+export async function requestCodeChangeImpl(config: Cfg, context: WorkflowContext) {
+  const p = asParams(config, context);
+  const none = { requested: false, itRequestId: "", number: "", started: false, reused: false, simulated: false, reason: "" };
+  if (isTestRun(context)) return { ...none, simulated: true, reason: "Test run: nothing was requested" };
+  const parsed = NewItRequestSchema.safeParse({
+    kind: str(p.kind).toUpperCase(),
+    title: str(p.title),
+    description: str(p.description),
+    context: p.context && typeof p.context === "object" && !Array.isArray(p.context) ? p.context : undefined,
+    sourceType: str(p.sourceType) || undefined,
+    sourceId: str(p.sourceId) || undefined,
+    intent: str(p.intent) || undefined,
+  });
+  if (!parsed.success) return { ...none, reason: parsed.error.issues[0]?.message ?? "Invalid request" };
+  const { request, created } = await createItRequest(parsed.data, { actor: WORKFLOW });
+  const started = created ? await startItRequest(request.id) : { request, started: false, reason: undefined as string | undefined };
+  return { ...none, requested: true, itRequestId: started.request.id, number: started.request.number, started: started.started, reused: !created, reason: started.reason ?? "" };
+}
+
 export const stepImpls: Record<string, (config: Cfg, context: WorkflowContext) => Promise<unknown>> = {
   findClient: findClientImpl,
   createEnquiry: createEnquiryImpl,
@@ -365,5 +386,6 @@ export const stepImpls: Record<string, (config: Cfg, context: WorkflowContext) =
   releaseJobBooking: releaseJobBookingImpl,
   createPaymentLink: createPaymentLinkImpl,
   addTimelineNote: addTimelineNoteImpl,
+  requestCodeChange: requestCodeChangeImpl,
   sendTemplatedEmail: sendTemplatedEmailImpl,
 };
