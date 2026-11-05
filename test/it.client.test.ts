@@ -20,7 +20,7 @@ describe("AI Builder configuration", () => {
   });
 
   it("trims trailing slashes and defaults the app id", () => {
-    expect(aiBuilderConfigFromEnv({ AI_BUILDER_URL: "https://b.test//", AI_BUILDER_TOKEN: " x " })).toEqual({ baseUrl: "https://b.test", token: "x", appId: "ironbark" });
+    expect(aiBuilderConfigFromEnv({ AI_BUILDER_URL: "https://b.test//", AI_BUILDER_TOKEN: " x " })).toEqual({ baseUrl: "https://b.test", token: "x", appId: "ironbark-electrical" });
   });
 });
 
