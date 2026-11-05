@@ -18,7 +18,7 @@ export function aiBuilderConfigFromEnv(env: Record<string, string | undefined> =
   const baseUrl = env.AI_BUILDER_URL?.trim().replace(/\/+$/, "");
   const token = env.AI_BUILDER_TOKEN?.trim();
   if (!baseUrl || !token) return null;
-  return { baseUrl, token, appId: env.AI_BUILDER_APP_ID?.trim() || "ironbark" };
+  return { baseUrl, token, appId: env.AI_BUILDER_APP_ID?.trim() || "ironbark-electrical" };
 }
 
 export type DelegatedRole = "requester" | "approver";
