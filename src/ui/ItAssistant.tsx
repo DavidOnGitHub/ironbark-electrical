@@ -7,6 +7,7 @@ import { useAssistantDock } from "@kabosh-digital/m-street-kit/components/Assist
 import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Input } from "@kabosh-digital/m-street-kit/ui/input";
 import { Textarea } from "@kabosh-digital/m-street-kit/ui/textarea";
+import { ItRequestDetail } from "./ItRequestDetail";
 import { listItRequestsAction, refreshItRequestAction, submitItRequestAction, type ItRequestView } from "../actions/it";
 
 const DOCK_ID = "it";
@@ -25,6 +26,7 @@ export function ItAssistant() {
   const pathname = usePathname();
   const [requests, setRequests] = useState<ItRequestView[] | null>(null);
   const [composing, setComposing] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function ItAssistant() {
           <h2 className="truncate text-sm font-medium">{LABEL}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Ask for a change to this app</p>
         </div>
-        {!composing ? (
+        {!composing && !openId ? (
           <Button size="sm" onClick={() => setComposing(true)}>
             New request
           </Button>
@@ -87,7 +89,9 @@ export function ItAssistant() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {composing ? (
+        {openId ? (
+          <ItRequestDetail id={openId} onBack={() => setOpenId(null)} onChanged={load} />
+        ) : composing ? (
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {
@@ -122,16 +126,20 @@ export function ItAssistant() {
             {requests.map((r) => (
               <li key={r.id} className="rounded-xl border border-foreground/10 p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <button type="button" onClick={() => setOpenId(r.id)} className="min-w-0 flex-1 text-left">
                     <p className="truncate text-sm font-medium">{r.title}</p>
                     <p className="text-xs text-muted-foreground">{r.number} - {r.requestedBy}</p>
-                  </div>
+                  </button>
                   <Button variant="ghost" size="icon" title="Refresh" aria-label={`Refresh ${r.number}`} disabled={pending} onClick={() => refresh(r.id)}>
                     <span aria-hidden>&#8635;</span>
                   </Button>
                 </div>
                 <p className={`mt-2 text-sm ${r.failed ? "text-destructive" : ""}`}>{r.statusLabel}</p>
-                {r.waiting ? <p className="text-xs text-muted-foreground">{r.waiting}</p> : null}
+                {r.waiting ? (
+                  <button type="button" onClick={() => setOpenId(r.id)} className="text-left text-xs font-medium underline">
+                    {r.waiting}
+                  </button>
+                ) : null}
                 {r.previewUrl ? (
                   <a href={r.previewUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs underline">
                     Try the change &#8599;

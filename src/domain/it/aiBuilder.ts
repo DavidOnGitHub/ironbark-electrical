@@ -76,7 +76,13 @@ export interface CreateSessionInput {
   context?: Record<string, unknown>;
 }
 
-export type MessageInput = { text: string } | { answers: { questionId: string; value?: string; choice?: string; [k: string]: unknown }[] };
+/** One answer: the options picked, and/or free text. */
+export interface ItAnswer {
+  questionId: string;
+  selected: string[];
+  other?: string;
+}
+export type MessageInput = { text: string } | { answers: ItAnswer[] };
 
 export interface AiBuilderClient {
   createSession(input: CreateSessionInput, who?: OnBehalfOf): Promise<AiSession>;
