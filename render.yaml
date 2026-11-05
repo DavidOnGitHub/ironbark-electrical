@@ -12,7 +12,7 @@ services:
     branch: staging
     autoDeployTrigger: commit
     healthCheckPath: /api/health
-    buildCommand: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc && corepack enable && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc && corepack enable && pnpm install --frozen-lockfile && pnpm prisma:generate && pnpm build
     startCommand: pnpm db:migrate && pnpm app:migrate && pnpm start
     envVars:
       - { key: NODE_VERSION, value: "22" }
@@ -49,7 +49,7 @@ services:
     region: oregon
     branch: staging
     autoDeployTrigger: commit
-    buildCommand: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc && corepack enable && pnpm install --frozen-lockfile
+    buildCommand: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc && corepack enable && pnpm install --frozen-lockfile && pnpm prisma:generate
     # No .env file on Render, so call tsx directly (the package scripts pass --env-file=.env).
     preDeployCommand: pnpm db:migrate && pnpm app:migrate && pnpm exec tsx scripts/ensureTemporalNamespace.ts
     startCommand: pnpm exec tsx src/worker.ts

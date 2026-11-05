@@ -36,6 +36,10 @@ export const Access = {
   FIELD: [TECHNICIAN],
   /** A technician's own day. */
   MY_DAY: [TECHNICIAN, OWNER, OFFICE],
+  /** Ask the IT assistant for a change. */
+  IT_ASK: [OWNER, OFFICE, TECHNICIAN, BOOKKEEPER],
+  /** See everyone's IT requests, and later approve and accept them. */
+  IT_MANAGE: [OWNER, OFFICE],
 } satisfies Record<string, UserRole[]>;
 
 export const Roles = { OWNER, OFFICE, TECHNICIAN, BOOKKEEPER };
