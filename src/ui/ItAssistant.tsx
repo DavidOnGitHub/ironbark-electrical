@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useAssistantDock } from "@kabosh-digital/m-street-kit/components/AssistantDockContext";
 import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Input } from "@kabosh-digital/m-street-kit/ui/input";
 import { Textarea } from "@kabosh-digital/m-street-kit/ui/textarea";
-import { ItRequestDetail } from "./ItRequestDetail";
-import { listItRequestsAction, refreshItRequestAction, submitItRequestAction, type ItRequestView } from "../actions/it";
+import { IT_TAB_OF_KIND } from "../domain/it/status";
+import { listItRequestsAction, submitItRequestAction, type ItRequestView } from "../actions/it";
 
 const DOCK_ID = "it";
 const LABEL = "IT assistant";
@@ -24,9 +25,9 @@ const LAUNCHER_PROPS = {};
 export function ItAssistant() {
   const dock = useAssistantDock();
   const pathname = usePathname();
+  const router = useRouter();
   const [requests, setRequests] = useState<ItRequestView[] | null>(null);
   const [composing, setComposing] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,15 +60,11 @@ export function ItAssistant() {
       setDescription("");
       setComposing(false);
       load();
+      router.refresh();
     });
   }
 
-  function refresh(id: string) {
-    startTransition(async () => {
-      const updated = await refreshItRequestAction(id);
-      if (updated) setRequests((prev) => prev?.map((r) => (r.id === id ? updated : r)) ?? prev);
-    });
-  }
+  const needsYou = (requests ?? []).filter((r) => r.waiting);
 
   const slot = dock?.slot(DOCK_ID);
   if (!slot) return null;
@@ -81,7 +78,7 @@ export function ItAssistant() {
           <h2 className="truncate text-sm font-medium">{LABEL}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Ask for a change to this app</p>
         </div>
-        {!composing && !openId ? (
+        {!composing ? (
           <Button size="sm" onClick={() => setComposing(true)}>
             New request
           </Button>
@@ -89,9 +86,7 @@ export function ItAssistant() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {openId ? (
-          <ItRequestDetail id={openId} onBack={() => setOpenId(null)} onChanged={load} />
-        ) : composing ? (
+        {composing ? (
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {
@@ -119,35 +114,28 @@ export function ItAssistant() {
           </form>
         ) : requests === null ? (
           <p className="text-sm text-muted-foreground">{error ?? "Loading..."}</p>
-        ) : requests.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No requests yet. Choose New request to ask for a change.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {requests.map((r) => (
-              <li key={r.id} className="rounded-xl border border-foreground/10 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <button type="button" onClick={() => setOpenId(r.id)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-sm font-medium">{r.title}</p>
-                    <p className="text-xs text-muted-foreground">{r.number} - {r.requestedBy}</p>
-                  </button>
-                  <Button variant="ghost" size="icon" title="Refresh" aria-label={`Refresh ${r.number}`} disabled={pending} onClick={() => refresh(r.id)}>
-                    <span aria-hidden>&#8635;</span>
-                  </Button>
-                </div>
-                <p className={`mt-2 text-sm ${r.failed ? "text-destructive" : ""}`}>{r.statusLabel}</p>
-                {r.waiting ? (
-                  <button type="button" onClick={() => setOpenId(r.id)} className="text-left text-xs font-medium underline">
-                    {r.waiting}
-                  </button>
-                ) : null}
-                {r.previewUrl ? (
-                  <a href={r.previewUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs underline">
-                    Try the change &#8599;
-                  </a>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-4">
+            {needsYou.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing is waiting on you. Choose New request to ask for a change.</p>
+            ) : (
+              <section aria-label="Needs you" className="flex flex-col gap-2">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Needs you</h3>
+                <ul className="flex flex-col gap-2">
+                  {needsYou.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-foreground/10 p-3">
+                      <Link href={`/it?tab=${IT_TAB_OF_KIND[r.kind]}&open=${r.id}`} className="block">
+                        <p className="truncate text-sm font-medium">{r.title}</p>
+                        <p className="text-xs text-muted-foreground">{r.number} - {r.requestedBy}</p>
+                        <p className="mt-1 text-xs font-medium underline">{r.waiting}</p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            <Link href="/it" className="text-sm underline">See every request on the IT page</Link>
+          </div>
         )}
       </div>
     </div>,

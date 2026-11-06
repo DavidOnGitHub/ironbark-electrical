@@ -37,9 +37,9 @@ const view = (r: Awaited<ReturnType<typeof listItRequests>>[number]): ItRequestV
 });
 
 /** Owner and Office see every request; everyone else sees their own. */
-export async function listItRequestsAction(): Promise<ItRequestView[]> {
+export async function listItRequestsAction(limit = 50): Promise<ItRequestView[]> {
   const user = await requireRole(Access.IT_ASK);
-  const all = await listItRequests({ limit: 50 });
+  const all = await listItRequests({ limit: Math.min(Math.max(Math.floor(Number(limit)) || 50, 1), 200) });
   const manage = Access.IT_MANAGE.some((role) => user.roles.includes(role));
   return all.filter((r) => manage || r.requestedByUserId === user.id).map(view);
 }

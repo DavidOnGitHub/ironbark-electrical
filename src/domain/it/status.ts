@@ -83,3 +83,8 @@ export function intentFor(kind: ItKindValue, override?: AiIntent): AiIntent {
   if (override) return override;
   return kind === "FEATURE" ? "feature" : "bugfix";
 }
+
+/** The IT page's histories: what was asked for, what was fixed, and what the security scans found. */
+export const IT_TABS = ["features", "fixes", "security"] as const;
+export type ItTab = (typeof IT_TABS)[number];
+export const IT_TAB_OF_KIND: Record<"FEATURE" | "ERROR" | "FINDING", ItTab> = { FEATURE: "features", ERROR: "fixes", FINDING: "security" };
