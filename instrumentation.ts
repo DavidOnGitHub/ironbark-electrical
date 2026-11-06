@@ -26,6 +26,7 @@ export async function register() {
           { href: "/invoices", label: "Invoices", icon: "receipt", roles: ["ADMIN", "EDITOR", "VIEWER"] },
         ],
       },
+      { title: "IT", items: [{ href: "/it", label: "IT", icon: "settings", roles: ["ADMIN", "EDITOR", "OPERATOR", "VIEWER"] }] },
       { title: "Insights", items: [{ href: "/reports", label: "Reports", icon: "bar-chart", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "About this demo", items: [{ href: "/works-for", label: "Works for...", icon: "building", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "Field", items: [{ href: "/my-day", label: "My day", icon: "wrench", roles: ["OPERATOR"] }] },

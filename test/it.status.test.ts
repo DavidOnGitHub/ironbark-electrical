@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { delegatedRoleFor, fromSessionStatus, intentFor, isTerminal, IT_STATUS_LABEL, waitingOnPerson, type ItStatusValue } from "../src/domain/it";
+import { delegatedRoleFor, IT_TABS, IT_TAB_OF_KIND, fromSessionStatus, intentFor, isTerminal, IT_STATUS_LABEL, waitingOnPerson, type ItStatusValue } from "../src/domain/it";
 
 describe("IT request status", () => {
   it("maps every AI Builder session status", () => {
@@ -51,5 +51,10 @@ describe("IT request status", () => {
     expect(delegatedRoleFor(["OPERATOR"])).toBe("requester");
     expect(delegatedRoleFor(["VIEWER"])).toBe("requester");
     expect(delegatedRoleFor([])).toBe("requester");
+  });
+
+  it("files every kind of request under exactly one IT page list", () => {
+    expect(IT_TAB_OF_KIND).toEqual({ FEATURE: "features", ERROR: "fixes", FINDING: "security" });
+    expect([...new Set(Object.values(IT_TAB_OF_KIND))].sort()).toEqual([...IT_TABS].sort());
   });
 });
