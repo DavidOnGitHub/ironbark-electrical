@@ -4,7 +4,7 @@
  */
 
 export type ItKindValue = "FEATURE" | "ERROR" | "FINDING";
-export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "CLOSED" | "FAILED";
+export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "LIVE" | "DEPLOY_FAILED" | "CLOSED" | "FAILED";
 export type AiIntent = "feature" | "bugfix" | "maintenance";
 
 export const IT_KIND_LABEL: Record<ItKindValue, string> = {
@@ -22,14 +22,20 @@ export const IT_STATUS_LABEL: Record<ItStatusValue, string> = {
   BUILD_FAILED: "Build needs attention",
   PR_OPEN: "Ready to try",
   ACCEPTED: "Accepted, merging",
-  MERGED: "Done",
+  MERGED: "Merged, going live",
+  LIVE: "Live",
+  DEPLOY_FAILED: "Deploy failed",
   CLOSED: "Closed without changes",
   FAILED: "Failed",
 };
 
 /** Nothing more happens to these; the sync stops looking at them. */
-export const IT_TERMINAL: ItStatusValue[] = ["MERGED", "CLOSED"];
+export const IT_TERMINAL: ItStatusValue[] = ["LIVE", "CLOSED"];
 export const isTerminal = (status: ItStatusValue): boolean => IT_TERMINAL.includes(status);
+
+/** Merged: AI Builder's part is over and the deploy is what is followed now. */
+export const IT_DEPLOY_PHASE: ItStatusValue[] = ["MERGED", "DEPLOY_FAILED"];
+export const inDeployPhase = (status: ItStatusValue): boolean => IT_DEPLOY_PHASE.includes(status);
 
 /** AI Builder session status -> ours. Unknown statuses (a newer AI Builder) read as FAILED rather than silently stalling. */
 const SESSION_STATUS: Record<string, ItStatusValue> = {
@@ -64,6 +70,7 @@ export function waitingOnPerson(status: ItStatusValue): string | null {
     case "PR_OPEN":
       return "Try the change and accept it";
     case "BUILD_FAILED":
+    case "DEPLOY_FAILED":
     case "FAILED":
       return "Ask a developer to take a look";
     default:

@@ -516,6 +516,10 @@ enum ItRequestStatus {
   PR_OPEN
   ACCEPTED
   MERGED
+  /// The merged change is running in the app.
+  LIVE
+  /// The merge is on staging but its deploy failed.
+  DEPLOY_FAILED
   CLOSED
   FAILED
 }
@@ -548,6 +552,13 @@ model ItRequest {
   requestedByLabel  String
   requestedByEmail  String?
   lastError         String?
+  /// When the change was merged; the deploy is followed from here.
+  mergedAt          DateTime?
+  /// Why the deploy failed, and a link to it on the host.
+  deployError       String?
+  deployUrl         String?
+  /// The request the assistant opened to fix a failed deploy.
+  deployFixId       String?
   lastSyncedAt      DateTime?
   /// Claim taken while a process creates the session, so two processes never create two.
   startingAt        DateTime?

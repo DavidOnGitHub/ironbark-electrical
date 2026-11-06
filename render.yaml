@@ -33,6 +33,9 @@ services:
       - { key: AI_BUILDER_URL, value: "https://builder.mstreetsystem.com.au" }
       - { key: AI_BUILDER_APP_ID, value: ironbark-electrical }
       - { key: AI_BUILDER_TOKEN, sync: false } # the "ironbark" service token from AI Builder's SERVICE_TOKENS
+      # Follows merged changes to their deploy. A read-only Render API key is best; web and worker service ids.
+      - { key: RENDER_API_KEY, sync: false }
+      - { key: IT_DEPLOY_SERVICES, value: "srv-dbkkivfb9u1s73fm23kg,srv-dbkkivfb9u1s73fm23jg" }
       - { key: EMAIL_ALLOWLIST, sync: false } # default deny: leave empty to send no automated mail
       - { key: DEMO_INBOX, sync: false }
       - { key: DEMO_INBOX_TAG, value: ironbark }

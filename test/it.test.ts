@@ -71,7 +71,7 @@ describe("opening requests", () => {
     expect(again.request.id).toBe(first.request.id);
     expect(await appDb.itRequest.count()).toBe(1);
 
-    await appDb.itRequest.update({ where: { id: first.request.id }, data: { status: "MERGED" } });
+    await appDb.itRequest.update({ where: { id: first.request.id }, data: { status: "LIVE" } });
     const regression = await createItRequest(error, { actor: auto });
     expect(regression.created).toBe(true);
     expect(regression.request.number).toBe("IT-1002");
@@ -164,7 +164,7 @@ describe("following the assistant's progress", () => {
     expect(changes[0]).toMatchObject({ actorType: "SYSTEM", summary: "IT-1001: Ready to try" });
   });
 
-  it("stops looking at a request once it is done", async () => {
+  it("stops asking the assistant about a request once it is merged, and notes when", async () => {
     const { id, client } = await started();
     client.getSession.mockResolvedValue(detail("sess-1", "merged"));
     await syncItRequest(id, client);
@@ -172,7 +172,9 @@ describe("following the assistant's progress", () => {
 
     await syncItRequest(id, client);
     expect(client.getSession).not.toHaveBeenCalled();
-    expect((await getItRequest(id))!.status).toBe("MERGED");
+    const merged = (await getItRequest(id))!;
+    expect(merged.status).toBe("MERGED");
+    expect(merged.mergedAt).toBeInstanceOf(Date);
   });
 
   it("marks a request failed when its session is gone, and keeps the status on other errors", async () => {

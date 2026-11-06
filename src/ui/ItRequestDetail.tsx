@@ -15,7 +15,7 @@ import {
 import type { ItQuestion } from "../domain/it/conversation";
 
 const REFRESH_MS = 15_000;
-const FINAL = ["MERGED", "CLOSED"];
+const FINAL = ["MERGED", "LIVE", "DEPLOY_FAILED", "CLOSED"];
 
 /** One request: what the assistant asks, its plan to approve, and the finished change to try and accept. */
 export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack: () => void; onChanged: () => void }) {
@@ -68,6 +68,23 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
       </div>
 
       {problem ? <p role="alert" className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{problem}</p> : null}
+
+      {detail.deploy ? (
+        <section className="flex flex-col gap-1 rounded-xl border border-destructive/40 p-3">
+          <h3 className="text-sm font-medium">The change did not go live</h3>
+          <p className="text-sm">{detail.deploy.error}</p>
+          {detail.deploy.fix ? (
+            <p className="text-sm">The assistant is working on a fix: {detail.deploy.fix.number} ({detail.deploy.fix.statusLabel}). Open it in the list to try and accept it.</p>
+          ) : (
+            <p className="text-sm">Ask a developer to take a look.</p>
+          )}
+          {detail.deploy.url ? (
+            <a href={detail.deploy.url} target="_blank" rel="noreferrer" className="text-xs underline">
+              See the deploy &#8599;
+            </a>
+          ) : null}
+        </section>
+      ) : null}
 
       {conversation && conversation.questions.length > 0 ? (
         <Questions questions={conversation.questions} pending={pending} onSend={(answers) => run(() => answerItQuestionsAction(id, answers))} />

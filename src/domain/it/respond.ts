@@ -11,7 +11,7 @@ import type { Actor } from "../shared/actor";
 import { AiBuilderError, delegatedRoleFor, type AiBuilderClient, type ItAnswer, type OnBehalfOf } from "./aiBuilder";
 import { readConversation, type ItConversation } from "./conversation";
 import { defaultClient, syncItRequest } from "./index";
-import { isTerminal } from "./status";
+import { inDeployPhase, isTerminal } from "./status";
 
 /** The person acting. `roles` are the platform roles (ADMIN = Owner, EDITOR = Office). */
 export interface Responder {
@@ -38,7 +38,7 @@ async function load(id: string, who: Responder, rule: "owner" | "approver"): Pro
     throw new ItActionError(rule === "approver" ? "Only the Owner or Office can do this." : "Only the person who asked, the Owner or Office can do this.");
   }
   if (!row.sessionId) throw new ItActionError("The assistant has not picked this up yet.");
-  if (isTerminal(row.status)) throw new ItActionError("This request is finished.");
+  if (isTerminal(row.status) || inDeployPhase(row.status)) throw new ItActionError("This request is finished.");
   return row as ItRequest & { sessionId: string };
 }
 
