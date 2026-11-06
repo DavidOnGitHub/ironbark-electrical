@@ -10,7 +10,7 @@ import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, summarizeSession, type AiBuilderClient } from "./aiBuilder";
-import { fromSessionStatus, intentFor, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
+import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
 
 export * from "./status";
 export { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, delegatedRoleFor, summarizeSession } from "./aiBuilder";
@@ -136,7 +136,7 @@ export async function submitItRequest(input: NewItRequest, by: Requester, client
 /** Mirrors one request from its AI Builder session. Records a failure on the request instead of throwing. */
 export async function syncItRequest(id: string, client: AiBuilderClient | null = defaultClient()): Promise<ItRequest | null> {
   const row = await appDb.itRequest.findUnique({ where: { id } });
-  if (!row || isTerminal(row.status)) return row;
+  if (!row || isTerminal(row.status) || inDeployPhase(row.status)) return row;
   if (!row.sessionId) return (await startItRequest(id, client)).request;
   if (!client) return row;
 
@@ -146,7 +146,7 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
     return await appDb.$transaction(async (tx) => {
       const updated = await tx.itRequest.update({
         where: { id },
-        data: { status, sessionStatus: summary.status, prUrl: summary.prUrl, previewUrl: summary.previewUrl, costUsd: summary.costUsd, lastError: null, lastSyncedAt: new Date() },
+        data: { status, ...(status === "MERGED" && !row.mergedAt ? { mergedAt: new Date() } : {}), sessionStatus: summary.status, prUrl: summary.prUrl, previewUrl: summary.previewUrl, costUsd: summary.costUsd, lastError: null, lastSyncedAt: new Date() },
       });
       if (status !== row.status) {
         await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "STATUS_CHANGED", summary: `${row.number}: ${IT_STATUS_LABEL[status]}` });
@@ -165,7 +165,7 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
 /** Syncs every request that can still change. One failing request never stops the rest. */
 export async function syncOpenItRequests(client: AiBuilderClient | null = defaultClient(), limit = 100): Promise<{ checked: number; changed: number }> {
   if (!client) return { checked: 0, changed: 0 };
-  const open = await appDb.itRequest.findMany({ where: { status: { notIn: IT_TERMINAL } }, orderBy: { createdAt: "asc" }, take: limit });
+  const open = await appDb.itRequest.findMany({ where: { status: { notIn: [...IT_TERMINAL, ...IT_DEPLOY_PHASE] } }, orderBy: { createdAt: "asc" }, take: limit });
   let changed = 0;
   for (const row of open) {
     const after = await syncItRequest(row.id, client);
@@ -188,3 +188,5 @@ export function listItRequests(opts: { status?: ItStatusValue[]; kind?: "FEATURE
 
 export * from "./conversation";
 export * from "./respond";
+
+export * from "./deploy";

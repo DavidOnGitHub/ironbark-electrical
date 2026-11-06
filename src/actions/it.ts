@@ -33,7 +33,7 @@ const view = (r: Awaited<ReturnType<typeof listItRequests>>[number]): ItRequestV
   previewUrl: r.previewUrl,
   requestedBy: r.requestedByLabel,
   createdAt: r.createdAt.toISOString(),
-  failed: r.status === "FAILED" || r.status === "BUILD_FAILED",
+  failed: r.status === "FAILED" || r.status === "BUILD_FAILED" || r.status === "DEPLOY_FAILED",
 });
 
 /** Owner and Office see every request; everyone else sees their own. */
@@ -87,6 +87,8 @@ export interface ItDetailView {
   /** This person may approve the plan and accept the change. */
   canApprove: boolean;
   lastError: string | null;
+  /** The merged change did not deploy: why, where to look, and the request the assistant opened to fix it. */
+  deploy: { error: string; url: string | null; fix: { id: string; number: string; statusLabel: string } | null } | null;
 }
 
 /** One request with what is waiting on a person. Own requests only, unless Owner or Office. */
@@ -96,7 +98,11 @@ export async function getItDetailAction(id: string): Promise<ItDetailView | null
   if (!row || (!mayManage(user) && row.requestedByUserId !== user.id)) return null;
   const synced = (await syncItRequest(id)) ?? row;
   const { conversation, error } = await getItConversation(id);
-  return { request: view(synced), conversation, error, canApprove: mayManage(user), lastError: synced.lastError };
+  const fixRow = synced.deployFixId ? await getItRequest(synced.deployFixId) : null;
+  const deploy = synced.status === "DEPLOY_FAILED" && synced.deployError
+    ? { error: synced.deployError, url: synced.deployUrl, fix: fixRow ? { id: fixRow.id, number: fixRow.number, statusLabel: IT_STATUS_LABEL[fixRow.status] } : null }
+    : null;
+  return { request: view(synced), conversation, error, canApprove: mayManage(user), lastError: synced.lastError, deploy };
 }
 
 /** Runs one of the actions below, handing a refusal back as a message. */

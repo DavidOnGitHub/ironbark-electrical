@@ -23,9 +23,9 @@ describe("IT request status", () => {
     expect(fromSessionStatus("something_new")).toBe("FAILED");
   });
 
-  it("has a label for every status, and only Done and Closed are final", () => {
+  it("has a label for every status, and only Live and Closed are final", () => {
     const all = Object.keys(IT_STATUS_LABEL) as ItStatusValue[];
-    expect(all.filter(isTerminal).sort()).toEqual(["CLOSED", "MERGED"]);
+    expect(all.filter(isTerminal).sort()).toEqual(["CLOSED", "LIVE"]);
     for (const s of all) expect(IT_STATUS_LABEL[s].length).toBeGreaterThan(0);
   });
 
@@ -34,7 +34,8 @@ describe("IT request status", () => {
     expect(waitingOnPerson("SPEC_REVIEW")).toBeTruthy();
     expect(waitingOnPerson("PR_OPEN")).toBeTruthy();
     expect(waitingOnPerson("BUILD_FAILED")).toBeTruthy();
-    for (const s of ["SUBMITTED", "DRAFTING_SPEC", "BUILDING", "ACCEPTED", "MERGED", "CLOSED"] as const) expect(waitingOnPerson(s), s).toBeNull();
+    expect(waitingOnPerson("DEPLOY_FAILED")).toBeTruthy();
+    for (const s of ["SUBMITTED", "DRAFTING_SPEC", "BUILDING", "ACCEPTED", "MERGED", "LIVE", "CLOSED"] as const) expect(waitingOnPerson(s), s).toBeNull();
   });
 
   it("starts the right AI Builder intent for each kind", () => {
