@@ -4,7 +4,7 @@
  */
 
 export type ItKindValue = "FEATURE" | "ERROR" | "FINDING";
-export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "LIVE" | "DEPLOY_FAILED" | "CLOSED" | "FAILED";
+export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "LIVE" | "DEPLOY_FAILED" | "CLOSED" | "FAILED" | "PROPOSED" | "APPLIED";
 export type AiIntent = "feature" | "bugfix" | "maintenance";
 
 export const IT_KIND_LABEL: Record<ItKindValue, string> = {
@@ -27,10 +27,12 @@ export const IT_STATUS_LABEL: Record<ItStatusValue, string> = {
   DEPLOY_FAILED: "Deploy failed",
   CLOSED: "Closed without changes",
   FAILED: "Failed",
+  PROPOSED: "Fix prepared, waiting for review",
+  APPLIED: "Fix applied - publish the workflow to make it live",
 };
 
 /** Nothing more happens to these; the sync stops looking at them. */
-export const IT_TERMINAL: ItStatusValue[] = ["LIVE", "CLOSED"];
+export const IT_TERMINAL: ItStatusValue[] = ["LIVE", "CLOSED", "APPLIED"];
 export const isTerminal = (status: ItStatusValue): boolean => IT_TERMINAL.includes(status);
 
 /** Merged: AI Builder's part is over and the deploy is what is followed now. */
@@ -69,6 +71,8 @@ export function waitingOnPerson(status: ItStatusValue): string | null {
       return "Approve the plan";
     case "PR_OPEN":
       return "Try the change and accept it";
+    case "PROPOSED":
+      return "Review the prepared fix in the workflow editor";
     case "BUILD_FAILED":
     case "DEPLOY_FAILED":
     case "FAILED":

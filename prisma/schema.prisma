@@ -522,6 +522,10 @@ enum ItRequestStatus {
   DEPLOY_FAILED
   CLOSED
   FAILED
+  /// A workflow fix was prepared and waits for a person to apply it in the editor.
+  PROPOSED
+  /// A person applied the prepared workflow fix to the draft.
+  APPLIED
 }
 
 /// A change the IT assistant works on: one the business asked for, or one it noticed itself (an error or a security
@@ -559,6 +563,18 @@ model ItRequest {
   deployUrl         String?
   /// The request the assistant opened to fix a failed deploy.
   deployFixId       String?
+  /// The change touches files only a developer may approve (migrations, sign-in, payments, CI...). The business
+  /// cannot accept it from Ironbark.
+  /// For a failed workflow run: the fix the workflow assistant prepared (it lives in the console's own tables), and the
+  /// workflow it is for. No AI Builder session is involved.
+  workflowProposalId String?
+  workflowId         String?
+  needsDeveloper    Boolean         @default(false)
+  protectedFiles    String[]
+  /// When the merged change was confirmed running. The revert guard watches the 30 minutes after it.
+  liveAt            DateTime?
+  /// Set once the revert guard has looked at the 30 minutes after liveAt.
+  revertCheckedAt   DateTime?
   lastSyncedAt      DateTime?
   /// Claim taken while a process creates the session, so two processes never create two.
   startingAt        DateTime?
@@ -567,4 +583,70 @@ model ItRequest {
 
   @@index([status, createdAt(sort: Desc)])
   @@index([sourceType, sourceId])
+}
+
+/// An error the app noticed itself, one row per fingerprint. Repeats only raise the count. Message and stack are
+/// scrubbed before they are stored (no emails, tokens or keys), and still count as untrusted text when shown to a model.
+model ErrorEvent {
+  id                String    @id @default(cuid())
+  /// Error name + normalised message + route + top application frames. Stable across builds and line numbers.
+  fingerprint       String    @unique
+  name              String
+  message           String
+  stack             String?
+  /// request | action | worker | workflow | step
+  source            String
+  route             String?
+  /// Role of the signed-in person, never who they are.
+  userRole          String?
+  /// RENDER_GIT_COMMIT of the first and the latest occurrence.
+  firstRelease      String?
+  lastRelease       String?
+  context           Json?
+  count             Int       @default(1)
+  firstSeenAt       DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  /// Set when the fix for it is live; a later occurrence reopens it and raises `regressions`.
+  resolvedAt        DateTime?
+  regressions       Int       @default(0)
+  /// What kind of failure it is (code_bug | external_outage | bad_data | user_error); only a code bug is sent to the
+  /// assistant to fix. Null until classified.
+  classification    String?
+  /// high | medium | low. A low-confidence code bug is left for a person.
+  classConfidence   String?
+  classReason       String?
+  /// ai | rules
+  classSource       String?
+  classifiedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([resolvedAt, lastSeenAt(sort: Desc)])
+}
+
+/// Simple on/off switches that must survive restarts and be shared by every instance. Today: the staging-only demo
+/// bug ("demo-break"). A switch only has an effect where the code that reads it also allows it (see domain/demo).
+model AppFlag {
+  key          String   @id
+  enabled      Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+  updatedBy    String?
+}
+
+/// How many times each captured error happened in each 5 minute slot. Lets the revert guard compare the error rate
+/// before and after a change went live; ErrorEvent alone only holds a running total.
+model ErrorBucket {
+  errorId   String
+  startsAt  DateTime
+  count     Int      @default(0)
+
+  @@id([errorId, startsAt])
+  @@index([startsAt])
+}
+
+/// Where a background watcher got to, so each item is looked at once. Today: failed workflow runs already reported.
+model WatchCursor {
+  key       String   @id
+  at        DateTime
+  updatedAt DateTime @updatedAt
 }

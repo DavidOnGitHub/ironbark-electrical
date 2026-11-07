@@ -32,6 +32,11 @@ services:
       - { key: AUTOMATIONS, value: "on" }
       - { key: AI_BUILDER_URL, value: "https://builder.mstreetsystem.com.au" }
       - { key: AI_BUILDER_APP_ID, value: ironbark-electrical }
+      # Workflow fixes: the workflow assistant prepares a change for a failed run and a person applies it in the editor.
+      # The secret must be identical on the worker, which asks for the fix; this service answers.
+      - { key: WORKFLOW_FIX_SECRET, sync: false }
+      - { key: WORKFLOW_FIX_URL, sync: false } # this service's own public address, for following a fix
+      - { key: IT_DEMO_BREAK, value: "on" } # shows the Owner the "break something on purpose" switch. Staging only: never set it on a production service
       - { key: AI_BUILDER_TOKEN, sync: false } # the "ironbark" service token from AI Builder's SERVICE_TOKENS
       - { key: EMAIL_ALLOWLIST, sync: false } # default deny: leave empty to send no automated mail
       - { key: DEMO_INBOX, sync: false }
@@ -67,6 +72,9 @@ services:
       - { key: AI_BUILDER_URL, value: "https://builder.mstreetsystem.com.au" }
       - { key: AI_BUILDER_APP_ID, value: ironbark-electrical }
       - { key: AI_BUILDER_TOKEN, sync: false } # the "ironbark" service token from AI Builder's SERVICE_TOKENS
+      # Asks the web service's workflow assistant for a fix when a failed run needs the workflow changed.
+      - { key: WORKFLOW_FIX_SECRET, sync: false } # identical on the web service
+      - { key: WORKFLOW_FIX_URL, sync: false } # the web service's public address
       # Follows merged changes to their deploy (worker only: the key reaches the whole Render workspace). The ids are web and worker.
       - { key: RENDER_API_KEY, sync: false }
       - { key: IT_DEPLOY_SERVICES, value: "srv-dbkkivfb9u1s73fm23kg,srv-dbkkivfb9u1s73fm23jg" }

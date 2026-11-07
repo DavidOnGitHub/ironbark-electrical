@@ -3,7 +3,7 @@
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
-import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getItConversation, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
+import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
 import { errorMessage } from "./shared";
 
 /** What the assistant panel shows for one request. */
@@ -16,6 +16,12 @@ export interface ItRequestView {
   statusLabel: string;
   /** What the person has to do next, when it is on them. */
   waiting: string | null;
+  /** Touches files only a developer may approve: the business cannot accept it here. */
+  needsDeveloper: boolean;
+  /** For a prepared fix to a workflow: the workflow to open to review it. Null for everything else. */
+  workflowId: string | null;
+  /** The areas a developer must review, named for people. Never file paths. */
+  protectedAreas: string[];
   previewUrl: string | null;
   requestedBy: string;
   createdAt: string;
@@ -29,7 +35,10 @@ const view = (r: Awaited<ReturnType<typeof listItRequests>>[number]): ItRequestV
   kind: r.kind,
   status: r.status,
   statusLabel: IT_STATUS_LABEL[r.status],
-  waiting: waitingOnPerson(r.status),
+  waiting: r.needsDeveloper && r.status === "PR_OPEN" ? "A developer must review this change" : waitingOnPerson(r.status),
+  needsDeveloper: r.needsDeveloper,
+  workflowId: r.workflowProposalId ? r.workflowId : null,
+  protectedAreas: protectedAreas(r.protectedFiles),
   previewUrl: r.previewUrl,
   requestedBy: r.requestedByLabel,
   createdAt: r.createdAt.toISOString(),
@@ -87,8 +96,22 @@ export interface ItDetailView {
   /** This person may approve the plan and accept the change. */
   canApprove: boolean;
   lastError: string | null;
-  /** The merged change did not deploy: why, where to look, and the request the assistant opened to fix it. */
-  deploy: { error: string; url: string | null; fix: { id: string; number: string; statusLabel: string } | null } | null;
+  /** The merged change did not deploy: why, and the request the assistant opened to fix it. No link to the host: users do not get one. */
+  deploy: { error: string; fix: { id: string; number: string; statusLabel: string } | null } | null;
+  /** For an error: what happened, from detected to fixed. Null for other requests, or when it could not be built. */
+  feed: ItFeedLine[] | null;
+  /** For an error: what went wrong, what happens now, and proof, in plain language. */
+  summary: FixSummary | null;
+}
+
+/** One line of an error's activity feed, ready to show. */
+export interface ItFeedLine {
+  at: string | null;
+  tone: FeedTone;
+  text: string;
+  detail: string | null;
+  url: string | null;
+  request: string | null;
 }
 
 /** One request with what is waiting on a person. Own requests only, unless Owner or Office. */
@@ -100,9 +123,25 @@ export async function getItDetailAction(id: string): Promise<ItDetailView | null
   const { conversation, error } = await getItConversation(id);
   const fixRow = synced.deployFixId ? await getItRequest(synced.deployFixId) : null;
   const deploy = synced.status === "DEPLOY_FAILED" && synced.deployError
-    ? { error: synced.deployError, url: synced.deployUrl, fix: fixRow ? { id: fixRow.id, number: fixRow.number, statusLabel: IT_STATUS_LABEL[fixRow.status] } : null }
+    ? { error: synced.deployError, fix: fixRow ? { id: fixRow.id, number: fixRow.number, statusLabel: IT_STATUS_LABEL[fixRow.status] } : null }
     : null;
-  return { request: view(synced), conversation, error, canApprove: mayManage(user), lastError: synced.lastError, deploy };
+  let feed: ItFeedLine[] | null = null;
+  let summary: FixSummary | null = null;
+  if (synced.kind === "ERROR") {
+    try {
+      feed = (await getItFeed(id)).map((f) => ({ at: f.at ? f.at.toISOString() : null, tone: f.tone, text: f.text, detail: f.detail ?? null, url: f.url ?? null, request: f.request ?? null }));
+    } catch (err) {
+      console.error("[it] could not build the activity feed", err instanceof Error ? err.message : err);
+    }
+  }
+  if (synced.kind === "ERROR") {
+    try {
+      summary = await getFixSummary(id);
+    } catch (err) {
+      console.error("[it] could not build the fix summary", err instanceof Error ? err.message : err);
+    }
+  }
+  return { request: view(synced), conversation, error, canApprove: mayManage(user), lastError: synced.lastError, deploy, feed, summary };
 }
 
 /** Runs one of the actions below, handing a refusal back as a message. */

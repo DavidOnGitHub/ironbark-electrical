@@ -12,6 +12,7 @@ import { AiBuilderError, delegatedRoleFor, type AiBuilderClient, type ItAnswer, 
 import { readConversation, type ItConversation } from "./conversation";
 import { defaultClient, syncItRequest } from "./index";
 import { inDeployPhase, isTerminal } from "./status";
+import { cancelWorkflowFix, type WorkflowFixClient } from "./workflowFix";
 
 /** The person acting. `roles` are the platform roles (ADMIN = Owner, EDITOR = Office). */
 export interface Responder {
@@ -96,11 +97,19 @@ export async function requestItSpecChanges(id: string, version: number, feedback
 export async function acceptItChange(id: string, sha: string, who: Responder, client: AiBuilderClient | null = defaultClient()) {
   if (!client) throw new ItActionError("The assistant is not connected.");
   const row = await load(id, who, "approver");
+  if (row.needsDeveloper) throw new ItActionError(`This change touches files only a developer may approve (${row.protectedFiles.slice(0, 3).join(", ")}). Ask a developer to review and accept it.`);
   await viaBuilder(() => client.accept(row.sessionId, sha, behalf(who)));
   return afterAction(row, who, "change accepted", client);
 }
 
-export async function cancelItRequest(id: string, who: Responder, client: AiBuilderClient | null = defaultClient()) {
+export async function cancelItRequest(id: string, who: Responder, client: AiBuilderClient | null = defaultClient(), fixClient?: WorkflowFixClient | null) {
+  // A prepared workflow fix has no AI Builder session: calling it off drops the proposal in the editor.
+  const prepared = await appDb.itRequest.findUnique({ where: { id } });
+  if (prepared?.workflowProposalId) {
+    if (!(canApprove(who) || prepared.requestedByUserId === who.userId)) throw new ItActionError("Only the person who asked, the Owner or Office can do this.");
+    if (prepared.status !== "PROPOSED") throw new ItActionError("This request is finished.");
+    return cancelWorkflowFix(id, who.actor, fixClient);
+  }
   if (!client) throw new ItActionError("The assistant is not connected.");
   const row = await load(id, who, "owner");
   await viaBuilder(() => client.cancel(row.sessionId, behalf(who)));

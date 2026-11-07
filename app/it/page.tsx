@@ -5,6 +5,10 @@ import { listItRequestsAction } from "../../src/actions/it";
 import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status";
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
+import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
+import { demoBreakAvailable, isDemoBreakOn } from "../../src/domain/demo";
+import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
+import { hasAnyRole } from "@kabosh-digital/m-street-kit/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -21,18 +25,22 @@ const EMPTY: Record<ItTab, string> = {
 };
 
 export default async function ItPage({ searchParams }: { searchParams: Promise<{ tab?: string; open?: string }> }) {
-  await requireBusinessPage(Access.IT_ASK);
+  const user = await requireBusinessPage(Access.IT_ASK);
   const params = await searchParams;
   const tab = (IT_TABS as readonly string[]).includes(params.tab ?? "") ? (params.tab as ItTab) : "features";
   const all = await listItRequestsAction(200);
   const byTab = (t: ItTab) => all.filter((r) => IT_TAB_OF_KIND[r.kind] === t);
   const rows = byTab(tab);
+  const showDemo = demoBreakAvailable() && hasAnyRole(user.roles, Access.IT_DEMO);
+  const demoOn = showDemo ? await isDemoBreakOn() : false;
+  const unfixed = tab === "fixes" && hasAnyRole(user.roles, Access.IT_MANAGE) ? await listUnfixedErrors() : [];
   const needsYou = all.filter((r) => r.waiting).length;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="IT" subtitle={TAB_ABOUT[tab]} />
       {needsYou ? <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm">{needsYou === 1 ? "1 request needs you." : `${needsYou} requests need you.`}</p> : null}
+      {showDemo ? <DemoBreakSwitch initiallyOn={demoOn} /> : null}
       <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="IT history">
         {IT_TABS.map((t) => (
           <Link key={t} href={`/it?tab=${t}`} aria-current={t === tab ? "page" : undefined} className={`rounded-md border px-3 py-1 ${t === tab ? "bg-muted font-medium" : "hover:bg-muted"}`}>
@@ -40,6 +48,22 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
           </Link>
         ))}
       </nav>
+      {unfixed.length > 0 ? (
+        <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3" data-testid="it-unfixed">
+          <h2 className="text-sm font-semibold">Looked at, not changed by the assistant</h2>
+          <p className="text-xs text-muted-foreground">These errors are not (or not clearly) a bug in our code, so the assistant left the code alone. A person should look.</p>
+          <ul className="flex flex-col gap-2">
+            {unfixed.map((u) => (
+              <li key={u.id} className="text-sm">
+                <p>{whereLabel(u.route, u.source)} showed an error.</p>
+                <p className="text-xs text-muted-foreground">
+                  Looks like {CLASS_PLAIN[u.class]}{u.confidence === "low" ? " (not sure)" : ""} - happened {times(u.count)}, last {u.lastSeenAt.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <ItHistory key={tab} requests={rows} empty={EMPTY[tab]} initialOpenId={rows.some((r) => r.id === params.open) ? params.open! : null} />
     </div>
   );

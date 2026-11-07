@@ -270,3 +270,4 @@ export async function answerQuoteByToken(token: string, decision: "APPROVED" | "
   const note = decision === "APPROVED" ? "Accepted using the link in the quote email" : `Declined using the link in the quote email${text ? `: ${text}` : ""}`;
   return decideQuote(quote.id, decision, note, CUSTOMER_LINK_ACTOR);
 }
+export * from "./validity";
