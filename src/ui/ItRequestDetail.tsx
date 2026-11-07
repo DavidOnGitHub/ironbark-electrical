@@ -13,9 +13,11 @@ import {
   type ItDetailView,
 } from "../actions/it";
 import type { ItQuestion } from "../domain/it/conversation";
+import { ItFeed } from "./ItFeed";
+import { ItFixSummary } from "./ItFixSummary";
 
 const REFRESH_MS = 15_000;
-const FINAL = ["MERGED", "LIVE", "DEPLOY_FAILED", "CLOSED"];
+const FINAL = ["MERGED", "LIVE", "DEPLOY_FAILED", "CLOSED", "APPLIED"];
 
 /** One request: what the assistant asks, its plan to approve, and the finished change to try and accept. */
 export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack: () => void; onChanged: () => void }) {
@@ -69,6 +71,9 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
 
       {problem ? <p role="alert" className="rounded-lg bg-destructive/10 p-2 text-sm text-destructive">{problem}</p> : null}
 
+      {detail.summary ? <ItFixSummary summary={detail.summary} /> : null}
+      {detail.feed ? <ItFeed lines={detail.feed} /> : null}
+
       {detail.deploy ? (
         <section className="flex flex-col gap-1 rounded-xl border border-destructive/40 p-3">
           <h3 className="text-sm font-medium">The change did not go live</h3>
@@ -78,11 +83,6 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
           ) : (
             <p className="text-sm">Ask a developer to take a look.</p>
           )}
-          {detail.deploy.url ? (
-            <a href={detail.deploy.url} target="_blank" rel="noreferrer" className="text-xs underline">
-              See the deploy &#8599;
-            </a>
-          ) : null}
         </section>
       ) : null}
 
@@ -106,6 +106,16 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
         </section>
       ) : null}
 
+      {request.status === "PROPOSED" && request.workflowId ? (
+        <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
+          <h3 className="text-sm font-medium">Review the prepared fix</h3>
+          <p className="text-sm">The assistant prepared a change to the workflow that failed. Nothing has changed yet. Open the workflow, then the assistant: it shows what would change, and you choose whether to apply it.</p>
+          <a href={`/definitions/${encodeURIComponent(request.workflowId)}/edit`} className="text-sm underline">
+            Open the workflow &#8599;
+          </a>
+        </section>
+      ) : null}
+
       {request.status === "PR_OPEN" ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
           <h3 className="text-sm font-medium">Try it, then accept it</h3>
@@ -116,9 +126,17 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
           ) : (
             <p className="text-xs text-muted-foreground">The preview is not ready yet.</p>
           )}
+          {request.needsDeveloper ? (
+            <div role="note" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm">
+              <p className="font-medium">A developer must review this one</p>
+              <p className="text-xs text-muted-foreground">
+                It touches a sensitive part of the app: {request.protectedAreas.join(", ")}. It needs a developer&apos;s approval before it can go live.
+              </p>
+            </div>
+          ) : null}
           {acceptance && !acceptance.ready ? <List title="Not ready yet" items={acceptance.blockers} /> : null}
           {canApprove ? (
-            <Button disabled={pending || !acceptance?.ready || !acceptance.sha} onClick={() => run(() => acceptItChangeAction(id, acceptance!.sha!))}>
+            <Button disabled={pending || request.needsDeveloper || !acceptance?.ready || !acceptance.sha} onClick={() => run(() => acceptItChangeAction(id, acceptance!.sha!))}>
               {pending ? "Working..." : "Accept this change"}
             </Button>
           ) : (

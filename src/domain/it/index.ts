@@ -10,12 +10,17 @@ import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, summarizeSession, type AiBuilderClient } from "./aiBuilder";
+import { costCapUsd, filesPushed, overCostCap, protectedFilesIn, PROTECTED_RULES } from "./guardrails";
+import { syncWorkflowFix, workflowFixClientFromEnv, type WorkflowFixClient } from "./workflowFix";
 import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
 
 export * from "./status";
 export { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, delegatedRoleFor, summarizeSession } from "./aiBuilder";
 export type { AiBuilderClient, AiBuilderConfig, AiEvent, AiSession, AiSessionDetail, OnBehalfOf } from "./aiBuilder";
 export type { ItRequest } from "ironbark-electrical-client";
+
+/** Statuses where the assistant is still spending, so a fix can be stopped for cost. Once a change waits on a person, it is not. */
+const STOPPABLE: ItStatusValue[] = ["DRAFTING_SPEC", "BUILDING", "BUILD_FAILED"];
 
 /** A session is created by one process at a time; a claim older than this is assumed to belong to a crashed one. */
 const CLAIM_MS = 2 * 60_000;
@@ -51,7 +56,12 @@ const clip = (message: string) => (message.length > MAX_ERROR ? `${message.slice
 const errorText = (err: unknown) => clip(err instanceof Error ? err.message : String(err));
 
 /** Opens a request. When it names a source that already has an open request, that one is returned instead. */
-export async function createItRequest(input: NewItRequest, by: Requester): Promise<{ request: ItRequest; created: boolean }> {
+export async function createItRequest(
+  input: NewItRequest,
+  by: Requester,
+  /** For a request that is not an AI Builder session: it starts in this state and is never handed to AI Builder. */
+  init?: { status: ItStatusValue; workflowProposalId: string; workflowId: string },
+): Promise<{ request: ItRequest; created: boolean }> {
   const data = NewItRequestSchema.parse(input);
   if (data.sourceType && data.sourceId) {
     const open = await appDb.itRequest.findFirst({
@@ -72,6 +82,7 @@ export async function createItRequest(input: NewItRequest, by: Requester): Promi
         sourceType: data.sourceType ?? null,
         sourceId: data.sourceId ?? null,
         intent: data.intent ?? null,
+        ...(init ? { status: init.status, workflowProposalId: init.workflowProposalId, workflowId: init.workflowId } : {}),
         requestedByUserId: by.actor.type === "USER" ? by.actor.userId : null,
         requestedByLabel: by.actor.label,
         requestedByEmail: by.email?.toLowerCase() ?? null,
@@ -105,7 +116,12 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
       {
         intent: intentFor(current.kind, (current.intent as "feature" | "bugfix" | "maintenance" | null) ?? undefined),
         text: `${current.title}\n\n${current.description}`,
-        context: { itRequest: { id: current.id, number: current.number, kind: current.kind }, ...((current.context as Record<string, unknown> | null) ?? {}) },
+        context: {
+          itRequest: { id: current.id, number: current.number, kind: current.kind },
+          ...((current.context as Record<string, unknown> | null) ?? {}),
+          // Only a developer may approve changes under these areas; the assistant should stay out and say so if a fix needs one.
+          protectedPaths: PROTECTED_RULES.map((r) => r.label),
+        },
       },
       who,
     );
@@ -134,20 +150,57 @@ export async function submitItRequest(input: NewItRequest, by: Requester, client
 }
 
 /** Mirrors one request from its AI Builder session. Records a failure on the request instead of throwing. */
-export async function syncItRequest(id: string, client: AiBuilderClient | null = defaultClient()): Promise<ItRequest | null> {
+export async function syncItRequest(id: string, client: AiBuilderClient | null = defaultClient(), fixClient?: WorkflowFixClient | null): Promise<ItRequest | null> {
   const row = await appDb.itRequest.findUnique({ where: { id } });
   if (!row || isTerminal(row.status) || inDeployPhase(row.status)) return row;
+  // A prepared workflow fix has no AI Builder session: the person's choice in the editor is what is followed.
+  if (row.workflowProposalId) return syncWorkflowFix(id, fixClient);
   if (!row.sessionId) return (await startItRequest(id, client)).request;
   if (!client) return row;
 
   try {
-    const summary = summarizeSession(await client.getSession(row.sessionId));
+    const detail = await client.getSession(row.sessionId);
+    const summary = summarizeSession(detail);
     const status = fromSessionStatus(summary.status);
+
+    // Cost cap: an automated fix that has spent too much is stopped, not left to keep going.
+    if (overCostCap(row.kind, summary.costUsd) && STOPPABLE.includes(status)) {
+      const reason = `Stopped: this fix has cost $${summary.costUsd.toFixed(2)}, over the $${costCapUsd().toFixed(2)} limit. A developer should look.`;
+      const who = row.requestedByEmail ? { email: row.requestedByEmail, name: row.requestedByLabel, role: "approver" as const } : { email: "it-assistant@system.local", name: "IT assistant", role: "approver" as const };
+      try {
+        await client.cancel(row.sessionId, who);
+      } catch (err) {
+        // Not stopped: say so and try again next time round, rather than pretend.
+        return appDb.itRequest.update({ where: { id }, data: { costUsd: summary.costUsd, lastError: `Over the cost limit but could not be stopped: ${errorText(err)}`, lastSyncedAt: new Date() } });
+      }
+      return appDb.$transaction(async (tx) => {
+        const stopped = await tx.itRequest.update({ where: { id }, data: { status: "FAILED", sessionStatus: "closed", costUsd: summary.costUsd, lastError: reason, lastSyncedAt: new Date() } });
+        await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "STATUS_CHANGED", summary: `${row.number}: ${reason}` });
+        return stopped;
+      });
+    }
+
+    const protectedFiles = protectedFilesIn(filesPushed(detail.events));
+    const newlyProtected = protectedFiles.length > 0 && !row.needsDeveloper;
     return await appDb.$transaction(async (tx) => {
       const updated = await tx.itRequest.update({
         where: { id },
-        data: { status, ...(status === "MERGED" && !row.mergedAt ? { mergedAt: new Date() } : {}), sessionStatus: summary.status, prUrl: summary.prUrl, previewUrl: summary.previewUrl, costUsd: summary.costUsd, lastError: null, lastSyncedAt: new Date() },
+        data: {
+          status,
+          ...(status === "MERGED" && !row.mergedAt ? { mergedAt: new Date() } : {}),
+          sessionStatus: summary.status,
+          prUrl: summary.prUrl,
+          previewUrl: summary.previewUrl,
+          costUsd: summary.costUsd,
+          lastError: null,
+          lastSyncedAt: new Date(),
+          needsDeveloper: protectedFiles.length > 0,
+          protectedFiles,
+        },
       });
+      if (newlyProtected) {
+        await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "UPDATED", summary: `${row.number} touches protected files (${protectedFiles.slice(0, 3).join(", ")}); a developer must review it` });
+      }
       if (status !== row.status) {
         await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "STATUS_CHANGED", summary: `${row.number}: ${IT_STATUS_LABEL[status]}` });
       }
@@ -163,12 +216,12 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
 }
 
 /** Syncs every request that can still change. One failing request never stops the rest. */
-export async function syncOpenItRequests(client: AiBuilderClient | null = defaultClient(), limit = 100): Promise<{ checked: number; changed: number }> {
-  if (!client) return { checked: 0, changed: 0 };
+export async function syncOpenItRequests(client: AiBuilderClient | null = defaultClient(), limit = 100, fixClient?: WorkflowFixClient | null): Promise<{ checked: number; changed: number }> {
+  if (!client && !(fixClient === undefined ? workflowFixClientFromEnv() : fixClient)) return { checked: 0, changed: 0 };
   const open = await appDb.itRequest.findMany({ where: { status: { notIn: [...IT_TERMINAL, ...IT_DEPLOY_PHASE] } }, orderBy: { createdAt: "asc" }, take: limit });
   let changed = 0;
   for (const row of open) {
-    const after = await syncItRequest(row.id, client);
+    const after = await syncItRequest(row.id, client, fixClient);
     if (after && after.status !== row.status) changed++;
   }
   return { checked: open.length, changed };
@@ -190,3 +243,11 @@ export * from "./conversation";
 export * from "./respond";
 
 export * from "./deploy";
+export * from "./errors";
+export * from "./feed";
+export * from "./classify";
+export * from "./guardrails";
+export * from "./workflowFix";
+export * from "./revertGuard";
+export * from "./fixSummary";
+export * from "./plain";

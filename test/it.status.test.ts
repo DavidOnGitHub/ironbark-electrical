@@ -23,9 +23,9 @@ describe("IT request status", () => {
     expect(fromSessionStatus("something_new")).toBe("FAILED");
   });
 
-  it("has a label for every status, and only Live and Closed are final", () => {
+  it("has a label for every status, and only Live, Closed and Applied are final", () => {
     const all = Object.keys(IT_STATUS_LABEL) as ItStatusValue[];
-    expect(all.filter(isTerminal).sort()).toEqual(["CLOSED", "LIVE"]);
+    expect(all.filter(isTerminal).sort()).toEqual(["APPLIED", "CLOSED", "LIVE"]);
     for (const s of all) expect(IT_STATUS_LABEL[s].length).toBeGreaterThan(0);
   });
 

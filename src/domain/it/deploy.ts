@@ -8,7 +8,7 @@ import type { ItRequest } from "ironbark-electrical-client";
 import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { AiBuilderClient } from "./aiBuilder";
-import { createItRequest, startItRequest } from "./index";
+import { createItRequest, resolveErrorsFor, startItRequest } from "./index";
 
 const SYSTEM = { type: "SYSTEM", label: "IT assistant" } as const;
 /** How long a merged change may go without the host starting a deploy for it before that is treated as a failure. */
@@ -172,9 +172,11 @@ export async function checkItDeploys(
 
 async function finish(row: ItRequest, status: "LIVE", summary: string) {
   await appDb.$transaction(async (tx) => {
-    await tx.itRequest.update({ where: { id: row.id }, data: { status, deployError: null, deployUrl: null } });
+    await tx.itRequest.update({ where: { id: row.id }, data: { status, deployError: null, deployUrl: null, liveAt: new Date() } });
     await recordActivity(tx, { actor: SYSTEM, entityType: "itRequest", entityId: row.id, kind: "STATUS_CHANGED", summary: `${row.number} ${summary}` });
   });
+  // The fix for a captured error is live: mark the error fixed, so a later occurrence counts as a regression.
+  if (row.sourceType === "error") await resolveErrorsFor(row.number, row.sourceId);
 }
 
 async function markFailed(row: ItRequest, bad: { id: string; state: ServiceDeployState; deploy?: HostDeploy }, host: DeployHost, ai: AiBuilderClient | null, autoFix: boolean) {

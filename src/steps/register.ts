@@ -2,6 +2,7 @@ import { registerCustomStep, registerMockAgent } from "@kabosh-digital/workflow-
 import { ironSparkStepDefs } from "./defs";
 import { ironSparkMockAgent } from "./fixtures";
 import { stepImpls } from "./impl";
+import { withErrorReporting } from "../automation/errorHooks";
 
 let registered = false;
 
@@ -12,7 +13,8 @@ export function registerIronbark(): void {
   for (const def of ironSparkStepDefs) {
     const execute = stepImpls[def.key];
     if (!execute) throw new Error(`no implementation for step "${def.key}"`);
-    registerCustomStep({ ...def, kind: "ACTION", execute } as Parameters<typeof registerCustomStep>[0]);
+    // A step that throws is recorded for the IT assistant, then fails exactly as before.
+    registerCustomStep({ ...def, kind: "ACTION", execute: withErrorReporting(def.key, execute) } as Parameters<typeof registerCustomStep>[0]);
   }
   registerMockAgent("ironspark-agent", ironSparkMockAgent);
 }

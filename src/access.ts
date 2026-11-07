@@ -40,6 +40,8 @@ export const Access = {
   IT_ASK: [OWNER, OFFICE, TECHNICIAN, BOOKKEEPER],
   /** See everyone's IT requests, and later approve and accept them. */
   IT_MANAGE: [OWNER, OFFICE],
+  /** The staging-only "break something on purpose" switch. Owner only, and only where IT_DEMO_BREAK=on. */
+  IT_DEMO: [OWNER],
 } satisfies Record<string, UserRole[]>;
 
 export const Roles = { OWNER, OFFICE, TECHNICIAN, BOOKKEEPER };
