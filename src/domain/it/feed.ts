@@ -215,7 +215,8 @@ export async function getItFeed(requestId: string, client: AiBuilderClient | nul
     errorId ? appDb.activityEvent.findMany({ where: { entityType: "errorEvent", entityId: errorId, kind: "REOPENED" }, orderBy: { at: "asc" }, select: { at: true } }) : [],
   ]);
   const attempts: FeedAttempt[] = await Promise.all(
-    siblings.map(async (r) => {
+    // Only the request being looked at: an earlier attempt's steps belong to that request's own page.
+    siblings.filter((r) => r.id === request.id).map(async (r) => {
       let events: AiEvent[] | null = null;
       let acceptance: FeedAttempt["acceptance"] = null;
       if (r.sessionId && client) {
@@ -230,5 +231,10 @@ export async function getItFeed(requestId: string, client: AiBuilderClient | nul
       return { request: r, events, acceptance };
     }),
   );
-  return buildFeed({ error, reopenedAt: reopened.map((x) => x.at), attempts, fallbackTitle: request.title });
+  // The return that led to this attempt: after the previous attempt began and no later than this one's start.
+  const previous = siblings.filter((r) => r.createdAt < request.createdAt).at(-1);
+  const reopenedAt = reopened.map((x) => x.at).filter((at) => at <= request.createdAt && (!previous || at > previous.createdAt));
+  // "Fixed" belongs to the attempt that went live. The error's own flag only says whether it is fixed right now.
+  const resolvedAt = error ? (request.status === "LIVE" ? (request.liveAt ?? error.resolvedAt) : error.resolvedAt && error.resolvedAt >= request.createdAt ? error.resolvedAt : null) : null;
+  return buildFeed({ error: error ? { ...error, resolvedAt } : error, reopenedAt, attempts, fallbackTitle: request.title });
 }
