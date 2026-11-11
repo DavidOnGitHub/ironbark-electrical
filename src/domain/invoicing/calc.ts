@@ -50,8 +50,9 @@ export function effectiveInvoiceStatus(status: InvoiceStatusValue, dueAt: Date |
   return status;
 }
 
-/** Whole days past the due date (0 if not yet due). */
-export function daysOverdue(dueAt: Date, now: Date = new Date()): number {
+/** Whole days past the due date (0 if not yet due, or if there is no due date). */
+export function daysOverdue(dueAt: Date | null, now: Date = new Date()): number {
+  if (!dueAt) return 0;
   return Math.max(0, Math.floor((now.getTime() - dueAt.getTime()) / 86_400_000));
 }
 
