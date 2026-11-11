@@ -118,7 +118,7 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
 
       {request.status === "PR_OPEN" ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
-          <h3 className="text-sm font-medium">Try it, then accept it</h3>
+          <h3 className="text-sm font-medium">{acceptance?.ready ? "Try it, then accept it" : "Getting it ready to try"}</h3>
           {previewUrl ? (
             <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm underline">
               Open the preview &#8599;

@@ -89,10 +89,25 @@ describe("buildFeed", () => {
 
   it("says what it waits for, and when the deploy failed", () => {
     const wait = buildFeed({ error, reopenedAt: [], attempts: [attempt([], { status: "PR_OPEN" })] });
-    expect(wait.at(-1)!.text).toBe("Waiting for someone to try the change and accept it");
+    expect(wait.at(-1)!.text).toBe("Getting the change ready to try");
+    const ready = buildFeed({ error, reopenedAt: [], attempts: [{ ...attempt(fullRun.slice(0, 9), { status: "PR_OPEN" }), acceptance: { ready: true } }] });
+    expect(ready.at(-1)!.text).toBe("Waiting for someone to try the change and accept it");
     const failed = buildFeed({ error, reopenedAt: [], attempts: [attempt([], { status: "DEPLOY_FAILED", deployError: "The ironbark-web deploy ended as build failed." })] });
     expect(failed.map((f) => f.text)).toContain("The fix did not start up properly");
     expect(failed.at(-1)!.text).toBe("Needs a developer to take a look");
+  });
+
+  it("does not say someone can try the change while the automatic checks are still running", () => {
+    const upToCi = fullRun.slice(0, 6); // ... pr_opened, ci pending
+    const running = buildFeed({ error, reopenedAt: [], attempts: [{ ...attempt(upToCi, { status: "PR_OPEN" }), acceptance: { ready: false } }] });
+    expect(running.at(-1)).toMatchObject({ tone: "wait", text: "Automatic checks are running - the change can be tried once they pass" });
+    const noPreview = buildFeed({ error, reopenedAt: [], attempts: [{ ...attempt(fullRun.slice(0, 7), { status: "PR_OPEN" }), acceptance: { ready: false } }] });
+    expect(noPreview.at(-1)!.text).toBe("Automatic checks passed - waiting for the preview to be ready to try");
+    const failing = [...upToCi, { type: "ci_status", at: at(9), sha: "a1", state: "failure", checks: [] }];
+    const failed = buildFeed({ error, reopenedAt: [], attempts: [{ ...attempt(failing, { status: "PR_OPEN" }), acceptance: { ready: false } }] });
+    expect(failed.at(-1)!.text).toBe("Automatic checks found a problem - the assistant is looking at it");
+    const waiting = buildFeed({ error, reopenedAt: [], attempts: [{ ...attempt(fullRun.slice(0, 9), { status: "PR_OPEN" }), acceptance: { ready: true } }] });
+    expect(waiting.at(-1)!.text).toBe("Waiting for someone to try the change and accept it");
   });
 
   it("still tells the story when the session cannot be read", () => {
