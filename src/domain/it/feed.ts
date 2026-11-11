@@ -30,6 +30,8 @@ export interface FeedAttempt {
   request: Pick<ItRequest, "number" | "status" | "createdAt" | "updatedAt" | "mergedAt" | "deployError" | "prUrl" | "previewUrl"> & Partial<Pick<ItRequest, "needsDeveloper" | "protectedFiles" | "lastError" | "workflowProposalId">>;
   /** The AI Builder session's events; null when it could not be read. */
   events: AiEvent[] | null;
+  /** AI Builder's own verdict on whether the change can be accepted yet (checks passed, preview up, nothing blocking). */
+  acceptance?: { ready: boolean } | null;
 }
 
 export interface FeedInput {
@@ -145,13 +147,35 @@ export function buildFeed(input: FeedInput): FeedItem[] {
   // Where it stands now, on the latest attempt.
   const latest = attempts[attempts.length - 1]?.request;
   if (latest && !error?.resolvedAt) {
-    const now = latest.needsDeveloper && latest.status === "PR_OPEN" ? "Waiting for a developer to review it" : standing(latest.status);
+    const last = attempts[attempts.length - 1]!;
+    const now = latest.needsDeveloper && latest.status === "PR_OPEN" ? "Waiting for a developer to review it" : latest.status === "PR_OPEN" ? prOpenStanding(last) : standing(latest.status);
     if (now) items.push({ at: null, tone: "wait", text: now, request: multi ? latest.number : undefined });
   }
 
   const dated = items.filter((i) => i.at).sort((a, b) => a.at!.getTime() - b.at!.getTime());
   const undated = items.filter((i) => !i.at);
   return [...dated, ...undated].slice(-MAX_ITEMS);
+}
+
+/**
+ * A pull request being open does not mean a person can act yet: they can only try and accept the change once the
+ * automatic checks have passed and the preview is up. Says which of those it is waiting on.
+ */
+function prOpenStanding(a: FeedAttempt): string {
+  const events = a.events ?? [];
+  const pushed = [...events].reverse().find((e) => e.type === "commit_pushed");
+  const sha = pushed ? str(pushed.sha) : "";
+  const ci = [...events].reverse().find((e) => e.type === "ci_status" && (!sha || e.sha === sha));
+  const state = ci ? str(ci.state) : "";
+  const hasPreview = Boolean(a.request.previewUrl) || events.some((e) => e.type === "preview_ready" && (!sha || e.sha === sha));
+
+  if (a.acceptance?.ready) return "Waiting for someone to try the change and accept it";
+  if (a.events === null && !a.acceptance) return hasPreview ? "Waiting for someone to try the change and accept it" : "Getting the change ready to try";
+  if (state === "failure" || state === "error") return "Automatic checks found a problem - the assistant is looking at it";
+  if (!ci) return "Getting the change ready to try";
+  if (state !== "success") return "Automatic checks are running - the change can be tried once they pass";
+  if (!hasPreview) return "Automatic checks passed - waiting for the preview to be ready to try";
+  return a.acceptance ? "Getting the change ready to try" : "Waiting for someone to try the change and accept it";
 }
 
 /** What it is waiting on right now, in plain words. */
@@ -162,7 +186,7 @@ function standing(status: ItRequest["status"]): string | null {
     case "PROPOSED":
       return "Waiting for someone to review the prepared fix in the workflow editor";
     case "PR_OPEN":
-      return "Waiting for someone to try the change and accept it";
+      return "Getting the change ready to try"; // buildFeed refines this from the checks and the preview (prOpenStanding)
     case "ACCEPTED":
     case "MERGED":
       return "Merging and going live";
@@ -193,14 +217,17 @@ export async function getItFeed(requestId: string, client: AiBuilderClient | nul
   const attempts: FeedAttempt[] = await Promise.all(
     siblings.map(async (r) => {
       let events: AiEvent[] | null = null;
+      let acceptance: FeedAttempt["acceptance"] = null;
       if (r.sessionId && client) {
         try {
-          events = ((await client.getSession(r.sessionId)) as AiSessionDetail).events;
+          const detail = (await client.getSession(r.sessionId)) as AiSessionDetail;
+          events = detail.events;
+          acceptance = detail.acceptance ? { ready: detail.acceptance.ready } : null;
         } catch {
           events = null;
         }
       }
-      return { request: r, events };
+      return { request: r, events, acceptance };
     }),
   );
   return buildFeed({ error, reopenedAt: reopened.map((x) => x.at), attempts, fallbackTitle: request.title });
