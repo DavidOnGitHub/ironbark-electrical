@@ -6,7 +6,7 @@ import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status"
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
 import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
-import { demoBreakAvailable, isDemoBreakOn } from "../../src/domain/demo";
+import { demoBreakAvailable, listDemoBugs } from "../../src/domain/demo";
 import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
 import { hasAnyRole } from "@kabosh-digital/m-street-kit/auth";
 
@@ -32,7 +32,7 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
   const byTab = (t: ItTab) => all.filter((r) => IT_TAB_OF_KIND[r.kind] === t);
   const rows = byTab(tab);
   const showDemo = demoBreakAvailable() && hasAnyRole(user.roles, Access.IT_DEMO);
-  const demoOn = showDemo ? await isDemoBreakOn() : false;
+  const demoBugs = showDemo ? await listDemoBugs() : [];
   const unfixed = tab === "fixes" && hasAnyRole(user.roles, Access.IT_MANAGE) ? await listUnfixedErrors() : [];
   const needsYou = all.filter((r) => r.waiting).length;
 
@@ -40,7 +40,7 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
     <div className="flex flex-col gap-6">
       <PageHeader title="IT" subtitle={TAB_ABOUT[tab]} />
       {needsYou ? <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm">{needsYou === 1 ? "1 request needs you." : `${needsYou} requests need you.`}</p> : null}
-      {showDemo ? <DemoBreakSwitch initiallyOn={demoOn} /> : null}
+      {showDemo ? <DemoBreakSwitch bugs={demoBugs} /> : null}
       <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="IT history">
         {IT_TABS.map((t) => (
           <Link key={t} href={`/it?tab=${t}`} aria-current={t === tab ? "page" : undefined} className={`rounded-md border px-3 py-1 ${t === tab ? "bg-muted font-medium" : "hover:bg-muted"}`}>
