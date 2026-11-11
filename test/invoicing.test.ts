@@ -195,6 +195,25 @@ describe("overdue and the money position", () => {
     expect(await listInvoices({ status: "SENT" })).toEqual([]);
   });
 
+  it("AC-3: lists invoices with no due date without error, keeping their stored status and 0 days overdue (BR-INV-10, BR-INV-11)", async () => {
+    const { job: a } = await completedJob([{ unitPriceCents: 100000 }], "A");
+    const { job: b } = await completedJob([{ unitPriceCents: 100000 }], "B");
+    const { job: c } = await completedJob([{ unitPriceCents: 100000 }], "C");
+    const sent = await issuedInvoice(a.id);
+    const part = await issuedInvoice(b.id);
+    const late = await issuedInvoice(c.id);
+    await recordPayment(part.id, { amountCents: 1000, method: "BANK" }, priya);
+    await appDb.invoice.update({ where: { id: sent.id }, data: { dueAt: null } });
+    await appDb.invoice.update({ where: { id: part.id }, data: { dueAt: null } });
+    await appDb.invoice.update({ where: { id: late.id }, data: { dueAt: new Date(Date.now() - 3 * 86_400_000) } });
+    const rows = await listInvoices();
+    const byId = new Map(rows.map((i) => [i.id, i]));
+    expect(byId.get(sent.id)).toMatchObject({ effectiveStatus: "SENT", daysOverdue: 0 });
+    expect(byId.get(part.id)).toMatchObject({ effectiveStatus: "PARTIALLY_PAID", daysOverdue: 0 });
+    expect(byId.get(late.id)).toMatchObject({ effectiveStatus: "OVERDUE", daysOverdue: 3 });
+    expect((await receivablesSummary()).overdue.map((o) => o.number)).toEqual([late.number]);
+  });
+
   it("summarises what is owed, what is overdue, and what came in this month", async () => {
     const { job: a } = await completedJob([{ unitPriceCents: 100000 }], "A");
     const { job: b } = await completedJob([{ unitPriceCents: 50000 }], "B");
