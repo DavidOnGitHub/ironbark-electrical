@@ -59,7 +59,7 @@ export default async function QuotesPage(props: { searchParams: Promise<{ status
                 <td className="px-4 py-2.5"><Link href={`/clients/${q.client.id}`} className="hover:underline">{q.client.name}</Link></td>
                 <td className="px-4 py-2.5"><QuoteStatusChip status={q.effectiveStatus} /></td>
                 <td className="px-4 py-2.5 text-xs">
-                  {q.status === "DRAFT" ? "-" : q.validUntil.toLocaleDateString("en-AU")}
+                  {q.status === "DRAFT" || !q.validUntil ? "-" : q.validUntil.toLocaleDateString("en-AU")}
                   <p className="text-muted-foreground">{validityNote(q, new Date(), demoBug)}</p>
                 </td>
                 <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatMoney(q.totalCents)}</td>

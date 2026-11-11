@@ -44,9 +44,12 @@ export function materialPriceCents(costCents: number, markupPct: number): number
 
 export type QuoteStatusValue = "DRAFT" | "SENT" | "APPROVED" | "DECLINED" | "EXPIRED";
 
-/** A SENT quote past its validity date reads as EXPIRED, without a stored change. */
-export function effectiveQuoteStatus(status: QuoteStatusValue, validUntil: Date, now: Date = new Date()): QuoteStatusValue {
-  return status === "SENT" && validUntil.getTime() < now.getTime() ? "EXPIRED" : status;
+/**
+ * A SENT quote past its validity date reads as EXPIRED, without a stored change (BR-QUO-8).
+ * A missing date (bad data) cannot be judged, so the stored status is kept.
+ */
+export function effectiveQuoteStatus(status: QuoteStatusValue, validUntil: Date | null | undefined, now: Date = new Date()): QuoteStatusValue {
+  return status === "SENT" && validUntil != null && validUntil.getTime() < now.getTime() ? "EXPIRED" : status;
 }
 
 export function addDays(date: Date, days: number): Date {
