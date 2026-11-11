@@ -31,7 +31,8 @@ describe("the demo switches", () => {
   });
 
   it("has a pool of bugs with unique ids", () => {
-    expect(DEMO_BUGS.length).toBeGreaterThanOrEqual(3);
+    expect(DEMO_BUGS.length).toBeGreaterThanOrEqual(2);
+    expect(DEMO_BUGS.some((b) => b.id === "invoice-due")).toBe(false);
     expect(new Set(DEMO_BUGS.map((b) => b.id)).size).toBe(DEMO_BUGS.length);
   });
 
@@ -66,12 +67,12 @@ describe("the demo switches", () => {
   });
 
   it("keeps each bug's switch separate, lists them, and resets them all", async () => {
-    await setDemoBug("invoice-due", true, owner, staging);
     await setDemoBug("job-schedule", true, owner, staging);
     expect(await isDemoBugOn(QUOTE, staging)).toBe(false);
-    expect(await isDemoBugOn("invoice-due", staging)).toBe(true);
+    expect(await isDemoBugOn("job-schedule", staging)).toBe(true);
     const on = (await listDemoBugs(staging)).filter((b) => b.on).map((b) => b.id).sort();
-    expect(on).toEqual(["invoice-due", "job-schedule"]);
+    expect(on).toEqual(["job-schedule"]);
+    await setDemoBug(QUOTE, true, owner, staging);
     expect(await resetDemoBugs(owner, staging)).toBe(2);
     expect((await listDemoBugs(staging)).some((b) => b.on)).toBe(false);
     expect(await resetDemoBugs(owner, staging)).toBe(0);
@@ -116,7 +117,7 @@ describe("validityNote and the quote-validity bug", () => {
   });
 });
 
-describe("dueNote and the invoice-due bug", () => {
+describe("dueNote", () => {
   const now = new Date("2026-11-06T00:00:00Z");
   const sent = { status: "SENT", dueAt: new Date("2026-11-09T00:00:00Z"), paidAt: null };
 
@@ -133,9 +134,19 @@ describe("dueNote and the invoice-due bug", () => {
     expect(dueNote({ ...sent, dueAt: null }, now)).toBeNull();
   });
 
-  it("with the bug on, fails on an unpaid invoice - the error the assistant is meant to find", () => {
-    expect(() => dueNote(sent, now, true)).toThrow(TypeError);
-    expect(dueNote({ ...sent, status: "DRAFT" }, now, true)).toBeNull();
+  it("AC-1 AC-2 does not throw on an unpaid invoice even when called the old way with the demo switch on", () => {
+    // The page used to pass a third `demoBug` argument; the parameter is gone, so call through a loose type.
+    const legacy = dueNote as (i: typeof sent, now: Date, demoBug: boolean) => string | null;
+    expect(() => legacy(sent, now, true)).not.toThrow();
+    expect(legacy(sent, now, true)).toBe("due in 3 days");
+    expect(legacy({ ...sent, status: "PARTIALLY_PAID", dueAt: new Date("2026-11-05T00:00:00Z") }, now, true)).toBe("1 day late");
+    expect(legacy({ ...sent, status: "DRAFT" }, now, true)).toBeNull();
+  });
+
+  it("AC-2 measures from now for a partly paid invoice whether or not paidAt is set", () => {
+    const partly = { ...sent, status: "PARTIALLY_PAID" };
+    expect(dueNote(partly, now)).toBe("due in 3 days");
+    expect(dueNote({ ...partly, paidAt: new Date("2026-10-01T00:00:00Z") }, now)).toBe("due in 3 days");
   });
 });
 

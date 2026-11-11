@@ -22,7 +22,6 @@ export interface DemoBug {
 
 export const DEMO_BUGS: readonly DemoBug[] = [
   { id: "quote-validity", title: "Quotes: time left on a sent quote", page: "/quotes", effect: "The Quotes list fails while any quote has been sent and is waiting for an answer." },
-  { id: "invoice-due", title: "Invoices: due note on an unpaid invoice", page: "/invoices", effect: "The Invoices list fails while any invoice has been issued and not yet paid." },
   { id: "job-schedule", title: "Jobs: length of a visit", page: "/jobs", effect: "The Jobs list fails while any job has not been scheduled yet." },
 ];
 
