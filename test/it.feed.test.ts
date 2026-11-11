@@ -176,13 +176,28 @@ describe("getItFeed", () => {
     expect(text).toEqual(expect.arrayContaining(["Assistant asked to fix it", "Checked it can't happen again", "Automatic checks passed", "Preview ready - try it", "Put into the app"]));
   });
 
-  it("includes every attempt for the same error, whichever one is opened", async () => {
+  it("shows only the request being opened, not the earlier attempts at the same error", async () => {
     const c = client([]);
     const { errorId, request } = await open(c);
-    await appDb.itRequest.update({ where: { id: request.id }, data: { status: "CLOSED" } });
+    await appDb.itRequest.update({ where: { id: request.id }, data: { status: "LIVE", liveAt: T(20) } });
+    await appDb.errorEvent.update({ where: { id: errorId }, data: { resolvedAt: T(21) } });
+    // The error returns, and a second attempt starts.
+    await appDb.errorEvent.update({ where: { id: errorId }, data: { resolvedAt: null } });
+    await appDb.activityEvent.create({ data: { entityType: "errorEvent", entityId: errorId, kind: "REOPENED", summary: "came back", actorType: "SYSTEM", actorLabel: "IT assistant", at: T(29) } });
     const second = await submitItRequest({ kind: "ERROR", intent: "bugfix", title: "again", description: "d", sourceType: "error", sourceId: errorId }, { actor: { type: "SYSTEM", label: "IT assistant" } }, c);
+    await appDb.itRequest.update({ where: { id: second.request.id }, data: { createdAt: T(30) } });
+
     const feed = await getItFeed(second.request.id, c);
-    expect(feed.filter((f) => f.text.startsWith("Attempt"))).toHaveLength(2);
+    const text = feed.map((f) => f.text);
+    expect(feed.some((f) => f.request)).toBe(false); // no attempt labels: there is one attempt in view
+    expect(text.filter((t) => t === "Assistant asked to fix it")).toHaveLength(1);
+    expect(text).not.toContain("Fix is live - watching for a repeat");
+    expect(text.filter((t) => t === "The error came back after its fix")).toHaveLength(1);
+
+    // The first request's own page still tells its own story, including that its fix went live.
+    const firstFeed = await getItFeed(request.id, c);
+    expect(firstFeed.map((f) => f.text)).toContain("Fix is live - watching for a repeat");
+    expect(firstFeed.map((f) => f.text)).not.toContain("The error came back after its fix");
   });
 
   it("still returns the story when AI Builder is unreachable", async () => {
