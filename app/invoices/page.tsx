@@ -8,7 +8,6 @@ import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
 import { INVOICE_STATUS_LABEL, listInvoices, receivablesSummary, type EffectiveInvoiceStatus } from "../../src/domain/invoicing";
 import { dueNote } from "../../src/domain/invoicing/dueNote";
-import { isDemoBugOn } from "../../src/domain/demo";
 import { listJobsReadyToInvoice } from "../../src/domain/jobs";
 import { createInvoiceAction } from "../../src/actions/invoicing";
 import { formatMoney } from "../../src/lib/money";
@@ -25,7 +24,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<{ stat
   const { status } = await props.searchParams;
   const filter = STATUSES.find((s) => s === status);
   const canWrite = hasAnyRole(user.roles, Access.INVOICES_WRITE);
-  const [invoices, summary, ready, demoBug] = await Promise.all([listInvoices({ status: filter }), receivablesSummary(), listJobsReadyToInvoice(), isDemoBugOn("invoice-due")]);
+  const [invoices, summary, ready] = await Promise.all([listInvoices({ status: filter }), receivablesSummary(), listJobsReadyToInvoice()]);
   const tab = (href: string, label: string, active: boolean) => (
     <Link key={label} href={href}>
       <Badge variant={active ? "default" : "outline"} className="px-3 py-1 text-sm">{label}</Badge>
@@ -98,7 +97,7 @@ export default async function InvoicesPage(props: { searchParams: Promise<{ stat
                 </td>
                 <td className="px-4 py-2.5 text-xs">
                   {i.dueAt ? i.dueAt.toLocaleDateString("en-AU") : "-"}
-                  <p className="text-muted-foreground">{dueNote(i, new Date(), demoBug)}</p>
+                  <p className="text-muted-foreground">{dueNote(i, new Date())}</p>
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(i.totalCents)}</td>
                 <td className="px-4 py-2.5 text-right font-medium tabular-nums">{i.status === "VOID" ? "-" : formatMoney(i.balanceCents)}</td>
