@@ -4,7 +4,8 @@ const DAY_MS = 86_400_000;
 
 export interface ValidityInput {
   status: QuoteStatusValue;
-  validUntil: Date;
+  /** Never null in the schema; tolerated so one bad row cannot crash the list. */
+  validUntil: Date | null | undefined;
   decidedAt: Date | null;
 }
 
@@ -16,7 +17,7 @@ export interface ValidityInput {
  * assistant's job in the demo is to find that, add a test that fails, and fix it.
  */
 export function validityNote(q: ValidityInput, now: Date = new Date(), demoBug = false): string | null {
-  if (q.status !== "SENT") return null;
+  if (q.status !== "SENT" || q.validUntil == null) return null;
   const from = demoBug ? q.decidedAt!.getTime() : now.getTime();
   const days = Math.ceil((q.validUntil.getTime() - from) / DAY_MS);
   if (days < 0) return "expired";

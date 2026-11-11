@@ -141,7 +141,7 @@ export async function listQuotes(filter: QuoteListFilter = {}) {
   return rows.map((q) => withEffectiveStatus(q));
 }
 
-function withEffectiveStatus<T extends { status: QuoteStatusValue; validUntil: Date }>(quote: T): T & { effectiveStatus: QuoteStatusValue } {
+function withEffectiveStatus<T extends { status: QuoteStatusValue; validUntil: Date | null }>(quote: T): T & { effectiveStatus: QuoteStatusValue } {
   return { ...quote, effectiveStatus: effectiveQuoteStatus(quote.status, quote.validUntil) };
 }
 

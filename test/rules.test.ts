@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeTotals, DEPOSIT_THRESHOLD_CENTS, effectiveQuoteStatus, lineTotalCents, materialPriceCents } from "../src/domain/quotes/calc";
+import { validityNote } from "../src/domain/quotes/validity";
 import { canMoveJob, isActiveJob, JOB_STATUS_ORDER, JOB_TRANSITIONS, technicianCanMoveJob, windowsOverlap } from "../src/domain/jobs/status";
 import { centsToInput, formatMoney, parseMoney } from "../src/lib/money";
 import { addDaysKey, dateToSydneyLocal, dayKey, sydneyLocalToDate, weekDayKeys, weekStartKey } from "../src/lib/tz";
@@ -40,6 +41,24 @@ describe("quote validity", () => {
   });
   it("never changes other statuses", () => {
     for (const s of ["DRAFT", "APPROVED", "DECLINED"] as const) expect(effectiveQuoteStatus(s, until, new Date("2027-01-01"))).toBe(s);
+  });
+  it("AC-1 does not throw for a sent quote with no valid-until date and leaves it SENT", () => {
+    const now = new Date("2026-10-16T00:00:00Z");
+    expect(() => effectiveQuoteStatus("SENT", null as unknown as Date, now)).not.toThrow();
+    expect(effectiveQuoteStatus("SENT", null as unknown as Date, now)).toBe("SENT");
+    expect(effectiveQuoteStatus("SENT", undefined, now)).toBe("SENT");
+  });
+  it("AC-2 still expires a sent quote with a past date and keeps a future one SENT", () => {
+    expect(effectiveQuoteStatus("SENT", until, new Date("2026-10-15T00:00:01Z"))).toBe("EXPIRED");
+    expect(effectiveQuoteStatus("SENT", until, new Date("2026-10-14T23:59:59Z"))).toBe("SENT");
+  });
+  it("AC-3 shows no validity note for a sent quote with no valid-until date", () => {
+    const sent = { status: "SENT" as const, validUntil: null as unknown as Date, decidedAt: null };
+    expect(() => validityNote(sent, new Date("2026-10-16T00:00:00Z"))).not.toThrow();
+    expect(validityNote(sent, new Date("2026-10-16T00:00:00Z"))).toBeNull();
+  });
+  it("AC-1 keeps other statuses safe with a null valid-until date", () => {
+    for (const s of ["DRAFT", "APPROVED", "DECLINED"] as const) expect(effectiveQuoteStatus(s, null, new Date("2027-01-01"))).toBe(s);
   });
 });
 
