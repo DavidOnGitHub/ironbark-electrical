@@ -16,6 +16,7 @@ services:
     startCommand: pnpm db:migrate && pnpm app:migrate && pnpm start
     envVars:
       - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_OPTIONS, value: "--enable-source-maps" } # real file and line in server error stacks, for the IT assistant
       - { key: NODE_AUTH_TOKEN, sync: false } # classic PAT with read:packages
       - { key: DATABASE_URL, sync: false } # postgresql://USER:PASS@<internal-host>:5432/ironbark_electrical?schema=public
       - { key: APP_DATABASE_URL, sync: false } # same, but ?schema=ironbark-electrical

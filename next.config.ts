@@ -84,6 +84,9 @@ const nextConfig: NextConfig = {
   // link (see signin/page.tsx) and never needs this; the credentials form
   // is a POST server action and does.
   experimental: {
+    // Server errors carry stack frames that name the real file and line (src/domain/...) instead of a bundled chunk.
+    // The IT assistant hands the stack to AI Builder, which can only find the broken code from those frames.
+    serverSourceMaps: true,
     serverActions: {
       allowedOrigins: ["null"], // add the deployed demo hostname(s) when hosted
     },
