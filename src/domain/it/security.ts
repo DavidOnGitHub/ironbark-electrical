@@ -173,3 +173,32 @@ export async function securityReport(topN = 10): Promise<SecurityReport> {
     top: worstFirst.map((f) => ({ id: f.id, severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };
 }
+
+export interface SecurityHeadline {
+  /** Open findings (open or being fixed). */
+  open: number;
+  /** Of those, how many already have a fix under way. */
+  beingFixed: number;
+  bySeverity: Record<Severity, number>;
+  /** The worst severity among them, or null when nothing is open. */
+  worst: Severity | null;
+  lastScanAt: Date | null;
+}
+
+/** The few numbers the dashboard banner needs. Cheap: two grouped counts and the latest scan. */
+export async function securityHeadline(): Promise<SecurityHeadline> {
+  const [groups, last] = await Promise.all([
+    appDb.finding.groupBy({ by: ["severity", "status"], where: { status: { in: ["OPEN", "FIXING"] } }, _count: { _all: true } }),
+    appDb.securityScan.findFirst({ orderBy: { receivedAt: "desc" }, select: { receivedAt: true } }),
+  ]);
+  const bySeverity = Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>;
+  let open = 0;
+  let beingFixed = 0;
+  for (const g of groups) {
+    bySeverity[g.severity as Severity] += g._count._all;
+    open += g._count._all;
+    if (g.status === "FIXING") beingFixed += g._count._all;
+  }
+  const worst = [...SEVERITIES].reverse().find((s) => bySeverity[s] > 0) ?? null;
+  return { open, beingFixed, bySeverity, worst, lastScanAt: last?.receivedAt ?? null };
+}

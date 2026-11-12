@@ -1,13 +1,16 @@
-name: Security scan (weekly)
+name: Security scan
 
 # Dependency audit, secret scan and static analysis. Each tool's output is normalised and POSTed, HMAC-signed, to
 # the app's /api/it/scan, where findings become rows the IT assistant triages. See PLAN-it-assistant.md, Phase 2.
 # Needs: repo variable IT_SCAN_URL (https://<app>/api/it/scan) and repo secret IT_SCAN_SECRET (the same value as the
 # app's IT_SCAN_SECRET). Scheduled runs use the default branch.
+#
+# It wakes up every day and asks the app whether a scan is due; the frequency (weekly, fortnightly, monthly, never) is the
+# IT_SCAN_FREQUENCY environment variable on the web service, so changing it never means editing this file. A manual run always scans.
 
 on:
   schedule:
-    - cron: "17 3 * * 1" # Mondays 03:17 UTC
+    - cron: "17 3 * * *" # every day 03:17 UTC; the app decides whether today is a scan day
   workflow_dispatch:
 
 permissions:
@@ -18,7 +21,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  due:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      due: ${{ steps.ask.outputs.due }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: ask
+        env:
+          EVENT: ${{ github.event_name }}
+          IT_SCAN_URL: ${{ vars.IT_SCAN_URL }}
+          IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then echo "due=true" >> "$GITHUB_OUTPUT"; else node scripts/security/due.mjs; fi
+
   scan:
+    needs: due
+    if: needs.due.outputs.due == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -58,5 +81,6 @@ jobs:
         env:
           IT_SCAN_URL: ${{ vars.IT_SCAN_URL }}
           IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
-          SCAN_ID: weekly-${{ github.run_id }}-${{ github.run_attempt }}
-        run: node scripts/security/report.mjs "$OUT" weekly
+          SCAN_KIND: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'weekly' }}
+          SCAN_ID: scan-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/security/report.mjs "$OUT" "$SCAN_KIND"

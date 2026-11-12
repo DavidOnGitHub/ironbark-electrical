@@ -253,3 +253,5 @@ export * from "./fixSummary";
 export * from "./plain";
 export * from "./security";
 export * from "./triage";
+export * from "./scanNow";
+export * from "./scanSchedule";

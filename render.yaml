@@ -48,6 +48,10 @@ services:
       - { key: STRIPE_SECRET_KEY, sync: false } # TEST mode key
       - { key: STRIPE_WEBHOOK_SECRET, sync: false }
       - { key: IT_SCAN_SECRET, sync: false } # HMAC secret for POST /api/it/scan; same value as the IT_SCAN_SECRET repo secret
+      - { key: IT_SECURITY_AUTOFIX, sync: false } # leave empty: security fixes open on their own. "off" stops them (separate from IT_AUTOFIX)
+      - { key: IT_SCAN_FREQUENCY, sync: false } # how often the scheduled security scan runs: weekly (default), fortnightly, monthly or never
+      - { key: IT_SCAN_REPO, value: DavidOnGitHub/ironbark-electrical } # the "Scan now" button starts the scan workflow in this repo
+      - { key: IT_SCAN_DISPATCH_TOKEN, sync: false } # fine-grained token, Actions: read and write on that repo only
 
   - type: worker
     name: ironbark-worker
