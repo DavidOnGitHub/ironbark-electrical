@@ -1,4 +1,4 @@
-import type { DismissedFinding, SecurityReport as Report } from "../domain/it";
+import type { DismissedFinding, ScanRun, SecurityReport as Report } from "../domain/it";
 import { FindingActions, ReopenButton } from "./FindingActions";
 import { ScanNowButton } from "./ScanNowButton";
 
@@ -21,7 +21,7 @@ export interface ScanSchedule {
   invalid: boolean;
 }
 
-export function SecurityReport({ report, canScan = false, schedule, dismissed = [] }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[] }) {
+export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null }) {
   const frequency = schedule ? (
     <div className="text-xs text-muted-foreground">
       <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
@@ -33,7 +33,7 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3" data-testid="security-report">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">No scan has reported yet.</p>
-          {canScan ? <ScanNowButton /> : null}
+          {canScan ? <ScanNowButton running={scanRun !== null} since={scanRun ? scanRun.since.toISOString() : null} runUrl={scanRun?.url ?? null} /> : null}
         </div>
         {frequency}
       </section>
@@ -46,7 +46,7 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
         <h2 className="text-sm font-semibold">{report.openTotal === 0 ? "Nothing open" : `${report.openTotal} open ${report.openTotal === 1 ? "finding" : "findings"}`}</h2>
         <div className="flex items-start gap-3">
           <p className="text-xs text-muted-foreground">Last scan {when(report.lastScanAt)} ({report.lastScanKind})</p>
-          {canScan ? <ScanNowButton /> : null}
+          {canScan ? <ScanNowButton running={scanRun !== null} since={scanRun ? scanRun.since.toISOString() : null} runUrl={scanRun?.url ?? null} /> : null}
         </div>
       </div>
       <ul className="flex flex-wrap gap-2 text-sm">
