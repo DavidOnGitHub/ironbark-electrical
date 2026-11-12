@@ -678,6 +678,8 @@ model Finding {
   file         String?
   line         Int?
   message      String
+  /// For a vulnerable dependency: the lowest patched version above the installed one, when the scanner named it.
+  fixedIn      String?
   /// scan | ai-review. AI review findings are never fixed without a person reading them first.
   source       String          @default("scan")
   status       FindingStatus   @default(OPEN)

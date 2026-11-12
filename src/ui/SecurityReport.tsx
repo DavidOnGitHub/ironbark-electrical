@@ -1,4 +1,5 @@
-import type { SecurityReport as Report } from "../domain/it";
+import type { DismissedFinding, SecurityReport as Report } from "../domain/it";
+import { FindingActions, ReopenButton } from "./FindingActions";
 import { ScanNowButton } from "./ScanNowButton";
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -20,7 +21,7 @@ export interface ScanSchedule {
   invalid: boolean;
 }
 
-export function SecurityReport({ report, canScan = false, schedule }: { report: Report; canScan?: boolean; schedule?: ScanSchedule }) {
+export function SecurityReport({ report, canScan = false, schedule, dismissed = [] }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[] }) {
   const frequency = schedule ? (
     <div className="text-xs text-muted-foreground">
       <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
@@ -77,9 +78,33 @@ export function SecurityReport({ report, canScan = false, schedule }: { report: 
                 {f.tool}{f.file ? ` - ${f.file}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
                 {f.itRequestNumber ? ` - being fixed in ${f.itRequestNumber}` : ""}
               </p>
+              <div className="mt-1">
+                <FindingActions id={f.id} hasFix={f.hasFix} />
+              </div>
             </li>
           ))}
         </ul>
+      ) : null}
+      {report.openTotal > report.top.length ? <p className="text-xs text-muted-foreground">And {report.openTotal - report.top.length} more, lower down the list.</p> : null}
+      {dismissed.length > 0 ? (
+        <details className="text-sm" data-testid="security-dismissed">
+          <summary className="cursor-pointer text-xs text-muted-foreground">Dismissed ({dismissed.length})</summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            {dismissed.map((d) => (
+              <li key={d.id}>
+                <p>
+                  <span className="font-medium">{d.status === "ACCEPTED_RISK" ? "Risk accepted" : "False positive"}</span> - {d.message}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {d.tool}{d.file ? ` - ${d.file}` : ""}{d.by ? ` - by ${d.by}` : ""} - {when(d.at)}{d.reason ? ` - "${d.reason}"` : ""}
+                </p>
+                <div className="mt-1">
+                  <ReopenButton id={d.id} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
     </section>
   );

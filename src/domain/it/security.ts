@@ -22,6 +22,8 @@ export const ScanFindingSchema = z.object({
   file: z.string().trim().max(500).nullish(),
   line: z.number().int().nonnegative().nullish(),
   message: z.string().trim().min(1).max(2000),
+  /** A plain version number only, because it is handed to the assistant as the version to install. */
+  fixedIn: z.string().trim().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/).max(60).nullish(),
   /** Stable across runs: must not contain line numbers or anything else that drifts. */
   fingerprint: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9:_.-]+$/),
   source: z.enum(["scan", "ai-review"]).default("scan"),
@@ -107,7 +109,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
       const prev = byPrint.get(f.fingerprint);
       if (!prev) {
         const row = await tx.finding.create({
-          data: { fingerprint: f.fingerprint, tool: f.tool, ruleId: f.ruleId, severity: f.severity, file: f.file ?? null, line: f.line ?? null, message: f.message, source: f.source, lastScanId: report.scanId, firstScanId: report.scanId, firstSeenAt: now, lastSeenAt: now },
+          data: { fingerprint: f.fingerprint, tool: f.tool, ruleId: f.ruleId, severity: f.severity, file: f.file ?? null, line: f.line ?? null, message: f.message, fixedIn: f.fixedIn ?? null, source: f.source, lastScanId: report.scanId, firstScanId: report.scanId, firstSeenAt: now, lastSeenAt: now },
         });
         await recordActivity(tx, { actor, entityType: "finding", entityId: row.id, kind: "CREATED", summary: `${f.severity} finding from ${f.tool}: ${f.message.slice(0, 120)}` });
         created++;
@@ -116,7 +118,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
       const wasFixed = prev.status === "FIXED";
       // Accepted risks and false positives stay as a person decided; FIXING stays until the change lands.
       const data: Prisma.FindingUpdateInput = {
-        severity: f.severity, message: f.message, file: f.file ?? null, line: f.line ?? null,
+        severity: f.severity, message: f.message, fixedIn: f.fixedIn ?? null, file: f.file ?? null, line: f.line ?? null,
         lastScanId: report.scanId, lastSeenAt: now, seenCount: { increment: 1 },
         ...(wasFixed ? { status: "OPEN", fixedAt: null } : {}),
       };
@@ -149,11 +151,11 @@ export interface SecurityReport {
   /** The last few scans, oldest first, for the trend. */
   trend: { id: string; at: Date; kind: string; total: number }[];
   /** The worst open findings. */
-  top: { id: string; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
+  top: { id: string; hasFix: boolean; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
 }
 
 /** What the Security tab shows: the state of things now and whether it is getting better. */
-export async function securityReport(topN = 10): Promise<SecurityReport> {
+export async function securityReport(topN = 25): Promise<SecurityReport> {
   const [scans, open] = await Promise.all([
     appDb.securityScan.findMany({ orderBy: { receivedAt: "desc" }, take: 8 }),
     appDb.finding.findMany({ where: { status: { in: ["OPEN", "FIXING"] } } }),
@@ -170,7 +172,7 @@ export async function securityReport(topN = 10): Promise<SecurityReport> {
     openBySeverity: [...SEVERITIES].reverse().map((severity) => ({ severity, count: count.get(severity) ?? 0 })),
     openTotal: open.length,
     trend: [...scans].reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
-    top: worstFirst.map((f) => ({ id: f.id, severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
+    top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };
 }
 
