@@ -650,3 +650,64 @@ model WatchCursor {
   at        DateTime
   updatedAt DateTime @updatedAt
 }
+
+enum FindingStatus {
+  OPEN
+  FIXING
+  FIXED
+  ACCEPTED_RISK
+  FALSE_POSITIVE
+}
+
+enum FindingSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// A security finding from a scheduled scan. The fingerprint is stable across runs, so a finding that shows up again
+/// updates this row instead of adding a second one; one that stops showing up is marked FIXED.
+model Finding {
+  id           String          @id @default(cuid())
+  fingerprint  String          @unique
+  tool         String
+  ruleId       String
+  severity     FindingSeverity
+  file         String?
+  line         Int?
+  message      String
+  /// scan | ai-review. AI review findings are never fixed without a person reading them first.
+  source       String          @default("scan")
+  status       FindingStatus   @default(OPEN)
+  /// The scan that last reported it.
+  lastScanId   String
+  firstScanId  String
+  firstSeenAt  DateTime        @default(now())
+  lastSeenAt   DateTime        @default(now())
+  /// Times it was reported by a scan (a rising count on a long-lived finding is the trend the report shows).
+  seenCount    Int             @default(1)
+  fixedAt      DateTime?
+  /// The ItRequest opened to fix it, if any.
+  itRequestId  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([status, severity])
+  @@index([tool, status])
+}
+
+/// One scan run as received: when it ran, what it covered and how many findings each tool reported. Drives the report's trend.
+model SecurityScan {
+  id         String   @id
+  kind       String
+  /// Tools that ran in this scan. Only these can mark their own earlier findings FIXED.
+  tools      String[]
+  commit     String?
+  receivedAt DateTime @default(now())
+  total      Int
+  bySeverity Json
+
+  @@index([receivedAt(sort: Desc)])
+}
