@@ -123,3 +123,24 @@ describe("securityReport", () => {
     expect((await securityReport()).lastScanAt).toBeNull();
   });
 });
+
+describe("securityHeadline", () => {
+  it("counts what is open by severity, how many are being fixed, and names the worst", async () => {
+    const { securityHeadline } = await import("../src/domain/it");
+    expect(await securityHeadline()).toMatchObject({ open: 0, beingFixed: 0, worst: null, lastScanAt: null });
+    await ingestScan(scan("s1", [finding({ fingerprint: "osv:aaaaaaa:1", severity: "LOW" }), finding({ fingerprint: "osv:bbbbbbb:2", severity: "HIGH" }), finding({ fingerprint: "osv:ccccccc:3", severity: "HIGH" }), finding({ fingerprint: "osv:ddddddd:4", severity: "MEDIUM" })]));
+    await appDb.finding.update({ where: { fingerprint: "osv:bbbbbbb:2" }, data: { status: "FIXING" } });
+    const h = await securityHeadline();
+    expect(h).toMatchObject({ open: 4, beingFixed: 1, worst: "HIGH" });
+    expect(h.bySeverity).toMatchObject({ HIGH: 2, MEDIUM: 1, LOW: 1, CRITICAL: 0 });
+    expect(h.lastScanAt).toBeInstanceOf(Date);
+  });
+
+  it("does not count fixed findings, accepted risks or false positives", async () => {
+    const { securityHeadline } = await import("../src/domain/it");
+    await ingestScan(scan("s1", [finding({ fingerprint: "osv:aaaaaaa:1" }), finding({ fingerprint: "osv:bbbbbbb:2" })]));
+    await appDb.finding.update({ where: { fingerprint: "osv:aaaaaaa:1" }, data: { status: "ACCEPTED_RISK" } });
+    await ingestScan(scan("s2", [])); // the other one is no longer reported
+    expect((await securityHeadline()).open).toBe(0);
+  });
+});

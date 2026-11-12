@@ -7,10 +7,12 @@ import { countByStatus, listRequests, requestAgeHours } from "../src/domain/requ
 import { openQuoteStats } from "../src/domain/quotes";
 import { countJobsByStatus, listJobsReadyToInvoice, weekSchedule } from "../src/domain/jobs";
 import { receivablesSummary } from "../src/domain/invoicing";
+import { securityHeadline } from "../src/domain/it";
 import { staffLabelMap } from "../src/domain/shared/staff";
 import { dayKey, formatDayKey, formatTime, weekStartKey } from "../src/lib/tz";
 import { formatMoney } from "../src/lib/money";
 import { PageHeader } from "../src/ui/fields";
+import { SecurityBanner } from "../src/ui/SecurityBanner";
 import { Age, Kpi, Money, Panel, Row, Rows } from "../src/ui/kit";
 import { JobStatusChip, JobTag, UrgencyChip, SOURCE_LABEL } from "../src/ui/chips";
 import { formatRelativeTime } from "@kabosh-digital/m-street-kit/format";
@@ -39,7 +41,8 @@ export default async function DashboardPage() {
   const canSeeWork = hasAnyRole(roles, Access.QUOTES_READ);
   const canSeeMoney = hasAnyRole(roles, Access.INVOICES_READ);
   const today = dayKey(new Date());
-  const [byStatus, waiting, activity, quoteStats, jobCounts, week, tools, money, ready, names] = await Promise.all([
+  const canSeeSecurity = hasAnyRole(roles, Access.IT_MANAGE);
+  const [byStatus, waiting, activity, quoteStats, jobCounts, week, tools, money, ready, names, security] = await Promise.all([
     canSeeRequests ? countByStatus() : null,
     canSeeRequests ? listRequests({ status: "NEW", limit: 50 }) : [],
     listRecentActivity(7),
@@ -50,6 +53,7 @@ export default async function DashboardPage() {
     canSeeMoney ? receivablesSummary() : null,
     canSeeMoney ? listJobsReadyToInvoice() : [],
     staffLabelMap(),
+    canSeeSecurity ? securityHeadline() : null,
   ]);
   const ages = waiting.map((r) => requestAgeHours(r.receivedAt));
   const oldest = ages.length ? Math.max(...ages) : 0;
@@ -72,6 +76,8 @@ export default async function DashboardPage() {
           <Kpi href="/schedule" label="Jobs this week" value={week.scheduled.length} tone={jobCounts.UNSCHEDULED > 0 ? "warn" : "neutral"} sub={jobCounts.UNSCHEDULED > 0 ? `${jobCounts.UNSCHEDULED} approved ${jobCounts.UNSCHEDULED === 1 ? "job" : "jobs"} to schedule` : `${jobCounts.IN_PROGRESS} in progress`} />
         ) : null}
       </section>
+
+      {security && security.open > 0 ? <SecurityBanner headline={security} /> : null}
 
       {ready.length > 0 ? (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-status-info/30 bg-status-info-soft px-4 py-3">
