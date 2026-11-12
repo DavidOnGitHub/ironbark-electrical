@@ -13,6 +13,7 @@ import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { ERROR_CLASS_LABEL, ensureClassified, worthFixing, worthWorkflowFix, type AiOptions } from "./classify";
 import { type AiBuilderClient, defaultClient, submitItRequest } from "./index";
+import { laneBusy } from "./lane";
 import { whereLabel } from "./plain";
 import { openWorkflowFix, type RunLookup, type WorkflowFixClient } from "./workflowFix";
 
@@ -256,6 +257,10 @@ export async function openErrorFix(errorId: string, client: AiBuilderClient | nu
   if (recent.length === CIRCUIT_BREAKER_FAILURES && recent.every((r) => r.status === "BUILD_FAILED" || r.status === "FAILED" || r.status === "CLOSED")) {
     return { opened: false, reason: "The last fixes all failed or were rejected; paused until a person looks" };
   }
+
+  // Fixes wait their turn: another fix still in flight might touch the same code. An earlier attempt at this same error is not "another".
+  const ahead = await laneBusy("ERROR", env);
+  if (ahead && !(ahead.sourceType === "error" && ahead.sourceId === errorId)) return { opened: false, reason: `Waiting for ${ahead.number} to finish first` };
 
   const attempt = tried + 1;
   const { request, created, started, reason } = await submitItRequest(
