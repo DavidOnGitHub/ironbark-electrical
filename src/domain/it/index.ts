@@ -10,7 +10,7 @@ import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, summarizeSession, type AiBuilderClient } from "./aiBuilder";
-import { costCapUsd, filesPushed, overCostCap, protectedFilesIn, PROTECTED_RULES } from "./guardrails";
+import { costCapUsd, filesPushed, mayChangeDependencies, overCostCap, protectedFilesFor, PROTECTED_RULES } from "./guardrails";
 import { syncWorkflowFix, workflowFixClientFromEnv, type WorkflowFixClient } from "./workflowFix";
 import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
 
@@ -120,7 +120,8 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
           itRequest: { id: current.id, number: current.number, kind: current.kind },
           ...((current.context as Record<string, unknown> | null) ?? {}),
           // Only a developer may approve changes under these areas; the assistant should stay out and say so if a fix needs one.
-          protectedPaths: PROTECTED_RULES.map((r) => r.label),
+          // A scan-driven dependency fix is the one request allowed to change the dependency files, so it is not told to stay out of them.
+          protectedPaths: PROTECTED_RULES.filter((r) => !(r.label === "Dependencies" && mayChangeDependencies(current))).map((r) => r.label),
         },
       },
       who,
@@ -180,7 +181,7 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
       });
     }
 
-    const protectedFiles = protectedFilesIn(filesPushed(detail.events));
+    const protectedFiles = protectedFilesFor(filesPushed(detail.events), row);
     const newlyProtected = protectedFiles.length > 0 && !row.needsDeveloper;
     return await appDb.$transaction(async (tx) => {
       const updated = await tx.itRequest.update({
