@@ -1,0 +1,81 @@
+name: Lockfile
+
+# A dependency fix by the IT assistant (AI Builder) changes package.json and pnpm-workspace.yaml but cannot regenerate
+# pnpm-lock.yaml: its sandbox has no network and no GitHub Packages token. CI installs with a frozen lockfile, so without
+# this the pull request fails. This runs `pnpm install --lockfile-only` on the assistant's branch and pushes the lockfile.
+#
+# Safety: it only runs for branches of this repository that start with ai/, only when the whole change is limited to
+# package.json, pnpm-workspace.yaml, pnpm-lock.yaml and specs (scripts/lockfile/scope.mjs), and it never runs install
+# scripts. Needs the repo secret PACKAGES_READ_TOKEN, as CI does.
+#
+# A push made with the built-in token does not start the pull-request CI, so this starts CI itself on the branch
+# (workflow_dispatch is allowed for that) and the required `verify` check is reported for the new commit.
+
+on:
+  pull_request:
+    branches: [staging]
+    types: [opened, synchronize, reopened]
+    paths:
+      - package.json
+      - pnpm-workspace.yaml
+
+concurrency:
+  group: lockfile-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  lockfile:
+    if: startsWith(github.event.pull_request.head.ref, 'ai/') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Is this only a dependency change?
+        id: scope
+        run: |
+          if git diff --name-only "origin/${BASE_REF}...HEAD" | node scripts/lockfile/scope.mjs; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not regenerating the lockfile: the change goes beyond dependencies, so a person should look."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.scope.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Let pnpm read the platform packages
+        if: steps.scope.outputs.ok == 'true'
+        run: echo "//npm.pkg.github.com/:_authToken=${PACKAGES_READ_TOKEN}" >> ~/.npmrc
+        env:
+          PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+      - name: Regenerate pnpm-lock.yaml
+        if: steps.scope.outputs.ok == 'true'
+        run: pnpm install --lockfile-only --ignore-scripts
+      - name: Push the lockfile and start CI on it
+        if: steps.scope.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo "The lockfile is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git commit -m "chore: regenerate pnpm-lock.yaml"
+          git push origin "HEAD:${HEAD_REF}"
+          gh workflow run ci.yml --ref "${HEAD_REF}"
