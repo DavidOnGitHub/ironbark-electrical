@@ -12,12 +12,17 @@ export function SecurityBanner({ headline }: { headline: SecurityHeadline }) {
   const urgent = headline.bySeverity.CRITICAL + headline.bySeverity.HIGH > 0;
   const tone = urgent ? "border-status-bad/30 bg-status-bad-soft" : headline.worst === "MEDIUM" ? "border-status-warn/30 bg-status-warn-soft" : "border-status-info/30 bg-status-info-soft";
   const parts = NAMES.filter((s) => headline.bySeverity[s] > 0).map((s) => `${headline.bySeverity[s]} ${s.toLowerCase()}`);
-  const waiting = headline.open - headline.beingFixed;
+  const waiting = headline.open - headline.beingFixed - headline.failedFix;
+  const progress = [
+    headline.beingFixed > 0 ? `${plural(headline.beingFixed, "is", "are")} being fixed` : null,
+    headline.failedFix > 0 ? `${plural(headline.failedFix, "fix", "fixes")} did not work and ${headline.failedFix === 1 ? "needs" : "need"} a look` : null,
+    waiting > 0 ? `${waiting} ${waiting === 1 ? "is" : "are"} waiting` : null,
+  ].filter(Boolean);
   return (
     <div role={urgent ? "alert" : "status"} className={`flex flex-wrap items-center gap-3 rounded-md border px-4 py-3 ${tone}`} data-testid="security-banner">
       <p className="min-w-56 flex-1">
         <strong>{plural(headline.open, "security issue", "security issues")} found by the latest scan</strong> ({parts.join(", ")}).{" "}
-        {headline.beingFixed > 0 ? `${plural(headline.beingFixed, "is", "are")} being fixed${waiting > 0 ? `; ${waiting} still ${waiting === 1 ? "needs" : "need"} a look.` : "."}` : "None have a fix under way yet."}
+        {progress.length > 0 ? `${progress.join("; ")}.` : "None have a fix under way yet."}
       </p>
       <Link href="/it?tab=security" className="inline-flex h-9 items-center rounded bg-primary px-3.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
         See the issues

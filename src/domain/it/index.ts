@@ -255,6 +255,8 @@ export * from "./security";
 export * from "./triage";
 export * from "./lane";
 export * from "./dismiss";
+export * from "./pause";
+export * from "./retry";
 export * from "./queue";
 export * from "./scanNow";
 export * from "./scanSchedule";

@@ -129,7 +129,8 @@ describe("securityHeadline", () => {
     const { securityHeadline } = await import("../src/domain/it");
     expect(await securityHeadline()).toMatchObject({ open: 0, beingFixed: 0, worst: null, lastScanAt: null });
     await ingestScan(scan("s1", [finding({ fingerprint: "osv:aaaaaaa:1", severity: "LOW" }), finding({ fingerprint: "osv:bbbbbbb:2", severity: "HIGH" }), finding({ fingerprint: "osv:ccccccc:3", severity: "HIGH" }), finding({ fingerprint: "osv:ddddddd:4", severity: "MEDIUM" })]));
-    await appDb.finding.update({ where: { fingerprint: "osv:bbbbbbb:2" }, data: { status: "FIXING" } });
+    const req = await appDb.itRequest.create({ data: { number: "IT-9001", kind: "FINDING", title: "t", description: "d", status: "PR_OPEN", requestedByLabel: "IT assistant" } });
+    await appDb.finding.update({ where: { fingerprint: "osv:bbbbbbb:2" }, data: { status: "FIXING", itRequestId: req.id } });
     const h = await securityHeadline();
     expect(h).toMatchObject({ open: 4, beingFixed: 1, worst: "HIGH" });
     expect(h.bySeverity).toMatchObject({ HIGH: 2, MEDIUM: 1, LOW: 1, CRITICAL: 0 });

@@ -1,5 +1,5 @@
 import type { DismissedFinding, ScanRun, SecurityReport as Report } from "../domain/it";
-import { FindingActions, ReopenButton } from "./FindingActions";
+import { FindingActions, FixQueueControls, ReopenButton, RetryFixButton } from "./FindingActions";
 import { ScanNowButton } from "./ScanNowButton";
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -21,7 +21,7 @@ export interface ScanSchedule {
   invalid: boolean;
 }
 
-export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null }) {
+export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null, pause = null, failedFixes = 0 }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null; pause?: string | null; failedFixes?: number }) {
   const frequency = schedule ? (
     <div className="text-xs text-muted-foreground">
       <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
@@ -57,6 +57,13 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
         ))}
       </ul>
       {frequency}
+      {pause || failedFixes > 0 ? (
+        <div className="flex flex-col gap-2 rounded-md border border-status-warn/30 bg-status-warn-soft px-3 py-2 text-sm" data-testid="security-fix-pause">
+          {pause ? <p>{pause}</p> : null}
+          {failedFixes > 0 ? <p>{failedFixes === 1 ? "1 fix did not work" : `${failedFixes} fixes did not work`}: the assistant could not build a change. They can be tried again, now that the scan names the patched version.</p> : null}
+          <FixQueueControls paused={Boolean(pause)} failedCount={failedFixes} />
+        </div>
+      ) : null}
       {report.trend.length > 1 ? (
         <div>
           <p className="mb-1 text-xs text-muted-foreground">Findings per scan, oldest to newest</p>
@@ -76,9 +83,11 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
               </p>
               <p className="text-xs text-muted-foreground">
                 {f.tool}{f.file ? ` - ${f.file}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
-                {f.itRequestNumber ? ` - being fixed in ${f.itRequestNumber}` : ""}
+                {f.itRequestNumber && !f.fixFailed ? ` - being fixed in ${f.itRequestNumber}` : ""}
+                {f.fixFailed ? ` - the fix (${f.itRequestNumber}) did not work` : ""}
               </p>
-              <div className="mt-1">
+              <div className="mt-1 flex flex-wrap gap-2">
+                {f.fixFailed ? <RetryFixButton id={f.id} /> : null}
                 <FindingActions id={f.id} hasFix={f.hasFix} />
               </div>
             </li>

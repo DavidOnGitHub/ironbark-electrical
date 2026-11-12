@@ -2,7 +2,7 @@
 
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
-import { dismissFinding, ItActionError, reopenFinding, startScan, type Responder } from "../domain/it";
+import { dismissFinding, ItActionError, reopenFinding, resumeSecurityFixes, retryFailedFixes, retryFindingFix, startScan, type Responder } from "../domain/it";
 import { userActor } from "../domain/shared/actor";
 import { errorMessage } from "./shared";
 
@@ -34,4 +34,24 @@ export async function dismissFindingAction(id: string, status: string, reason: s
 /** Owner and Office: undo a dismissal. */
 export async function reopenFindingAction(id: string) {
   return decide((who) => reopenFinding(String(id), who));
+}
+
+/** Owner and Office: try one failed fix again now. */
+export async function retryFindingFixAction(id: string) {
+  return decide(async (who) => {
+    const r = await retryFindingFix(String(id), who);
+    if (!r.opened) throw new ItActionError(r.reason);
+  });
+}
+
+/** Owner and Office: put every failed fix back in line (and lift the pause); the queue takes them one at a time. */
+export async function retryFailedFixesAction() {
+  return decide(async (who) => {
+    await retryFailedFixes(who);
+  });
+}
+
+/** Owner and Office: carry on with automatic fixes after a pause. */
+export async function resumeSecurityFixesAction() {
+  return decide((who) => resumeSecurityFixes(who));
 }
