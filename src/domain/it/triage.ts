@@ -5,13 +5,14 @@
  *   - High and critical dependency findings (OSV, audit) -> a `maintenance` request
  *   - Everything else (lower severity, a leaked secret, anything an AI review wrote) is reported for a person. A code
  *     change cannot rotate a secret, and an AI review is never acted on before a human has read it.
- * A fix is only opened where auto-fix is switched on, for a finding that has no request yet, and a few at a time per
- * scan so a noisy first scan cannot spend the budget in one go. A person still approves the plan and accepts the change.
+ * Security fixes open on their own whatever IT_AUTOFIX says (that switch is for fixing errors). Only
+ * IT_SECURITY_AUTOFIX=off stops them. A fix is opened for a finding that has no request yet, and a few at a time per scan,
+ * so a noisy first scan cannot spend the budget in one go; each is also held to the usual per-fix cost cap. A person still
+ * approves the plan and accepts the change.
  */
 import type { Finding } from "ironbark-electrical-client";
 import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
-import { autoFixEnabled } from "./errors";
 import { submitItRequest, defaultClient } from "./index";
 import type { AiBuilderClient } from "./aiBuilder";
 import { SEVERITIES } from "./security";
@@ -20,6 +21,9 @@ const SYSTEM = { type: "SYSTEM" as const, label: "IT assistant" };
 const DEPENDENCY_TOOLS = ["osv", "pnpm-audit"];
 /** At most this many fixes are opened from one scan, most severe first. */
 export const MAX_FIXES_PER_SCAN = 3;
+
+/** On unless IT_SECURITY_AUTOFIX=off. Independent of IT_AUTOFIX, which only governs fixing errors. */
+export const securityFixEnabled = (env: Record<string, string | undefined> = process.env): boolean => env.IT_SECURITY_AUTOFIX?.trim().toLowerCase() !== "off";
 
 export type FindingDecision = { action: "fix"; intent: "bugfix" | "maintenance"; reason: string } | { action: "report"; reason: string } | { action: "skip"; reason: string };
 
@@ -42,7 +46,7 @@ export interface FindingFixResult {
 
 /** Opens the fix for one finding if the rules and the switch allow it. Never throws for an ordinary refusal. */
 export async function openFindingFix(findingId: string, client: AiBuilderClient | null = defaultClient(), env: Record<string, string | undefined> = process.env): Promise<FindingFixResult> {
-  if (!autoFixEnabled(env)) return { opened: false, reason: "Auto-fix is off" };
+  if (!securityFixEnabled(env)) return { opened: false, reason: "Security fixes are switched off" };
   const f = await appDb.finding.findUniqueOrThrow({ where: { id: findingId } });
   const decision = decideFinding(f);
   if (decision.action !== "fix") return { opened: false, reason: decision.reason };

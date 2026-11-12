@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../src/db/app";
-import { decideFinding, ingestScan, MAX_FIXES_PER_SCAN, openFindingFix, triageScan, type AiBuilderClient } from "../src/domain/it";
+import { decideFinding, ingestScan, MAX_FIXES_PER_SCAN, openFindingFix, securityFixEnabled, triageScan, type AiBuilderClient } from "../src/domain/it";
 import { truncateAll } from "./helpers";
 
-const on = { IT_AUTOFIX: "on" };
+// Security fixes do not need IT_AUTOFIX: an empty environment is the normal case.
+const on = {};
 const f = (over: Record<string, unknown> = {}) => ({ tool: "semgrep", ruleId: "r", severity: "HIGH", file: "src/a.ts", line: 1, message: "Unsafe thing", fingerprint: `semgrep:r:${Math.random().toString(36).slice(2, 12)}`, ...over });
 const scan = (scanId: string, findings: unknown[], tools = ["semgrep", "osv", "gitleaks"]) => ({ scanId, kind: "weekly", tools, findings });
 const client = () =>
@@ -39,11 +40,22 @@ describe("decideFinding", () => {
 });
 
 describe("openFindingFix and triageScan", () => {
-  it("does nothing while auto-fix is off", async () => {
+  it("opens a fix whatever IT_AUTOFIX says, because it is a separate switch", async () => {
+    expect(securityFixEnabled({})).toBe(true);
+    expect(securityFixEnabled({ IT_AUTOFIX: "off" })).toBe(true);
     await ingestScan(scan("s1", [f()]));
     const row = await appDb.finding.findFirstOrThrow();
-    expect(await openFindingFix(row.id, client(), {})).toEqual({ opened: false, reason: "Auto-fix is off" });
+    expect((await openFindingFix(row.id, client(), { IT_AUTOFIX: "off" })).opened).toBe(true);
+  });
+
+  it("does nothing while IT_SECURITY_AUTOFIX is off", async () => {
+    for (const v of ["off", " OFF "]) expect(securityFixEnabled({ IT_SECURITY_AUTOFIX: v })).toBe(false);
+    expect(securityFixEnabled({ IT_SECURITY_AUTOFIX: "on" })).toBe(true);
+    await ingestScan(scan("s1", [f()]));
+    const row = await appDb.finding.findFirstOrThrow();
+    expect(await openFindingFix(row.id, client(), { IT_SECURITY_AUTOFIX: "off" })).toEqual({ opened: false, reason: "Security fixes are switched off" });
     expect(await appDb.itRequest.count()).toBe(0);
+    expect((await triageScan("s1", client(), { IT_SECURITY_AUTOFIX: "off" })).opened).toBe(0);
   });
 
   it("opens a bugfix request, links it, and marks the finding as being fixed", async () => {
