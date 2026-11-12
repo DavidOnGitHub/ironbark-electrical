@@ -36,14 +36,19 @@ export async function listFailedFixes(): Promise<FailedFix[]> {
 /**
  * Puts findings back as open. Their dead requests are closed first: a failed request still counts as open for the same
  * source, so a new one would otherwise be refused as a duplicate (and the assistant could still pick the old one up).
+ * One request can serve several findings (advisories against the same package), and they all go back together.
  */
 async function reopen(failed: FailedFix[], who: Responder): Promise<void> {
+  const requests = new Map(failed.map((f) => [f.requestId, f.requestNumber]));
   await appDb.$transaction(async (tx) => {
-    for (const f of failed) {
-      await tx.itRequest.update({ where: { id: f.requestId }, data: { status: "CLOSED" } });
-      await recordActivity(tx, { actor: who.actor, entityType: "itRequest", entityId: f.requestId, kind: "STATUS_CHANGED", summary: `${f.requestNumber}: closed so the fix can be tried again` });
-      await tx.finding.update({ where: { id: f.findingId }, data: { status: "OPEN", itRequestId: null } });
-      await recordActivity(tx, { actor: who.actor, entityType: "finding", entityId: f.findingId, kind: "REOPENED", summary: `Fix retried after ${f.requestNumber} failed` });
+    for (const [requestId, number] of requests) {
+      await tx.itRequest.update({ where: { id: requestId }, data: { status: "CLOSED" } });
+      await recordActivity(tx, { actor: who.actor, entityType: "itRequest", entityId: requestId, kind: "STATUS_CHANGED", summary: `${number}: closed so the fix can be tried again` });
+      const linked = await tx.finding.findMany({ where: { itRequestId: requestId, status: "FIXING" }, select: { id: true } });
+      for (const f of linked) {
+        await tx.finding.update({ where: { id: f.id }, data: { status: "OPEN", itRequestId: null } });
+        await recordActivity(tx, { actor: who.actor, entityType: "finding", entityId: f.id, kind: "REOPENED", summary: `Fix retried after ${number} failed` });
+      }
     }
   });
 }
