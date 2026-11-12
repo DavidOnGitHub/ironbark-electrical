@@ -149,11 +149,11 @@ export interface SecurityReport {
   /** The last few scans, oldest first, for the trend. */
   trend: { id: string; at: Date; kind: string; total: number }[];
   /** The worst open findings. */
-  top: { id: string; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
+  top: { id: string; hasFix: boolean; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
 }
 
 /** What the Security tab shows: the state of things now and whether it is getting better. */
-export async function securityReport(topN = 10): Promise<SecurityReport> {
+export async function securityReport(topN = 25): Promise<SecurityReport> {
   const [scans, open] = await Promise.all([
     appDb.securityScan.findMany({ orderBy: { receivedAt: "desc" }, take: 8 }),
     appDb.finding.findMany({ where: { status: { in: ["OPEN", "FIXING"] } } }),
@@ -170,7 +170,7 @@ export async function securityReport(topN = 10): Promise<SecurityReport> {
     openBySeverity: [...SEVERITIES].reverse().map((severity) => ({ severity, count: count.get(severity) ?? 0 })),
     openTotal: open.length,
     trend: [...scans].reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
-    top: worstFirst.map((f) => ({ id: f.id, severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
+    top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };
 }
 

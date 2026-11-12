@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../src/db/app";
-import { decideFinding, ingestScan, MAX_FIXES_PER_SCAN, openFindingFix, securityFixEnabled, triageScan, type AiBuilderClient } from "../src/domain/it";
+import { decideFinding, ingestScan, openFindingFix, openNextFindingFix, queuedFindingCount, securityFixEnabled, triageScan, type AiBuilderClient } from "../src/domain/it";
 import { truncateAll } from "./helpers";
 
 // Security fixes do not need IT_AUTOFIX: an empty environment is the normal case.
@@ -76,16 +76,37 @@ describe("openFindingFix and triageScan", () => {
     expect(await appDb.itRequest.findFirstOrThrow()).toMatchObject({ intent: "maintenance" });
   });
 
-  it("opens the worst few from one scan, most severe first, and leaves the rest for the next", async () => {
-    const many = Array.from({ length: MAX_FIXES_PER_SCAN + 2 }, (_, i) => f({ severity: i === 0 ? "CRITICAL" : "HIGH", message: `Problem ${i}` }));
+  it("opens one fix at a time, the worst first, and leaves the rest waiting their turn", async () => {
+    const many = Array.from({ length: 4 }, (_, i) => f({ severity: i === 0 ? "CRITICAL" : "HIGH", message: `Problem ${i}` }));
     await ingestScan(scan("s1", [...many, f({ severity: "LOW" }), f({ tool: "gitleaks", severity: "CRITICAL" })]));
     const r = await triageScan("s1", client(), on);
-    expect(r).toMatchObject({ opened: MAX_FIXES_PER_SCAN, skippedByLimit: 2, reported: 2 });
+    expect(r).toMatchObject({ opened: 1, queued: 3, reported: 2 });
     expect((await appDb.finding.findFirstOrThrow({ where: { message: "Problem 0" } })).status).toBe("FIXING");
-    // The next scan picks up the ones that were left.
-    await ingestScan(scan("s2", many));
-    const next = await triageScan("s2", client(), on);
-    expect(next.opened).toBe(2);
+    expect(await queuedFindingCount()).toBe(3);
+    // While that one is in flight nothing else opens, however often the queue is asked.
+    expect(await openNextFindingFix(client(), on)).toMatchObject({ opened: false, reason: expect.stringMatching(/^Waiting for/) });
+    expect(await appDb.itRequest.count()).toBe(1);
+  });
+
+  it("opens the next one when the one in front is merged, closed or has stopped", async () => {
+    await ingestScan(scan("s1", [f({ message: "First" }), f({ message: "Second" })]));
+    await triageScan("s1", client(), on);
+    const first = await appDb.itRequest.findFirstOrThrow();
+    for (const status of ["PR_OPEN", "ACCEPTED"] as const) {
+      await appDb.itRequest.update({ where: { id: first.id }, data: { status } });
+      expect((await openNextFindingFix(client(), on)).opened).toBe(false);
+    }
+    await appDb.itRequest.update({ where: { id: first.id }, data: { status: "MERGED" } });
+    expect((await openNextFindingFix(client(), on)).opened).toBe(true);
+    expect(await appDb.itRequest.count()).toBe(2);
+  });
+
+  it("opens fixes side by side again when IT_FIX_QUEUE is off", async () => {
+    await ingestScan(scan("s1", [f({ message: "First" }), f({ message: "Second" })]));
+    const side = { IT_FIX_QUEUE: "off" };
+    expect((await openNextFindingFix(client(), side)).opened).toBe(true);
+    expect((await openNextFindingFix(client(), side)).opened).toBe(true);
+    expect(await appDb.itRequest.count()).toBe(2);
   });
 
   it("does not open a second request for a finding that already has one", async () => {
