@@ -6,8 +6,9 @@
  *   - Everything else (lower severity, a leaked secret, anything an AI review wrote) is reported for a person. A code
  *     change cannot rotate a secret, and an AI review is never acted on before a human has read it.
  * Security fixes open on their own whatever IT_AUTOFIX says (that switch is for fixing errors). Only
- * IT_SECURITY_AUTOFIX=off stops them. A fix is opened for a finding that has no request yet, and a few at a time per scan,
- * so a noisy first scan cannot spend the budget in one go; each is also held to the usual per-fix cost cap. A person still
+ * IT_SECURITY_AUTOFIX=off stops them. A fix is opened for a finding that has no request yet, one at a time: the worst
+ * finding goes first and the rest wait their turn (see lane.ts), so two fixes never collide in the lockfile and a noisy
+ * first scan cannot spend the budget in one go. Each is also held to the usual per-fix cost cap, and a person still
  * approves the plan and accepts the change.
  */
 import type { Finding } from "ironbark-electrical-client";
@@ -15,12 +16,11 @@ import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import { submitItRequest, defaultClient } from "./index";
 import type { AiBuilderClient } from "./aiBuilder";
+import { laneBusy } from "./lane";
 import { SEVERITIES } from "./security";
 
 const SYSTEM = { type: "SYSTEM" as const, label: "IT assistant" };
 const DEPENDENCY_TOOLS = ["osv", "pnpm-audit"];
-/** At most this many fixes are opened from one scan, most severe first. */
-export const MAX_FIXES_PER_SCAN = 3;
 
 /** On unless IT_SECURITY_AUTOFIX=off. Independent of IT_AUTOFIX, which only governs fixing errors. */
 export const securityFixEnabled = (env: Record<string, string | undefined> = process.env): boolean => env.IT_SECURITY_AUTOFIX?.trim().toLowerCase() !== "off";
@@ -50,6 +50,9 @@ export async function openFindingFix(findingId: string, client: AiBuilderClient 
   const f = await appDb.finding.findUniqueOrThrow({ where: { id: findingId } });
   const decision = decideFinding(f);
   if (decision.action !== "fix") return { opened: false, reason: decision.reason };
+
+  const ahead = await laneBusy("FINDING", env);
+  if (ahead) return { opened: false, reason: `Waiting for ${ahead.number} to finish first` };
 
   const where = f.file ? ` in ${f.file}` : "";
   const { request, created, reason } = await submitItRequest(
@@ -84,25 +87,39 @@ export interface TriageResult {
   considered: number;
   opened: number;
   reported: number;
-  skippedByLimit: number;
+  /** High or critical findings still waiting for their turn. */
+  queued: number;
 }
 
-/** After a scan: opens fixes for the worst new or returning findings, up to the per-scan limit. */
+/** Findings that should get a fix but have no request yet, worst first. */
+async function fixable() {
+  const rows = await appDb.finding.findMany({ where: { status: "OPEN", itRequestId: null } });
+  return rows.filter((f) => decideFinding(f).action === "fix").sort((a, b) => rank(b.severity) - rank(a.severity) || b.seenCount - a.seenCount);
+}
+
+export async function queuedFindingCount(): Promise<number> {
+  return securityFixEnabled() ? (await fixable()).length : 0;
+}
+
+/** Opens the fix for the worst waiting finding, if the lane is free. */
+export async function openNextFindingFix(client: AiBuilderClient | null = defaultClient(), env: Record<string, string | undefined> = process.env): Promise<FindingFixResult> {
+  if (!securityFixEnabled(env)) return { opened: false, reason: "Security fixes are switched off" };
+  if (await laneBusy("FINDING", env)) return { opened: false, reason: "Waiting for the current fix to finish first" };
+  const next = (await fixable())[0];
+  if (!next) return { opened: false, reason: "Nothing is waiting" };
+  try {
+    return await openFindingFix(next.id, client, env);
+  } catch (err) {
+    console.error("[it] could not open a fix for a finding", err instanceof Error ? err.message : err);
+    return { opened: false, reason: "Could not open the fix" };
+  }
+}
+
+/** After a scan: reports what was found and opens the first fix if the lane is free. */
 export async function triageScan(scanId: string, client: AiBuilderClient | null = defaultClient(), env: Record<string, string | undefined> = process.env): Promise<TriageResult> {
   const rows = await appDb.finding.findMany({ where: { lastScanId: scanId, status: "OPEN", itRequestId: null } });
-  const decided = rows.map((f) => ({ f, d: decideFinding(f) }));
-  const fixable = decided.filter((x) => x.d.action === "fix").sort((a, b) => rank(b.f.severity) - rank(a.f.severity));
-  const result: TriageResult = { considered: rows.length, opened: 0, reported: decided.filter((x) => x.d.action === "report").length, skippedByLimit: 0 };
-  for (const [i, x] of fixable.entries()) {
-    if (i >= MAX_FIXES_PER_SCAN) {
-      result.skippedByLimit++;
-      continue;
-    }
-    try {
-      if ((await openFindingFix(x.f.id, client, env)).opened) result.opened++;
-    } catch (err) {
-      console.error("[it] could not open a fix for a finding", err instanceof Error ? err.message : err);
-    }
-  }
-  return result;
+  const decided = rows.map((f) => decideFinding(f).action);
+  const opened = (await openNextFindingFix(client, env)).opened ? 1 : 0;
+  const waiting = securityFixEnabled(env) ? (await fixable()).length : 0;
+  return { considered: rows.length, opened, reported: decided.filter((a) => a === "report").length, queued: waiting };
 }
