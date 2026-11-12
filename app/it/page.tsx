@@ -6,7 +6,7 @@ import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status"
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
 import { SecurityReport } from "../../src/ui/SecurityReport";
-import { securityReport } from "../../src/domain/it";
+import { scanNowAvailable, securityReport } from "../../src/domain/it";
 import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
 import { demoBreakAvailable, listDemoBugs } from "../../src/domain/demo";
 import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
@@ -51,7 +51,7 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
           </Link>
         ))}
       </nav>
-      {security ? <SecurityReport report={security} /> : null}
+      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} /> : null}
       {unfixed.length > 0 ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3" data-testid="it-unfixed">
           <h2 className="text-sm font-semibold">Looked at, not changed by the assistant</h2>
