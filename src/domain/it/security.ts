@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { Prisma } from "ironbark-electrical-client";
 import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
+import { IN_FLIGHT } from "./lane";
 import type { Actor } from "../shared/actor";
 
 export const SEVERITIES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -151,7 +152,7 @@ export interface SecurityReport {
   /** The last few scans, oldest first, for the trend. */
   trend: { id: string; at: Date; kind: string; total: number }[];
   /** The worst open findings. */
-  top: { id: string; hasFix: boolean; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
+  top: { id: string; hasFix: boolean; fixFailed: boolean; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
 }
 
 /** What the Security tab shows: the state of things now and whether it is getting better. */
@@ -164,7 +165,8 @@ export async function securityReport(topN = 25): Promise<SecurityReport> {
   for (const f of open) count.set(f.severity as Severity, (count.get(f.severity as Severity) ?? 0) + 1);
   const worstFirst = [...open].sort((a, b) => rank(b.severity as Severity) - rank(a.severity as Severity) || b.seenCount - a.seenCount).slice(0, topN);
   const reqIds = worstFirst.map((f) => f.itRequestId).filter((x): x is string => Boolean(x));
-  const reqs = reqIds.length ? await appDb.itRequest.findMany({ where: { id: { in: reqIds } }, select: { id: true, number: true } }) : [];
+  const reqs = reqIds.length ? await appDb.itRequest.findMany({ where: { id: { in: reqIds } }, select: { id: true, number: true, status: true } }) : [];
+  const failedIds = new Set(reqs.filter((r) => r.status === "BUILD_FAILED" || r.status === "FAILED").map((r) => r.id));
   const numberOf = new Map(reqs.map((r) => [r.id, r.number]));
   return {
     lastScanAt: scans[0]?.receivedAt ?? null,
@@ -172,35 +174,48 @@ export async function securityReport(topN = 25): Promise<SecurityReport> {
     openBySeverity: [...SEVERITIES].reverse().map((severity) => ({ severity, count: count.get(severity) ?? 0 })),
     openTotal: open.length,
     trend: [...scans].reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
-    top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
+    top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId) && !failedIds.has(f.itRequestId!), fixFailed: Boolean(f.itRequestId) && failedIds.has(f.itRequestId!), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };
 }
 
 export interface SecurityHeadline {
   /** Open findings (open or being fixed). */
   open: number;
-  /** Of those, how many already have a fix under way. */
+  /** Of those, how many have a fix really under way (its request is still going). */
   beingFixed: number;
+  /** Of those, how many had a fix that failed and now need a person. */
+  failedFix: number;
   bySeverity: Record<Severity, number>;
   /** The worst severity among them, or null when nothing is open. */
   worst: Severity | null;
   lastScanAt: Date | null;
 }
 
-/** The few numbers the dashboard banner needs. Cheap: two grouped counts and the latest scan. */
+/** The few numbers the dashboard banner needs. Cheap: two grouped counts, one lookup of the fixes, and the latest scan. */
 export async function securityHeadline(): Promise<SecurityHeadline> {
-  const [groups, last] = await Promise.all([
-    appDb.finding.groupBy({ by: ["severity", "status"], where: { status: { in: ["OPEN", "FIXING"] } }, _count: { _all: true } }),
+  const [groups, fixing, last] = await Promise.all([
+    appDb.finding.groupBy({ by: ["severity"], where: { status: { in: ["OPEN", "FIXING"] } }, _count: { _all: true } }),
+    appDb.finding.findMany({ where: { status: "FIXING" }, select: { itRequestId: true } }),
     appDb.securityScan.findFirst({ orderBy: { receivedAt: "desc" }, select: { receivedAt: true } }),
   ]);
   const bySeverity = Object.fromEntries(SEVERITIES.map((s) => [s, 0])) as Record<Severity, number>;
   let open = 0;
-  let beingFixed = 0;
   for (const g of groups) {
     bySeverity[g.severity as Severity] += g._count._all;
     open += g._count._all;
-    if (g.status === "FIXING") beingFixed += g._count._all;
+  }
+  // "Being fixed" is a claim about the request: only count it while that request is still going.
+  const ids = fixing.map((f) => f.itRequestId).filter((x): x is string => Boolean(x));
+  const requests = ids.length ? await appDb.itRequest.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }) : [];
+  const status = new Map(requests.map((r) => [r.id, r.status]));
+  let beingFixed = 0;
+  let failedFix = 0;
+  for (const f of fixing) {
+    const st = f.itRequestId ? status.get(f.itRequestId) : undefined;
+    if (st === "BUILD_FAILED" || st === "FAILED") failedFix++;
+    else if (st && IN_FLIGHT.includes(st as never)) beingFixed++;
+    else if (st === "MERGED" || st === "LIVE") beingFixed++; // merged: waiting for the next scan to confirm
   }
   const worst = [...SEVERITIES].reverse().find((s) => bySeverity[s] > 0) ?? null;
-  return { open, beingFixed, bySeverity, worst, lastScanAt: last?.receivedAt ?? null };
+  return { open, beingFixed, failedFix, bySeverity, worst, lastScanAt: last?.receivedAt ?? null };
 }

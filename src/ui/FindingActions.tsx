@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { dismissFindingAction, reopenFindingAction } from "../actions/security";
+import { dismissFindingAction, reopenFindingAction, resumeSecurityFixesAction, retryFailedFixesAction, retryFindingFixAction } from "../actions/security";
 
 type Mode = "ACCEPTED_RISK" | "FALSE_POSITIVE";
 const COPY: Record<Mode, { button: string; ask: string; confirm: string; required: boolean }> = {
@@ -81,6 +81,64 @@ export function ReopenButton({ id }: { id: string }) {
       >
         {pending ? "Reopening..." : "Reopen"}
       </button>
+      {error ? <span role="alert" className="text-xs text-destructive">{error}</span> : null}
+    </span>
+  );
+}
+
+/** One failed fix: try it again. */
+export function RetryFixButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <span className="flex flex-col gap-1">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            setError(null);
+            const r = await retryFindingFixAction(id);
+            if (r.error) setError(r.error);
+            else router.refresh();
+          })
+        }
+        className="self-start rounded-md border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50"
+      >
+        {pending ? "Retrying..." : "Try the fix again"}
+      </button>
+      {error ? <span role="alert" className="text-xs text-destructive">{error}</span> : null}
+    </span>
+  );
+}
+
+/** When automatic fixes are paused, or fixes have failed: resume, or put every failed fix back in line. */
+export function FixQueueControls({ paused, failedCount }: { paused: boolean; failedCount: number }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const run = (action: () => Promise<{ error: string | null }>) =>
+    start(async () => {
+      setError(null);
+      const r = await action();
+      if (r.error) setError(r.error);
+      else router.refresh();
+    });
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="flex flex-wrap gap-2">
+        {failedCount > 0 ? (
+          <button type="button" disabled={pending} onClick={() => run(retryFailedFixesAction)} className="rounded-md border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50">
+            {pending ? "Working..." : `Try ${failedCount} failed ${failedCount === 1 ? "fix" : "fixes"} again`}
+          </button>
+        ) : null}
+        {paused ? (
+          <button type="button" disabled={pending} onClick={() => run(resumeSecurityFixesAction)} className="rounded-md border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50">
+            Resume automatic fixes
+          </button>
+        ) : null}
+      </span>
       {error ? <span role="alert" className="text-xs text-destructive">{error}</span> : null}
     </span>
   );
