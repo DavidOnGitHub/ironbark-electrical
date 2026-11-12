@@ -58,5 +58,6 @@ jobs:
         env:
           IT_SCAN_URL: ${{ vars.IT_SCAN_URL }}
           IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
-          SCAN_ID: weekly-${{ github.run_id }}-${{ github.run_attempt }}
-        run: node scripts/security/report.mjs "$OUT" weekly
+          SCAN_KIND: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'weekly' }}
+          SCAN_ID: scan-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/security/report.mjs "$OUT" "$SCAN_KIND"
