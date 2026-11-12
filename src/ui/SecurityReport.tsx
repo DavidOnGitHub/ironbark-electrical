@@ -12,12 +12,29 @@ const label = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 const when = (d: Date) => d.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 /** The Security tab's report: what is open now by severity, the last scan, the worst findings and the trend. */
-export function SecurityReport({ report, canScan = false }: { report: Report; canScan?: boolean }) {
+export interface ScanSchedule {
+  /** "Every week", "Never (manual only)", ... */
+  label: string;
+  nextText: string | null;
+  /** Set when the configured value was not understood and weekly is used instead. */
+  invalid: boolean;
+}
+
+export function SecurityReport({ report, canScan = false, schedule }: { report: Report; canScan?: boolean; schedule?: ScanSchedule }) {
+  const frequency = schedule ? (
+    <div className="text-xs text-muted-foreground">
+      <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
+      {schedule.invalid ? <p>The scan frequency setting was not understood, so scans run weekly.</p> : null}
+    </div>
+  ) : null;
   if (!report.lastScanAt) {
     return (
-      <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-foreground/10 p-3" data-testid="security-report">
-        <p className="text-sm text-muted-foreground">No scan has reported yet. Scans run every Monday.</p>
-        {canScan ? <ScanNowButton /> : null}
+      <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3" data-testid="security-report">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">No scan has reported yet.</p>
+          {canScan ? <ScanNowButton /> : null}
+        </div>
+        {frequency}
       </section>
     );
   }
@@ -38,6 +55,7 @@ export function SecurityReport({ report, canScan = false }: { report: Report; ca
           </li>
         ))}
       </ul>
+      {frequency}
       {report.trend.length > 1 ? (
         <div>
           <p className="mb-1 text-xs text-muted-foreground">Findings per scan, oldest to newest</p>
