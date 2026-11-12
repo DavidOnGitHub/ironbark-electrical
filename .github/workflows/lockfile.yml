@@ -8,8 +8,10 @@ name: Lockfile
 # package.json, pnpm-workspace.yaml, pnpm-lock.yaml and specs (scripts/lockfile/scope.mjs), and it never runs install
 # scripts. Needs the repo secret PACKAGES_READ_TOKEN, as CI does.
 #
-# A push made with the built-in token does not start the pull-request CI, so this starts CI itself on the branch
-# (workflow_dispatch is allowed for that) and the required `verify` check is reported for the new commit.
+# It pushes with LOCKFILE_PUSH_TOKEN: a fine-grained personal access token limited to this repository with only
+# Contents: read and write. A push made with the built-in token starts no pull-request checks, or starts them in a state
+# that waits for someone to approve, so the pull request would stay blocked. A push by a person's token starts the
+# normal CI at once. Without the secret the workflow does nothing and says so.
 
 on:
   pull_request:
@@ -24,8 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 jobs:
   lockfile:
@@ -35,13 +36,26 @@ jobs:
     env:
       HEAD_REF: ${{ github.event.pull_request.head.ref }}
       BASE_REF: ${{ github.event.pull_request.base.ref }}
+      PUSH_TOKEN: ${{ secrets.LOCKFILE_PUSH_TOKEN }}
     steps:
+      - name: Can it push?
+        id: token
+        run: |
+          if [ -n "$PUSH_TOKEN" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not regenerating the lockfile: the repository secret LOCKFILE_PUSH_TOKEN is not set."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.token.outputs.ok == 'true'
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
+          token: ${{ secrets.LOCKFILE_PUSH_TOKEN }}
       - name: Is this only a dependency change?
         id: scope
+        if: steps.token.outputs.ok == 'true'
         run: |
           if git diff --name-only "origin/${BASE_REF}...HEAD" | node scripts/lockfile/scope.mjs; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
@@ -64,10 +78,8 @@ jobs:
       - name: Regenerate pnpm-lock.yaml
         if: steps.scope.outputs.ok == 'true'
         run: pnpm install --lockfile-only --ignore-scripts
-      - name: Push the lockfile and start CI on it
+      - name: Push the lockfile
         if: steps.scope.outputs.ok == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- pnpm-lock.yaml; then
             echo "The lockfile is already up to date."
@@ -78,4 +90,3 @@ jobs:
           git add pnpm-lock.yaml
           git commit -m "chore: regenerate pnpm-lock.yaml"
           git push origin "HEAD:${HEAD_REF}"
-          gh workflow run ci.yml --ref "${HEAD_REF}"
