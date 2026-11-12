@@ -5,7 +5,8 @@ import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Card } from "@kabosh-digital/m-street-kit/ui/card";
 import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
-import { listQuotes, QUOTE_STATUS_LABEL, type QuoteStatusValue } from "../../src/domain/quotes";
+import { listQuotes, QUOTE_STATUS_LABEL, validityNote, type QuoteStatusValue } from "../../src/domain/quotes";
+import { isDemoBugOn } from "../../src/domain/demo";
 import { formatMoney } from "../../src/lib/money";
 import { PageHeader } from "../../src/ui/fields";
 import { QuoteStatusChip } from "../../src/ui/chips";
@@ -18,6 +19,7 @@ export default async function QuotesPage(props: { searchParams: Promise<{ status
   const { status } = await props.searchParams;
   const filter = STATUSES.find((s) => s === status);
   const quotes = await listQuotes({ status: filter });
+  const demoBug = await isDemoBugOn("quote-validity");
   const canWrite = hasAnyRole(user.roles, Access.QUOTES_WRITE);
   const tab = (href: string, label: string, active: boolean) => (
     <Link key={label} href={href}>
@@ -56,7 +58,10 @@ export default async function QuotesPage(props: { searchParams: Promise<{ status
                 </td>
                 <td className="px-4 py-2.5"><Link href={`/clients/${q.client.id}`} className="hover:underline">{q.client.name}</Link></td>
                 <td className="px-4 py-2.5"><QuoteStatusChip status={q.effectiveStatus} /></td>
-                <td className="px-4 py-2.5 text-xs">{q.status === "DRAFT" ? "-" : q.validUntil.toLocaleDateString("en-AU")}</td>
+                <td className="px-4 py-2.5 text-xs">
+                  {q.status === "DRAFT" || !q.validUntil ? "-" : q.validUntil.toLocaleDateString("en-AU")}
+                  <p className="text-muted-foreground">{validityNote(q, new Date(), demoBug)}</p>
+                </td>
                 <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatMoney(q.totalCents)}</td>
               </tr>
             ))}

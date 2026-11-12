@@ -59,8 +59,9 @@ suite (integration tests use the `ironbark-electrical-test` schema).
 
 ## Demo accounts
 
-Password for all: `Ironbark-demo-1` (local demo only - choose another for a
-hosted demo).
+Password for all: `Ironbark-demo-1` (local demo only - it is public). For any hosted
+demo set `DEMO_PASSWORD` to your own value when running `pnpm seed`; the seed
+then uses it for every account.
 
 | Account | Role |
 |---|---|

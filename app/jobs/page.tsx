@@ -4,6 +4,8 @@ import { Card } from "@kabosh-digital/m-street-kit/ui/card";
 import { Access } from "../../src/access";
 import { requireBusinessPage } from "../../src/guard";
 import { JOB_STATUS_LABEL, JOB_STATUS_ORDER, listJobs, type JobStatusValue } from "../../src/domain/jobs";
+import { visitNote } from "../../src/domain/jobs/visitNote";
+import { isDemoBugOn } from "../../src/domain/demo";
 import { staffLabelMap } from "../../src/domain/shared/staff";
 import { formatDayTime } from "../../src/lib/tz";
 import { PageHeader } from "../../src/ui/fields";
@@ -15,6 +17,7 @@ export default async function JobsPage(props: { searchParams: Promise<{ status?:
   await requireBusinessPage(Access.JOBS_READ);
   const { status, view } = await props.searchParams;
   const filter = JOB_STATUS_ORDER.find((s) => s === status) as JobStatusValue | undefined;
+  const demoBug = await isDemoBugOn("job-schedule");
   const jobs = await listJobs({ status: filter, activeOnly: !filter && view === "active" });
   const labels = await staffLabelMap();
   const tab = (href: string, label: string, active: boolean) => (
@@ -58,7 +61,10 @@ export default async function JobsPage(props: { searchParams: Promise<{ status?:
                   <Link href={`/clients/${j.client.id}`} className="hover:underline">{j.client.name}</Link>
                   {j.site ? <p className="text-xs text-muted-foreground">{j.site.suburb}</p> : null}
                 </td>
-                <td className="px-4 py-2.5 text-xs">{j.scheduledStart ? formatDayTime(j.scheduledStart) : "-"}</td>
+                <td className="px-4 py-2.5 text-xs">
+                  {j.scheduledStart ? formatDayTime(j.scheduledStart) : "-"}
+                  <p className="text-muted-foreground">{visitNote(j, demoBug)}</p>
+                </td>
                 <td className="px-4 py-2.5 text-xs">{j.assignedUserId ? (labels.get(j.assignedUserId) ?? "-") : "-"}</td>
                 <td className="px-4 py-2.5"><JobStatusChip status={j.status} /></td>
               </tr>

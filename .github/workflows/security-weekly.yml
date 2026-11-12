@@ -1,0 +1,62 @@
+name: Security scan (weekly)
+
+# Dependency audit, secret scan and static analysis. Each tool's output is normalised and POSTed, HMAC-signed, to
+# the app's /api/it/scan, where findings become rows the IT assistant triages. See PLAN-it-assistant.md, Phase 2.
+# Needs: repo variable IT_SCAN_URL (https://<app>/api/it/scan) and repo secret IT_SCAN_SECRET (the same value as the
+# app's IT_SCAN_SECRET). Scheduled runs use the default branch.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-weekly
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUT: ${{ github.workspace }}/scan-out
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks reads history
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: mkdir -p "$OUT"
+      # Every tool step may fail without failing the job: a tool that produced no output is reported as "did not run",
+      # so it cannot mark its earlier findings as fixed.
+      - name: OSV scanner (lockfile vulnerabilities)
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:latest --lockfile=pnpm-lock.yaml --format json > "$OUT/osv.json" || [ $? -eq 1 ]
+      - name: pnpm audit
+        continue-on-error: true
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${PACKAGES_READ_TOKEN}" >> ~/.npmrc
+          pnpm audit --json > "$OUT/pnpm-audit.json" || [ $? -eq 1 ]
+        env:
+          PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+      - name: Gitleaks (secrets in history)
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo --report-format json --report-path /repo/scan-out/gitleaks.json --no-banner --redact || [ $? -eq 1 ]
+      - name: Semgrep (static analysis)
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:latest semgrep scan --config p/typescript --config p/nextjs --config p/security-audit --json --metrics=off --quiet src app > "$OUT/semgrep.json" || [ $? -eq 1 ]
+      - name: Send the report
+        env:
+          IT_SCAN_URL: ${{ vars.IT_SCAN_URL }}
+          IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
+          SCAN_ID: weekly-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/security/report.mjs "$OUT" weekly

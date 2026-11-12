@@ -26,6 +26,7 @@ export async function register() {
           { href: "/invoices", label: "Invoices", icon: "receipt", roles: ["ADMIN", "EDITOR", "VIEWER"] },
         ],
       },
+      { title: "IT", items: [{ href: "/it", label: "IT", icon: "settings", roles: ["ADMIN", "EDITOR", "OPERATOR", "VIEWER"] }] },
       { title: "Insights", items: [{ href: "/reports", label: "Reports", icon: "bar-chart", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "About this demo", items: [{ href: "/works-for", label: "Works for...", icon: "building", roles: ["ADMIN", "EDITOR", "VIEWER"] }] },
       { title: "Field", items: [{ href: "/my-day", label: "My day", icon: "wrench", roles: ["OPERATOR"] }] },
@@ -47,5 +48,22 @@ export async function register() {
     assistantSteps: ironSparkAssistantSteps,
     appAssistantTools: ironbarkAppAssistantTools,
     policy: { DEFINITIONS_AND_INSTANCES: ["ADMIN"], CONNECTORS: ["ADMIN"] },
+  });
+}
+
+// Next calls this for every error thrown while serving a request: pages, route handlers, server actions and
+// middleware. It only records and, when switched on, hands the error to the IT assistant; it must never throw.
+export async function onRequestError(
+  error: unknown,
+  request: { path: string; method: string },
+  context: { routerKind: string; routePath: string; routeType: string; renderSource?: string; revalidateReason?: string },
+) {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { reportError } = await import("./src/domain/it");
+  await reportError(error, {
+    source: context.routeType === "action" ? "action" : "request",
+    // The route pattern (/quotes/[id]), not the URL: it carries no ids and groups the same bug together.
+    route: context.routePath || request.path,
+    context: { method: request.method, routeType: context.routeType, routerKind: context.routerKind, renderSource: context.renderSource, revalidateReason: context.revalidateReason },
   });
 }

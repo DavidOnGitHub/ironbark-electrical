@@ -31,3 +31,17 @@ Rules marked "(inferred)" come from the code only and are not confirmed by a tes
 - BR-EML-6: Templates are managed by Owner and Office only.
 - BR-EML-7: Each email is rendered as branded HTML with a plain-text twin.
 - BR-EML-8: An email with an empty recipient is not sent.
+
+## IT assistant (IT)
+
+- BR-IT-1: An IT request is a change the business asked for, or an error or security finding the assistant noticed. Each is numbered IT-1001, IT-1002, ... and is one AI Builder session whose progress it mirrors.
+- BR-IT-2: A request that names a source (an error or a finding) reuses the open request for that source instead of starting a second; once that request is Done or Closed, a new one may open.
+- BR-IT-3: Errors and findings are handled automatically (the assistant asks no questions); a change asked for by a person goes through a plan they approve. Either way the assistant only opens pull requests, and a person accepts the finished change.
+- BR-IT-4: Owner and Office act as approvers in the assistant (they approve plans and accept changes); everyone else can only ask for changes.
+- BR-IT-5: A request's status follows the assistant's session: working out the plan, needs answers, plan ready to approve, building, build needs attention, ready to try, accepted, merged and going live, live, deploy failed, closed, failed. A status the app does not recognise reads as failed. Live and Closed are final.
+- BR-IT-6: If the assistant cannot be reached, a new request stays Submitted with the reason shown and is retried every minute; it is never lost, and only one process creates the session.
+- BR-IT-8: Merged is not live. After a merge the app follows the deploy of that change on every service that runs the app: it is Live when all of them are running it (or a later deploy that carries it), and Deploy failed when a deploy ends in failure or none starts within 20 minutes. A deploy superseded by a newer commit is not a failure.
+- BR-IT-9: When a deploy fails, the assistant opens one fix request (an automated bug fix, with the build log as data). It goes through the same tested pull request and acceptance as any change, so a person still accepts it. A fix for a fix is never opened automatically. When a later deploy goes live, the original request becomes Live.
+- BR-IT-10: The IT page keeps the history in three lists: features asked for, bug fixes (errors, including failed deploys), and security scans (findings). Owner and Office see every request; everyone else sees their own. A request is worked (questions, plan, accept) from its row on the page; the assistant's panel is for asking and for what needs you.
+- BR-IT-7: Page context, error text and finding details are untrusted data: they are passed to the assistant as data, never as instructions.
+

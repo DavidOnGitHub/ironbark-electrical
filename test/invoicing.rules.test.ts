@@ -37,6 +37,13 @@ describe("overdue", () => {
     expect(daysOverdue(due, new Date("2026-10-11T00:00:00Z"))).toBe(1);
     expect(daysOverdue(due, new Date("2026-10-09T00:00:00Z"))).toBe(0);
   });
+  it("AC-1: a missing due date is 0 days overdue and does not throw (BR-INV-11)", () => {
+    expect(daysOverdue(null, new Date("2026-10-12T00:00:00Z"))).toBe(0);
+  });
+  it("AC-2: an issued invoice with no due date keeps its stored status, never OVERDUE (BR-INV-10)", () => {
+    const now = new Date("2026-10-12T00:00:00Z");
+    for (const s of ["SENT", "PARTIALLY_PAID"] as const) expect(effectiveInvoiceStatus(s, null, 5000, now)).toBe(s);
+  });
   it("walks the chasing cadence: day 1 email, day 7 call, day 14 formal notice, day 30 escalate", () => {
     expect(chaseStage(0)).toEqual({ stage: 0, action: "Not overdue" });
     expect(chaseStage(1).stage).toBe(1);
