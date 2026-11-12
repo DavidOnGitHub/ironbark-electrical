@@ -70,6 +70,24 @@ describe("openFindingFix and triageScan", () => {
     expect((c.createSession as any).mock.calls[0][0].context.finding).toMatchObject({ tool: "semgrep", severity: "HIGH" });
   });
 
+  it("gives the assistant the patched version, and no lockfile to hand-write, when the scan names one", async () => {
+    await ingestScan(scan("s1", [f({ tool: "osv", fingerprint: "osv:GHSA-1:next", message: "next@16.3.7: Bad thing (fixed in 16.3.9)", fixedIn: "16.3.9" })]));
+    expect((await appDb.finding.findFirstOrThrow()).fixedIn).toBe("16.3.9");
+    const c = client();
+    await openFindingFix((await appDb.finding.findFirstOrThrow()).id, c, on);
+    const input = (c.createSession as any).mock.calls[0][0];
+    expect(input.text).toContain("patched version: 16.3.9");
+    expect(input.text).toContain("Do not hand-write pnpm-lock.yaml");
+    expect(input.context.finding).toMatchObject({ fixedIn: "16.3.9" });
+  });
+
+  it("tells the assistant to change nothing when the version is not known", async () => {
+    await ingestScan(scan("s1", [f({ tool: "osv", fingerprint: "osv:GHSA-1:next" })]));
+    const c = client();
+    await openFindingFix((await appDb.finding.findFirstOrThrow()).id, c, on);
+    expect((c.createSession as any).mock.calls[0][0].text).toContain("If you cannot tell which version is patched, say so and change nothing");
+  });
+
   it("opens a maintenance request for a vulnerable dependency", async () => {
     await ingestScan(scan("s1", [f({ tool: "osv", fingerprint: "osv:GHSA-1:lodash" })]));
     await openFindingFix((await appDb.finding.findFirstOrThrow()).id, client(), on);

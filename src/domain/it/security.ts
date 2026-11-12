@@ -22,6 +22,8 @@ export const ScanFindingSchema = z.object({
   file: z.string().trim().max(500).nullish(),
   line: z.number().int().nonnegative().nullish(),
   message: z.string().trim().min(1).max(2000),
+  /** A plain version number only, because it is handed to the assistant as the version to install. */
+  fixedIn: z.string().trim().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/).max(60).nullish(),
   /** Stable across runs: must not contain line numbers or anything else that drifts. */
   fingerprint: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9:_.-]+$/),
   source: z.enum(["scan", "ai-review"]).default("scan"),
@@ -107,7 +109,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
       const prev = byPrint.get(f.fingerprint);
       if (!prev) {
         const row = await tx.finding.create({
-          data: { fingerprint: f.fingerprint, tool: f.tool, ruleId: f.ruleId, severity: f.severity, file: f.file ?? null, line: f.line ?? null, message: f.message, source: f.source, lastScanId: report.scanId, firstScanId: report.scanId, firstSeenAt: now, lastSeenAt: now },
+          data: { fingerprint: f.fingerprint, tool: f.tool, ruleId: f.ruleId, severity: f.severity, file: f.file ?? null, line: f.line ?? null, message: f.message, fixedIn: f.fixedIn ?? null, source: f.source, lastScanId: report.scanId, firstScanId: report.scanId, firstSeenAt: now, lastSeenAt: now },
         });
         await recordActivity(tx, { actor, entityType: "finding", entityId: row.id, kind: "CREATED", summary: `${f.severity} finding from ${f.tool}: ${f.message.slice(0, 120)}` });
         created++;
@@ -116,7 +118,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
       const wasFixed = prev.status === "FIXED";
       // Accepted risks and false positives stay as a person decided; FIXING stays until the change lands.
       const data: Prisma.FindingUpdateInput = {
-        severity: f.severity, message: f.message, file: f.file ?? null, line: f.line ?? null,
+        severity: f.severity, message: f.message, fixedIn: f.fixedIn ?? null, file: f.file ?? null, line: f.line ?? null,
         lastScanId: report.scanId, lastSeenAt: now, seenCount: { increment: 1 },
         ...(wasFixed ? { status: "OPEN", fixedAt: null } : {}),
       };
