@@ -6,7 +6,7 @@ import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status"
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
 import { SecurityReport } from "../../src/ui/SecurityReport";
-import { nextScanAfter, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityReport } from "../../src/domain/it";
+import { listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityReport } from "../../src/domain/it";
 import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
 import { demoBreakAvailable, listDemoBugs } from "../../src/domain/demo";
 import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
@@ -37,11 +37,14 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
   const demoBugs = showDemo ? await listDemoBugs() : [];
   const unfixed = tab === "fixes" && hasAnyRole(user.roles, Access.IT_MANAGE) ? await listUnfixedErrors() : [];
   const security = tab === "security" && hasAnyRole(user.roles, Access.IT_MANAGE) ? await securityReport() : null;
+  const dismissed = security ? await listDismissedFindings() : [];
   const frequency = scanFrequency();
   const nextAt = security ? nextScanAfter(frequency, security.lastScanAt) : null;
   const schedule = security
     ? { label: SCAN_FREQUENCY_LABEL[frequency], invalid: scanFrequencyInvalid(), nextText: nextAt ? `Next scan: on or after ${nextAt.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : frequency === "never" ? "No scan runs on its own; use Scan now" : "The next daily check will run the first scan" }
     : undefined;
+  const queued = hasAnyRole(user.roles, Access.IT_MANAGE) && (tab === "fixes" || tab === "security") ? await queuedFixCounts() : null;
+  const waitingCount = queued ? (tab === "fixes" ? queued.errors : queued.findings) : 0;
   const needsYou = all.filter((r) => r.waiting).length;
 
   return (
@@ -56,7 +59,12 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
           </Link>
         ))}
       </nav>
-      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} schedule={schedule} /> : null}
+      {waitingCount > 0 ? (
+        <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm" data-testid="it-queue">
+          {waitingCount === 1 ? "1 fix is" : `${waitingCount} fixes are`} waiting for the current one to finish. They go one at a time so two changes cannot clash.
+        </p>
+      ) : null}
+      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} schedule={schedule} dismissed={dismissed} /> : null}
       {unfixed.length > 0 ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3" data-testid="it-unfixed">
           <h2 className="text-sm font-semibold">Looked at, not changed by the assistant</h2>
