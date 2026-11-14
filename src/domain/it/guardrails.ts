@@ -23,7 +23,7 @@ export const PROTECTED_RULES: ProtectedRule[] = [
   { label: "Dependencies", test: /^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$)/ },
 ];
 
-const DEPENDENCY_FILE = /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/;
+export const DEPENDENCY_FILE =/^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/;
 const SPEC_FILE = /^specs\/[^/]+\.md$/;
 
 /**
