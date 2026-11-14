@@ -31,7 +31,7 @@ overrides:
   # via @temporalio/* > @grpc/grpc-js (GHSA-m9gg-hp2v-232j, GHSA-f596-whhp-79r4)
   '@grpc/grpc-js@>=1.14.0 <1.14.5': ^1.14.5
   # via @temporalio/worker > webpack > schema-utils > ajv
-  fast-uri@<3.1.7: ^3.1.7
+  fast-uri@<3.1.9: ^3.1.9
   # via @prisma/client > prisma > @prisma/config
   deepmerge-ts@<8: ^8.0.2
   # via vitest (GHSA-85c8-ppgw-ccpr, GHSA-5gmw-xhrv-c9v3)
