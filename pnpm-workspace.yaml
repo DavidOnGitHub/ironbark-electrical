@@ -36,3 +36,5 @@ overrides:
   deepmerge-ts@<8: ^8.0.2
   # via vitest (GHSA-85c8-ppgw-ccpr, GHSA-5gmw-xhrv-c9v3)
   tinypool@<2.1.2: ^2.1.2
+  # via postcss, @tailwindcss/node and source-map-loader (GHSA-68fv-2mgg-jv7q)
+  'source-map-js@<1.2.2': ^1.2.2
