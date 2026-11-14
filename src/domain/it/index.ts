@@ -258,6 +258,7 @@ export * from "./lane";
 export * from "./dismiss";
 export * from "./pause";
 export * from "./semver";
+export * from "./autoMerge";
 export * from "./retry";
 export * from "./queue";
 export * from "./scanNow";

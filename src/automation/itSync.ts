@@ -1,4 +1,4 @@
-import { advanceFixQueue, checkItDeploys, checkRevertGuard, createRenderHost, defaultClient, renderConfigFromEnv, syncOpenItRequests, type AiBuilderClient } from "../domain/it";
+import { advanceFixQueue, autoMergeDependencyFixes, checkItDeploys, checkRevertGuard, createRenderHost, defaultClient, renderConfigFromEnv, syncOpenItRequests, type AiBuilderClient } from "../domain/it";
 
 /**
  * Keeps IT requests in step with the assistant's sessions: every minute, in the worker. Polling needs no webhook and
@@ -21,6 +21,8 @@ export function startItSync(everyMs = 60_000, client: AiBuilderClient | null = d
     try {
       const r = await syncOpenItRequests(client);
       if (r.changed) console.log(`[it] ${r.changed} of ${r.checked} request(s) changed`);
+      const m = await autoMergeDependencyFixes(client);
+      if (m) console.log(`[it] auto-merged ${m} dependency fix(es)`);
       const q = await advanceFixQueue(client);
       if (q.errors || q.findings) console.log(`[it] queue: opened ${q.errors} error fix(es) and ${q.findings} security fix(es)`);
       const g = await checkRevertGuard(client);
