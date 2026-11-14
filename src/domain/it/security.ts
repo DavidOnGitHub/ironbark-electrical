@@ -78,6 +78,17 @@ export function verifyScanSignature(opts: { secret: string; timestamp: string | 
 
 const rank = (s: Severity) => SEVERITIES.indexOf(s);
 
+/** One finding as an older scan reported it. Read only: history is never acted on. */
+export interface HistoricFinding {
+  severity: Severity;
+  tool: string;
+  message: string;
+  file: string | null;
+  fixedIn: string | null;
+}
+/** The most findings kept per scan; the scan's own total still counts all of them. */
+export const HISTORY_FINDINGS_KEPT = 500;
+
 /** Applies one report. Idempotent per scan id: a second delivery changes nothing. */
 export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM", label: "Security scan" }): Promise<IngestResult> {
   const report = ScanReportSchema.parse(input);
@@ -96,8 +107,12 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
     }
     const bySeverity: Record<string, number> = {};
     for (const f of findings) bySeverity[f.severity] = (bySeverity[f.severity] ?? 0) + 1;
+    const snapshot: HistoricFinding[] = [...findings]
+      .sort((a, b) => rank(b.severity) - rank(a.severity))
+      .slice(0, HISTORY_FINDINGS_KEPT)
+      .map((f) => ({ severity: f.severity, tool: f.tool, message: f.message.slice(0, 400), file: f.file ?? null, fixedIn: f.fixedIn ?? null }));
     await tx.securityScan.create({
-      data: { id: report.scanId, kind: report.kind, tools: report.tools, commit: report.commit ?? null, total: findings.length, bySeverity },
+      data: { id: report.scanId, kind: report.kind, tools: report.tools, commit: report.commit ?? null, total: findings.length, bySeverity, findings: snapshot as unknown as Prisma.InputJsonValue },
     });
 
     const existing = await tx.finding.findMany({ where: { fingerprint: { in: findings.map((f) => f.fingerprint) } } });
@@ -151,6 +166,8 @@ export interface SecurityReport {
   openTotal: number;
   /** The last few scans, oldest first, for the trend. */
   trend: { id: string; at: Date; kind: string; total: number }[];
+  /** Earlier scans, newest first, with what each reported. History only: nothing in it can be acted on. */
+  history: { id: string; at: Date; kind: string; total: number; findings: HistoricFinding[] | null }[];
   /** The worst open findings. */
   top: { id: string; hasFix: boolean; fixFailed: boolean; severity: Severity; tool: string; message: string; file: string | null; status: string; seenCount: number; itRequestNumber: string | null }[];
 }
@@ -174,6 +191,7 @@ export async function securityReport(topN = 25): Promise<SecurityReport> {
     openBySeverity: [...SEVERITIES].reverse().map((severity) => ({ severity, count: count.get(severity) ?? 0 })),
     openTotal: open.length,
     trend: [...scans].reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
+    history: scans.slice(1).map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total, findings: Array.isArray(s.findings) ? (s.findings as unknown as HistoricFinding[]).slice(0, 100) : null })),
     top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId) && !failedIds.has(f.itRequestId!), fixFailed: Boolean(f.itRequestId) && failedIds.has(f.itRequestId!), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };
 }

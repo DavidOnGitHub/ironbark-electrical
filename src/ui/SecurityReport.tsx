@@ -40,6 +40,8 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
     );
   }
   const peak = Math.max(1, ...report.trend.map((t) => t.total));
+  // While a new scan runs, what is listed is the previous scan's: it can be read, not acted on.
+  const readOnly = scanRun !== null;
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3" data-testid="security-report">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -57,7 +59,12 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
         ))}
       </ul>
       {frequency}
-      {pause || failedFixes > 0 ? (
+      {readOnly ? (
+        <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm" data-testid="security-read-only">
+          A new scan is running. The findings below are from the previous scan and are history now: they cannot be fixed or dismissed. The results of the new scan will appear here when it finishes.
+        </p>
+      ) : null}
+      {!readOnly && (pause || failedFixes > 0) ? (
         <div className="flex flex-col gap-2 rounded-md border border-status-warn/30 bg-status-warn-soft px-3 py-2 text-sm" data-testid="security-fix-pause">
           {pause ? <p>{pause}</p> : null}
           {failedFixes > 0 ? <p>{failedFixes === 1 ? "1 fix did not work" : `${failedFixes} fixes did not work`}: the assistant could not build a change. They can be tried again, now that the scan names the patched version.</p> : null}
@@ -87,8 +94,8 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
                 {f.fixFailed ? ` - the fix (${f.itRequestNumber}) did not work` : ""}
               </p>
               <div className="mt-1 flex flex-wrap gap-2">
-                {f.fixFailed ? <RetryFixButton id={f.id} /> : null}
-                <FindingActions id={f.id} hasFix={f.hasFix} />
+                {readOnly ? null : f.fixFailed ? <RetryFixButton id={f.id} /> : null}
+                {readOnly ? null : <FindingActions id={f.id} hasFix={f.hasFix} />}
               </div>
             </li>
           ))}
@@ -107,9 +114,39 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
                 <p className="text-xs text-muted-foreground">
                   {d.tool}{d.file ? ` - ${d.file}` : ""}{d.by ? ` - by ${d.by}` : ""} - {when(d.at)}{d.reason ? ` - "${d.reason}"` : ""}
                 </p>
-                <div className="mt-1">
-                  <ReopenButton id={d.id} />
-                </div>
+                {readOnly ? null : (
+                  <div className="mt-1">
+                    <ReopenButton id={d.id} />
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {report.history.length > 0 ? (
+        <details className="text-sm" data-testid="security-history">
+          <summary className="cursor-pointer text-xs text-muted-foreground">History: earlier scans ({report.history.length})</summary>
+          <ul className="mt-2 flex flex-col gap-3">
+            {report.history.map((h) => (
+              <li key={h.id}>
+                <details>
+                  <summary className="cursor-pointer text-sm">
+                    {when(h.at)} ({h.kind}) - {h.total} {h.total === 1 ? "finding" : "findings"}
+                  </summary>
+                  {h.findings === null ? (
+                    <p className="mt-1 text-xs text-muted-foreground">The details of this scan were not kept.</p>
+                  ) : (
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {h.findings.map((f, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message} ({f.tool}{f.file ? ` - ${f.file}` : ""})
+                        </li>
+                      ))}
+                      {h.total > h.findings.length ? <li className="text-xs text-muted-foreground">And {h.total - h.findings.length} more.</li> : null}
+                    </ul>
+                  )}
+                </details>
               </li>
             ))}
           </ul>
