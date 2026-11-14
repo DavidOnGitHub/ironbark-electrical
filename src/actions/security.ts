@@ -2,7 +2,7 @@
 
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
-import { dismissFinding, ItActionError, reopenFinding, resumeSecurityFixes, retryFailedFixes, retryFindingFix, startScan, type Responder } from "../domain/it";
+import { currentScanRun, dismissFinding, ItActionError, reopenFinding, resumeSecurityFixes, retryFailedFixes, retryFindingFix, startScan, type Responder } from "../domain/it";
 import { userActor } from "../domain/shared/actor";
 import { errorMessage } from "./shared";
 
@@ -19,6 +19,8 @@ const responder = (user: AuthedUser): Responder => ({ actor: userActor(user), us
 async function decide(run: (who: Responder) => Promise<void>): Promise<{ error: string | null }> {
   const user = await requireRole(Access.IT_MANAGE);
   try {
+    // The previous scan's findings are history once a new scan is running; the new report decides what is open.
+    if (await currentScanRun()) throw new ItActionError("A new scan is running. The earlier results are history now; act on the new ones when it finishes.");
     await run(responder(user));
     return { error: null };
   } catch (err) {

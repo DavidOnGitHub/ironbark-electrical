@@ -3,7 +3,7 @@
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
-import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
+import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, mayChangeDependencies, securityAutoMergeOn, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
 import { errorMessage } from "./shared";
 
 /** What the assistant panel shows for one request. */
@@ -35,7 +35,7 @@ const view = (r: Awaited<ReturnType<typeof listItRequests>>[number]): ItRequestV
   kind: r.kind,
   status: r.status,
   statusLabel: IT_STATUS_LABEL[r.status],
-  waiting: r.needsDeveloper && r.status === "PR_OPEN" ? "A developer must review this change" : waitingOnPerson(r.status),
+  waiting: r.needsDeveloper && r.status === "PR_OPEN" ? "A developer must review this change" : r.status === "PR_OPEN" && mayChangeDependencies(r) && securityAutoMergeOn() ? null : waitingOnPerson(r.status),
   needsDeveloper: r.needsDeveloper,
   workflowId: r.workflowProposalId ? r.workflowId : null,
   protectedAreas: protectedAreas(r.protectedFiles),

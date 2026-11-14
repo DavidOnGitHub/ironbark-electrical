@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../src/db/app";
 import {
   acceptItChange, buildFeed, captureError, checkRevertGuard, costCapUsd, createItRequest, filesPushed, ItActionError, judgeSpike, measureChange, normalisePath, overCostCap,
-  protectedFilesIn, protectedReason, resetErrorThrottle, startItRequest, syncItRequest, type AiBuilderClient,
+  mayChangeDependencies, protectedFilesFor, protectedFilesIn, protectedReason, resetErrorThrottle, startItRequest, syncItRequest, type AiBuilderClient,
 } from "../src/domain/it";
 import { truncateAll } from "./helpers";
 
@@ -157,6 +157,70 @@ describe("protected files on a request", () => {
       fallbackTitle: "x",
     });
     expect(feed.map((f) => f.text)).toEqual(expect.arrayContaining(["A developer must review it first", "Waiting for a developer to review it"]));
+  });
+});
+
+describe("dependency fixes from a security scan", () => {
+  const finding = { kind: "FINDING", sourceType: "finding", intent: "maintenance" };
+  const deps = ["pnpm-workspace.yaml", "pnpm-lock.yaml", "specs/abc-123.md"];
+
+  it("are not held for a developer when the change is only the manifests, the lockfile and the spec", () => {
+    expect(protectedFilesFor(deps, finding)).toEqual([]);
+    expect(protectedFilesFor(["package.json", "pnpm-lock.yaml"], finding)).toEqual([]);
+    expect(mayChangeDependencies(finding)).toBe(true);
+  });
+
+  it("are held again, with every protection, as soon as the change is anything else", () => {
+    expect(protectedFilesFor([...deps, "src/domain/quotes/validity.ts"], finding)).toEqual(["pnpm-lock.yaml", "pnpm-workspace.yaml"]);
+    expect(protectedFilesFor([...deps, ".npmrc"], finding)).toContain(".npmrc");
+    expect(protectedFilesFor([...deps, ".github/workflows/ci.yml"], finding)).toContain(".github/workflows/ci.yml");
+    expect(protectedFilesFor([...deps, "prisma/schema.prisma"], finding)).toContain("prisma/schema.prisma");
+    expect(protectedFilesFor([...deps, "specs/nested/dir.md"], finding)).toContain("pnpm-lock.yaml");
+    expect(protectedFilesFor(["./package.json", "../outside.txt"], finding).length).toBeGreaterThan(0);
+  });
+
+  it("do not apply to anything else: a bug fix, a code finding, a change someone asked for, or an error fix", () => {
+    for (const other of [
+      { kind: "ERROR", sourceType: "error", intent: "bugfix" },
+      { kind: "FINDING", sourceType: "finding", intent: "bugfix" },
+      { kind: "FEATURE", sourceType: null, intent: "feature" },
+      { kind: "FINDING", sourceType: null, intent: "maintenance" },
+      { kind: "ERROR", sourceType: "finding", intent: "maintenance" },
+    ]) {
+      expect(mayChangeDependencies(other)).toBe(false);
+      expect(protectedFilesFor(deps, other)).toEqual(["pnpm-lock.yaml", "pnpm-workspace.yaml"]);
+    }
+  });
+
+  it("is a change nobody is asked to hold for a developer, and the assistant is not told to stay out of dependencies", async () => {
+    const state: any = { session: { status: "pr_open", prUrl: "https://github.com/o/r/pull/52" }, events: [{ type: "commit_pushed", files: ["pnpm-workspace.yaml", "specs/abc-123.md"] }] };
+    const client = fakeClient(() => state);
+    const row = await started(client, { kind: "FINDING", intent: "maintenance", sourceType: "finding", sourceId: "f1" });
+    const sent = (client.createSession as any).mock.calls[0][0];
+    expect(sent.context.protectedPaths).not.toContain("Dependencies");
+    expect(sent.context.protectedPaths).toContain("Payments");
+    expect((await syncItRequest(row.id, client))!).toMatchObject({ status: "PR_OPEN", needsDeveloper: false, protectedFiles: [] });
+    const who = { actor: { type: "USER" as const, userId: "u_o", label: "Owner" }, userId: "u_o", email: "o@example.com", name: "Owner", roles: ["ADMIN"] };
+    await acceptItChange(row.id, "abc", who, client);
+    expect(client.accept).toHaveBeenCalled();
+  });
+
+  it("stay held, and the assistant stays told, for every other kind of request", async () => {
+    const state: any = { session: { status: "pr_open", prUrl: "u" }, events: [{ type: "commit_pushed", files: ["package.json"] }] };
+    const client = fakeClient(() => state);
+    const row = await started(client);
+    expect((client.createSession as any).mock.calls[0][0].context.protectedPaths).toContain("Dependencies");
+    expect((await syncItRequest(row.id, client))!).toMatchObject({ needsDeveloper: true, protectedFiles: ["package.json"] });
+  });
+
+  it("is cleared on the next sync for a request that was held before this rule", async () => {
+    let state: any = { session: { status: "pr_open", prUrl: "u" }, events: [{ type: "commit_pushed", files: ["pnpm-workspace.yaml", "specs/a.md"] }] };
+    const client = fakeClient(() => state);
+    const row = await started(client, { kind: "FINDING", intent: "maintenance", sourceType: "finding", sourceId: "f2" });
+    await appDb.itRequest.update({ where: { id: row.id }, data: { needsDeveloper: true, protectedFiles: ["pnpm-workspace.yaml"] } });
+    expect((await syncItRequest(row.id, client))!.needsDeveloper).toBe(false);
+    state = { ...state, events: [...state.events, { type: "commit_pushed", files: ["src/a.ts"] }] };
+    expect((await syncItRequest(row.id, client))!.needsDeveloper).toBe(true);
   });
 });
 
