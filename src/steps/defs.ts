@@ -20,7 +20,7 @@ export function sendTemplatedEmailDef(templateKeys?: string[]): StepCatalogEntry
     configSchema: z.object({
       template: templateKeys && templateKeys.length > 0 ? z.enum(templateKeys as [string, ...string[]]) : z.string(),
       connectorId: connectorRef("EMAIL").optional(),
-      params: z.object({ to: z.unknown(), inReplyTo: z.unknown().optional(), variables: z.record(z.unknown()).optional(), variableDefaults: z.record(z.unknown()).optional(), attachInvoiceId: z.unknown().optional() }),
+      params: z.object({ to: z.unknown(), inReplyTo: z.unknown().optional(), variables: z.record(z.string(), z.unknown()).optional(), variableDefaults: z.record(z.string(), z.unknown()).optional(), attachInvoiceId: z.unknown().optional() }),
     }),
     outputSchema: z.object({ sent: z.boolean(), to: z.string(), subject: z.string() }),
   };
