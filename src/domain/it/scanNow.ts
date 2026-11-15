@@ -38,3 +38,33 @@ export async function startScan(env: Env = process.env, opts: { now?: Date; fetc
     return { started: false, reason: "Could not reach GitHub. Try again in a minute." };
   }
 }
+
+export interface ScanRun {
+  /** When GitHub started (or queued) the run. */
+  since: Date;
+  /** The run's page on GitHub, for anyone who wants to watch it. */
+  url: string;
+}
+
+/**
+ * The scan that is running right now, if any, asked of GitHub (so it also sees a scan started from the Actions tab or by
+ * the schedule). Null when none is running, or when GitHub could not be asked: a missing answer must never hide the page.
+ */
+export async function currentScanRun(env: Env = process.env, opts: { fetchImpl?: typeof fetch } = {}): Promise<ScanRun | null> {
+  if (!scanNowAvailable(env)) return null;
+  try {
+    const res = await (opts.fetchImpl ?? fetch)(`https://api.github.com/repos/${env.IT_SCAN_REPO}/actions/workflows/${SCAN_WORKFLOW_FILE}/runs?per_page=5`, {
+      headers: { accept: "application/vnd.github+json", authorization: `Bearer ${env.IT_SCAN_DISPATCH_TOKEN}`, "x-github-api-version": "2022-11-28" },
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { workflow_runs?: { status?: string; created_at?: string; html_url?: string }[] };
+    const live = (body.workflow_runs ?? []).find((r) => r.status === "queued" || r.status === "in_progress" || r.status === "waiting" || r.status === "pending" || r.status === "requested");
+    if (!live?.created_at || !live.html_url) return null;
+    const since = new Date(live.created_at);
+    return Number.isNaN(since.getTime()) || !live.html_url.startsWith("https://github.com/") ? null : { since, url: live.html_url };
+  } catch {
+    return null;
+  }
+}

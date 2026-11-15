@@ -1,5 +1,5 @@
-import type { DismissedFinding, SecurityReport as Report } from "../domain/it";
-import { FindingActions, ReopenButton } from "./FindingActions";
+import type { DismissedFinding, FindingGroup, FixedRow, FixKind, ScanRun, SecurityReport as Report } from "../domain/it";
+import { FindingActions, FixQueueControls, ReopenButton, RetryFixButton } from "./FindingActions";
 import { ScanNowButton } from "./ScanNowButton";
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -8,6 +8,14 @@ const SEVERITY_TONE: Record<string, string> = {
   MEDIUM: "text-amber-700 dark:text-amber-400",
   LOW: "text-muted-foreground",
   INFO: "text-muted-foreground",
+};
+const FIX_TONE: Record<FixKind, string> = {
+  merged: "text-status-ok",
+  inProgress: "text-muted-foreground",
+  queued: "text-muted-foreground",
+  failed: "text-red-700 dark:text-red-400",
+  closed: "text-muted-foreground",
+  manual: "text-amber-700 dark:text-amber-400",
 };
 const label = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 const when = (d: Date) => d.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -21,7 +29,7 @@ export interface ScanSchedule {
   invalid: boolean;
 }
 
-export function SecurityReport({ report, canScan = false, schedule, dismissed = [] }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[] }) {
+export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null, pause = null, failedFixes = 0, groups = [], moreGroups = 0, recentlyFixed = [] }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null; pause?: string | null; failedFixes?: number; groups?: FindingGroup[]; moreGroups?: number; recentlyFixed?: FixedRow[] }) {
   const frequency = schedule ? (
     <div className="text-xs text-muted-foreground">
       <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
@@ -33,20 +41,22 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
       <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3" data-testid="security-report">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">No scan has reported yet.</p>
-          {canScan ? <ScanNowButton /> : null}
+          {canScan ? <ScanNowButton running={scanRun !== null} since={scanRun ? scanRun.since.toISOString() : null} runUrl={scanRun?.url ?? null} /> : null}
         </div>
         {frequency}
       </section>
     );
   }
   const peak = Math.max(1, ...report.trend.map((t) => t.total));
+  // While a new scan runs, what is listed is the previous scan's: it can be read, not acted on.
+  const readOnly = scanRun !== null;
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-foreground/10 p-3" data-testid="security-report">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold">{report.openTotal === 0 ? "Nothing open" : `${report.openTotal} open ${report.openTotal === 1 ? "finding" : "findings"}`}</h2>
         <div className="flex items-start gap-3">
           <p className="text-xs text-muted-foreground">Last scan {when(report.lastScanAt)} ({report.lastScanKind})</p>
-          {canScan ? <ScanNowButton /> : null}
+          {canScan ? <ScanNowButton running={scanRun !== null} since={scanRun ? scanRun.since.toISOString() : null} runUrl={scanRun?.url ?? null} /> : null}
         </div>
       </div>
       <ul className="flex flex-wrap gap-2 text-sm">
@@ -57,6 +67,18 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
         ))}
       </ul>
       {frequency}
+      {readOnly ? (
+        <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm" data-testid="security-read-only">
+          A new scan is running. The findings below are from the previous scan and are history now: they cannot be fixed or dismissed. The results of the new scan will appear here when it finishes.
+        </p>
+      ) : null}
+      {!readOnly && (pause || failedFixes > 0) ? (
+        <div className="flex flex-col gap-2 rounded-md border border-status-warn/30 bg-status-warn-soft px-3 py-2 text-sm" data-testid="security-fix-pause">
+          {pause ? <p>{pause}</p> : null}
+          {failedFixes > 0 ? <p>{failedFixes === 1 ? "1 fix did not work" : `${failedFixes} fixes did not work`}: the assistant could not build a change. They can be tried again, now that the scan names the patched version.</p> : null}
+          <FixQueueControls paused={Boolean(pause)} failedCount={failedFixes} />
+        </div>
+      ) : null}
       {report.trend.length > 1 ? (
         <div>
           <p className="mb-1 text-xs text-muted-foreground">Findings per scan, oldest to newest</p>
@@ -67,25 +89,83 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
           </div>
         </div>
       ) : null}
-      {report.top.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {report.top.map((f) => (
-            <li key={f.id} className="text-sm">
+      {groups.length > 0 ? (
+        <ul className="flex flex-col gap-3" data-testid="security-groups">
+          {groups.map((g) => (
+            <li key={g.key} className="rounded-lg border border-foreground/10 p-2 text-sm">
               <p>
-                <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
+                <span className={`font-medium ${SEVERITY_TONE[g.severity]}`}>{label(g.severity)}</span> - <span className="font-medium">{g.title}</span>
+                {g.findings.length > 1 ? <span className="text-muted-foreground"> ({g.findings.length} problems)</span> : null}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {f.tool}{f.file ? ` - ${f.file}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
-                {f.itRequestNumber ? ` - being fixed in ${f.itRequestNumber}` : ""}
+              <p className={`mt-1 text-xs ${FIX_TONE[g.fix.kind]}`} data-testid="security-fix-state">
+                {g.fix.text}
+                {g.fix.requestId ? (
+                  <>
+                    {" "}
+                    <a href={`/it?tab=security&open=${encodeURIComponent(g.fix.requestId)}`} className="underline">Open {g.fix.requestNumber}</a>
+                  </>
+                ) : null}
+                {g.fix.prUrl ? (
+                  <>
+                    {" "}
+                    <a href={g.fix.prUrl} target="_blank" rel="noreferrer" className="underline">View the change &#8599;</a>
+                  </>
+                ) : null}
               </p>
-              <div className="mt-1">
-                <FindingActions id={f.id} hasFix={f.hasFix} />
-              </div>
+              {g.fix.kind === "failed" && !readOnly ? (
+                <div className="mt-1">
+                  <RetryFixButton id={g.findings[0]!.id} />
+                </div>
+              ) : null}
+              <details className="mt-1" open={g.findings.length === 1}>
+                <summary className="cursor-pointer text-xs text-muted-foreground">{g.findings.length === 1 ? "Details" : `The ${g.findings.length} problems`}</summary>
+                <ul className="mt-1 flex flex-col gap-2">
+                  {g.findings.map((f) => (
+                    <li key={f.id}>
+                      <p>
+                        <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {f.tool}{f.file ? ` - ${f.file}` : ""}{f.fixedIn ? ` - fixed in ${f.fixedIn}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
+                      </p>
+                      {readOnly ? null : (
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <FindingActions id={f.id} hasFix={g.fix.kind === "inProgress"} />
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </li>
           ))}
         </ul>
       ) : null}
-      {report.openTotal > report.top.length ? <p className="text-xs text-muted-foreground">And {report.openTotal - report.top.length} more, lower down the list.</p> : null}
+      {moreGroups > 0 ? <p className="text-xs text-muted-foreground">And {moreGroups} more, lower down the list.</p> : null}
+      {recentlyFixed.length > 0 ? (
+        <details className="text-sm" data-testid="security-fixed">
+          <summary className="cursor-pointer text-xs text-muted-foreground">Recently fixed ({recentlyFixed.length})</summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            {recentlyFixed.map((f) => (
+              <li key={f.id}>
+                <p>
+                  <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {f.requestId ? (
+                    <>
+                      Fixed by <a href={`/it?tab=security&open=${encodeURIComponent(f.requestId)}`} className="underline">{f.requestNumber}</a>
+                    </>
+                  ) : (
+                    "No longer reported by the scan"
+                  )}{" "}
+                  - {when(f.at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       {dismissed.length > 0 ? (
         <details className="text-sm" data-testid="security-dismissed">
           <summary className="cursor-pointer text-xs text-muted-foreground">Dismissed ({dismissed.length})</summary>
@@ -98,9 +178,39 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
                 <p className="text-xs text-muted-foreground">
                   {d.tool}{d.file ? ` - ${d.file}` : ""}{d.by ? ` - by ${d.by}` : ""} - {when(d.at)}{d.reason ? ` - "${d.reason}"` : ""}
                 </p>
-                <div className="mt-1">
-                  <ReopenButton id={d.id} />
-                </div>
+                {readOnly ? null : (
+                  <div className="mt-1">
+                    <ReopenButton id={d.id} />
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {report.history.length > 0 ? (
+        <details className="text-sm" data-testid="security-history">
+          <summary className="cursor-pointer text-xs text-muted-foreground">History: earlier scans ({report.history.length})</summary>
+          <ul className="mt-2 flex flex-col gap-3">
+            {report.history.map((h) => (
+              <li key={h.id}>
+                <details>
+                  <summary className="cursor-pointer text-sm">
+                    {when(h.at)} ({h.kind}) - {h.total} {h.total === 1 ? "finding" : "findings"}
+                  </summary>
+                  {h.findings === null ? (
+                    <p className="mt-1 text-xs text-muted-foreground">The details of this scan were not kept.</p>
+                  ) : (
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {h.findings.map((f, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message} ({f.tool}{f.file ? ` - ${f.file}` : ""})
+                        </li>
+                      ))}
+                      {h.total > h.findings.length ? <li className="text-xs text-muted-foreground">And {h.total - h.findings.length} more.</li> : null}
+                    </ul>
+                  )}
+                </details>
               </li>
             ))}
           </ul>

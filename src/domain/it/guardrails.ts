@@ -23,6 +23,28 @@ export const PROTECTED_RULES: ProtectedRule[] = [
   { label: "Dependencies", test: /^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$)/ },
 ];
 
+export const DEPENDENCY_FILE =/^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/;
+const SPEC_FILE = /^specs\/[^/]+\.md$/;
+
+/**
+ * A dependency fix that came from a security scan: the scanner named the problem, and the assistant is only asked to move a
+ * version or add an override. This is the one kind of request that may change the dependency files and still be accepted
+ * by the Owner or Office. A bug fix, a requested change or anything a person typed is not.
+ */
+export const mayChangeDependencies = (req: { kind: string; sourceType?: string | null; intent?: string | null }): boolean =>
+  req.kind === "FINDING" && req.sourceType === "finding" && req.intent === "maintenance";
+
+/**
+ * The protected files a request touches. For a scan-driven dependency fix, the manifests, the lockfile and its spec are not
+ * held for a developer, but only while the change is nothing else: one other file (a source file, `.npmrc`, a workflow)
+ * and every protection applies again, dependency files included.
+ */
+export function protectedFilesFor(files: readonly string[], req: { kind: string; sourceType?: string | null; intent?: string | null }): string[] {
+  const normalised = files.map(normalisePath).filter(Boolean);
+  if (mayChangeDependencies(req) && normalised.length > 0 && normalised.every((f) => DEPENDENCY_FILE.test(f) || SPEC_FILE.test(f))) return [];
+  return protectedFilesIn(files);
+}
+
 /** A path as the rules see it: forward slashes, no leading "./" or "/". */
 export function normalisePath(path: string): string {
   return path.replace(/\\/g, "/").replace(/^(\.\/|\/)+/, "").replace(/\/{2,}/g, "/");

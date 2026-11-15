@@ -2,7 +2,7 @@
 
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
-import { dismissFinding, ItActionError, reopenFinding, startScan, type Responder } from "../domain/it";
+import { currentScanRun, dismissFinding, ItActionError, reopenFinding, resumeSecurityFixes, retryFailedFixes, retryFindingFix, startScan, type Responder } from "../domain/it";
 import { userActor } from "../domain/shared/actor";
 import { errorMessage } from "./shared";
 
@@ -19,6 +19,8 @@ const responder = (user: AuthedUser): Responder => ({ actor: userActor(user), us
 async function decide(run: (who: Responder) => Promise<void>): Promise<{ error: string | null }> {
   const user = await requireRole(Access.IT_MANAGE);
   try {
+    // The previous scan's findings are history once a new scan is running; the new report decides what is open.
+    if (await currentScanRun()) throw new ItActionError("A new scan is running. The earlier results are history now; act on the new ones when it finishes.");
     await run(responder(user));
     return { error: null };
   } catch (err) {
@@ -34,4 +36,24 @@ export async function dismissFindingAction(id: string, status: string, reason: s
 /** Owner and Office: undo a dismissal. */
 export async function reopenFindingAction(id: string) {
   return decide((who) => reopenFinding(String(id), who));
+}
+
+/** Owner and Office: try one failed fix again now. */
+export async function retryFindingFixAction(id: string) {
+  return decide(async (who) => {
+    const r = await retryFindingFix(String(id), who);
+    if (!r.opened) throw new ItActionError(r.reason);
+  });
+}
+
+/** Owner and Office: put every failed fix back in line (and lift the pause); the queue takes them one at a time. */
+export async function retryFailedFixesAction() {
+  return decide(async (who) => {
+    await retryFailedFixes(who);
+  });
+}
+
+/** Owner and Office: carry on with automatic fixes after a pause. */
+export async function resumeSecurityFixesAction() {
+  return decide((who) => resumeSecurityFixes(who));
 }

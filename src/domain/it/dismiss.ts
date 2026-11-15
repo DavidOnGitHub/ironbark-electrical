@@ -31,7 +31,9 @@ export async function dismissFinding(input: { id: string; status: string; reason
   // Call off a fix that is still under way first: if that cannot be done, nothing else changes.
   if (finding.itRequestId) {
     const request = await appDb.itRequest.findUnique({ where: { id: finding.itRequestId } });
-    if (request && IN_FLIGHT.includes(request.status)) {
+    // One fix can serve several findings (advisories against the same package): it is only called off when this was the last.
+    const sharedWith = await appDb.finding.count({ where: { itRequestId: finding.itRequestId, status: "FIXING", id: { not: finding.id } } });
+    if (request && sharedWith === 0 && IN_FLIGHT.includes(request.status)) {
       if (request.sessionId) {
         if (!client) throw new ItActionError("The assistant is not connected, so its fix could not be called off.");
         await cancelItRequest(request.id, who, client);

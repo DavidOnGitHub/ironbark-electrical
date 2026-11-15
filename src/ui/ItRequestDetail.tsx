@@ -118,7 +118,8 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
 
       {request.status === "PR_OPEN" ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3">
-          <h3 className="text-sm font-medium">{acceptance?.ready ? "Try it, then accept it" : "Getting it ready to try"}</h3>
+          <h3 className="text-sm font-medium">{request.kind === "FINDING" && request.waiting === null ? "Merges by itself" : acceptance?.ready ? "Try it, then accept it" : "Getting it ready to try"}</h3>
+          {request.kind === "FINDING" && request.waiting === null ? <p className="text-xs text-muted-foreground">This security update only changes the software packages the app uses. It merges by itself once its automatic checks pass, so there is nothing to approve.</p> : null}
           {previewUrl ? (
             <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm underline">
               Open the preview &#8599;

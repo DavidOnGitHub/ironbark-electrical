@@ -10,16 +10,16 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@next/eslint-plugin-next@16.3.7'
   - eslint-config-next@16.3.7
-  - '@next/env@16.3.7'
-  - '@next/swc-darwin-arm64@16.3.7'
-  - '@next/swc-darwin-x64@16.3.7'
-  - '@next/swc-linux-arm64-gnu@16.3.7'
-  - '@next/swc-linux-arm64-musl@16.3.7'
-  - '@next/swc-linux-x64-gnu@16.3.7'
-  - '@next/swc-linux-x64-musl@16.3.7'
-  - '@next/swc-win32-arm64-msvc@16.3.7'
-  - '@next/swc-win32-x64-msvc@16.3.7'
-  - next@16.3.7
+  - '@next/env@16.4.1'
+  - '@next/swc-darwin-arm64@16.4.1'
+  - '@next/swc-darwin-x64@16.4.1'
+  - '@next/swc-linux-arm64-gnu@16.4.1'
+  - '@next/swc-linux-arm64-musl@16.4.1'
+  - '@next/swc-linux-x64-gnu@16.4.1'
+  - '@next/swc-linux-x64-musl@16.4.1'
+  - '@next/swc-win32-arm64-msvc@16.4.1'
+  - '@next/swc-win32-x64-msvc@16.4.1'
+  - next@16.4.1
   - '@kabosh-digital/m-street-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0 || 0.9.0 || 0.10.0'
   - '@kabosh-digital/ui-kit@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0 || 0.9.0 || 0.10.0'
   - '@kabosh-digital/workflow-schema@0.1.0 || 0.1.1 || 0.1.2 || 0.2.0 || 0.3.0 || 0.9.0 || 0.10.0'
@@ -31,6 +31,14 @@ overrides:
   # via @temporalio/* > @grpc/grpc-js (GHSA-m9gg-hp2v-232j, GHSA-f596-whhp-79r4)
   '@grpc/grpc-js@>=1.14.0 <1.14.5': ^1.14.5
   # via @temporalio/worker > webpack > schema-utils > ajv
-  fast-uri@<3.1.7: ^3.1.7
+  fast-uri@<3.1.9: ^3.1.9
   # via @prisma/client > prisma > @prisma/config
   deepmerge-ts@<8: ^8.0.2
+  # via vitest (GHSA-85c8-ppgw-ccpr, GHSA-5gmw-xhrv-c9v3)
+  tinypool@<2.1.2: ^2.1.2
+  # via postcss, @tailwindcss/node and source-map-loader (GHSA-68fv-2mgg-jv7q)
+  'source-map-js@<1.2.2': ^1.2.2
+  # via @kabosh-digital/workflow-temporal (and openai peer) (GHSA-2m5v-pch6-74hx, GHSA-4w7w-5xrc-9h26, GHSA-qrxm-fqhp-jwvm, GHSA-xjj6-f33q-929c)
+  'undici@<7.30.1': ^7.30.1
+  # via vitest (GHSA-587h-7wmj-h5pm)
+  'vite@<7.3.7': ^7.3.7

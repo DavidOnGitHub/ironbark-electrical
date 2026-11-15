@@ -129,7 +129,8 @@ describe("securityHeadline", () => {
     const { securityHeadline } = await import("../src/domain/it");
     expect(await securityHeadline()).toMatchObject({ open: 0, beingFixed: 0, worst: null, lastScanAt: null });
     await ingestScan(scan("s1", [finding({ fingerprint: "osv:aaaaaaa:1", severity: "LOW" }), finding({ fingerprint: "osv:bbbbbbb:2", severity: "HIGH" }), finding({ fingerprint: "osv:ccccccc:3", severity: "HIGH" }), finding({ fingerprint: "osv:ddddddd:4", severity: "MEDIUM" })]));
-    await appDb.finding.update({ where: { fingerprint: "osv:bbbbbbb:2" }, data: { status: "FIXING" } });
+    const req = await appDb.itRequest.create({ data: { number: "IT-9001", kind: "FINDING", title: "t", description: "d", status: "PR_OPEN", requestedByLabel: "IT assistant" } });
+    await appDb.finding.update({ where: { fingerprint: "osv:bbbbbbb:2" }, data: { status: "FIXING", itRequestId: req.id } });
     const h = await securityHeadline();
     expect(h).toMatchObject({ open: 4, beingFixed: 1, worst: "HIGH" });
     expect(h.bySeverity).toMatchObject({ HIGH: 2, MEDIUM: 1, LOW: 1, CRITICAL: 0 });
@@ -142,5 +143,26 @@ describe("securityHeadline", () => {
     await appDb.finding.update({ where: { fingerprint: "osv:aaaaaaa:1" }, data: { status: "ACCEPTED_RISK" } });
     await ingestScan(scan("s2", [])); // the other one is no longer reported
     expect((await securityHeadline()).open).toBe(0);
+  });
+});
+
+describe("scan history", () => {
+  it("keeps what each scan reported, so an earlier scan can be read after later ones change the findings", async () => {
+    const { securityReport } = await import("../src/domain/it");
+    await ingestScan(scan("s1", [finding({ fingerprint: "osv:aaaaaaa:1", severity: "LOW", message: "old low" }), finding({ fingerprint: "osv:bbbbbbb:2", severity: "CRITICAL", message: "old critical" })]));
+    await ingestScan(scan("s2", [finding({ fingerprint: "osv:bbbbbbb:2", severity: "CRITICAL", message: "old critical" })]));
+    const report = await securityReport();
+    expect(report.history.map((h) => h.id)).toEqual(["s1"]); // the latest scan is the current results, not history
+    expect(report.history[0]).toMatchObject({ total: 2 });
+    expect(report.history[0]!.findings!.map((f) => f.message)).toEqual(["old critical", "old low"]); // worst first, even though s2 no longer has the low one
+    expect(report.top.map((f) => f.message)).toEqual(["old critical"]);
+  });
+
+  it("says so when an older scan has no details", async () => {
+    const { securityReport } = await import("../src/domain/it");
+    await ingestScan(scan("s1", [finding()]));
+    await ingestScan(scan("s2", []));
+    await appDb.$executeRaw`UPDATE "SecurityScan" SET "findings" = NULL WHERE id = 's1'`;
+    expect((await securityReport()).history[0]!.findings).toBeNull();
   });
 });

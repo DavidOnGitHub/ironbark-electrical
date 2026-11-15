@@ -710,6 +710,8 @@ model SecurityScan {
   receivedAt DateTime @default(now())
   total      Int
   bySeverity Json
+  /// What this scan reported (worst first, capped), kept so an older scan can be read back as history after later scans change the findings.
+  findings   Json?
 
   @@index([receivedAt(sort: Desc)])
 }
