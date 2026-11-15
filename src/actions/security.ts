@@ -2,7 +2,7 @@
 
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
-import { currentScanRun, dismissFinding, ItActionError, reopenFinding, resumeSecurityFixes, retryFailedFixes, retryFindingFix, startScan, type Responder } from "../domain/it";
+import { currentScanRun, dismissFindings, fixSelectedFindings, ItActionError, reopenFinding, startScan, type Responder } from "../domain/it";
 import { userActor } from "../domain/shared/actor";
 import { errorMessage } from "./shared";
 
@@ -16,44 +16,36 @@ export async function scanNowAction(): Promise<{ error: string | null }> {
 type AuthedUser = Awaited<ReturnType<typeof requireRole>>;
 const responder = (user: AuthedUser): Responder => ({ actor: userActor(user), userId: user.id, email: user.email ?? null, name: user.name ?? null, roles: user.roles });
 
-async function decide(run: (who: Responder) => Promise<void>): Promise<{ error: string | null }> {
+async function decide(run: (who: Responder) => Promise<string | void>): Promise<{ error: string | null; note?: string }> {
   const user = await requireRole(Access.IT_MANAGE);
   try {
     // The previous scan's findings are history once a new scan is running; the new report decides what is open.
     if (await currentScanRun()) throw new ItActionError("A new scan is running. The earlier results are history now; act on the new ones when it finishes.");
-    await run(responder(user));
-    return { error: null };
+    const note = await run(responder(user));
+    return { error: null, ...(note ? { note } : {}) };
   } catch (err) {
     return { error: err instanceof ItActionError ? err.message : errorMessage(err) };
   }
 }
 
-/** Owner and Office: the finding is not worth fixing. Accepting a risk needs a reason. */
-export async function dismissFindingAction(id: string, status: string, reason: string) {
-  return decide((who) => dismissFinding({ id: String(id), status: String(status), reason: String(reason ?? "") }, who));
+/** Owner and Office: have the assistant fix everything ticked, in one change. */
+export async function fixSelectedAction(ids: string[]) {
+  return decide(async (who) => {
+    const r = await fixSelectedFindings(Array.isArray(ids) ? ids.map(String) : [], who);
+    if (!r.opened) throw new ItActionError(r.reason);
+    return r.skipped.length ? `${r.requestNumber} opened. ${r.skipped.length} of the ticked ${r.skipped.length === 1 ? "finding was" : "findings were"} left out: ${[...new Set(r.skipped.map((x) => x.reason))].join("; ")}.` : `${r.requestNumber} opened.`;
+  });
+}
+
+/** Owner and Office: everything ticked is not worth fixing. Accepting a risk needs one reason, which covers them all. */
+export async function dismissSelectedAction(ids: string[], status: string, reason: string) {
+  return decide(async (who) => {
+    const r = await dismissFindings({ ids: Array.isArray(ids) ? ids.map(String) : [], status: String(status), reason: String(reason ?? "") }, who);
+    return r.failed.length ? `${r.done} saved. ${r.failed.length} could not be: ${[...new Set(r.failed.map((f) => f.reason))].join("; ")}.` : undefined;
+  });
 }
 
 /** Owner and Office: undo a dismissal. */
 export async function reopenFindingAction(id: string) {
   return decide((who) => reopenFinding(String(id), who));
-}
-
-/** Owner and Office: try one failed fix again now. */
-export async function retryFindingFixAction(id: string) {
-  return decide(async (who) => {
-    const r = await retryFindingFix(String(id), who);
-    if (!r.opened) throw new ItActionError(r.reason);
-  });
-}
-
-/** Owner and Office: put every failed fix back in line (and lift the pause); the queue takes them one at a time. */
-export async function retryFailedFixesAction() {
-  return decide(async (who) => {
-    await retryFailedFixes(who);
-  });
-}
-
-/** Owner and Office: carry on with automatic fixes after a pause. */
-export async function resumeSecurityFixesAction() {
-  return decide((who) => resumeSecurityFixes(who));
 }

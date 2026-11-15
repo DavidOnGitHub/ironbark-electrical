@@ -6,7 +6,7 @@ import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status"
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
 import { SecurityReport } from "../../src/ui/SecurityReport";
-import { currentScanRun, listFailedFixes, securityPause, listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityGroups, securityReport } from "../../src/domain/it";
+import { currentScanRun, securityPause, listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityGroups, securityReport } from "../../src/domain/it";
 import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
 import { demoBreakAvailable, listDemoBugs } from "../../src/domain/demo";
 import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
@@ -41,14 +41,13 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
   const dismissed = security ? await listDismissedFindings() : [];
   const scanRun = security && scanNowAvailable() ? await currentScanRun() : null;
   const fixPause = security ? (await securityPause())?.reason ?? null : null;
-  const failedFixes = security ? (await listFailedFixes()).length : 0;
   const frequency = scanFrequency();
   const nextAt = security ? nextScanAfter(frequency, security.lastScanAt) : null;
   const schedule = security
     ? { label: SCAN_FREQUENCY_LABEL[frequency], invalid: scanFrequencyInvalid(), nextText: nextAt ? `Next scan: on or after ${nextAt.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : frequency === "never" ? "No scan runs on its own; use Scan now" : "The next daily check will run the first scan" }
     : undefined;
-  const queued = hasAnyRole(user.roles, Access.IT_MANAGE) && (tab === "fixes" || tab === "security") ? await queuedFixCounts() : null;
-  const waitingCount = queued ? (tab === "fixes" ? queued.errors : queued.findings) : 0;
+  const queued = hasAnyRole(user.roles, Access.IT_MANAGE) && tab === "fixes" ? await queuedFixCounts() : null;
+  const waitingCount = queued ? queued.errors : 0;
   const needsYou = all.filter((r) => r.waiting).length;
 
   return (
@@ -68,7 +67,7 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
           {waitingCount === 1 ? "1 fix is" : `${waitingCount} fixes are`} waiting for the current one to finish. They go one at a time so two changes cannot clash.
         </p>
       ) : null}
-      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} schedule={schedule} dismissed={dismissed} scanRun={scanRun} pause={fixPause} failedFixes={failedFixes} groups={arranged?.groups} moreGroups={arranged?.moreGroups} recentlyFixed={arranged?.recentlyFixed} /> : null}
+      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} schedule={schedule} dismissed={dismissed} scanRun={scanRun} pause={fixPause} groups={arranged?.groups} moreGroups={arranged?.moreGroups} recentlyFixed={arranged?.recentlyFixed} /> : null}
       {unfixed.length > 0 ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3" data-testid="it-unfixed">
           <h2 className="text-sm font-semibold">Looked at, not changed by the assistant</h2>
