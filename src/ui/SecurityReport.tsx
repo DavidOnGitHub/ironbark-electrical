@@ -1,4 +1,4 @@
-import type { DismissedFinding, ScanRun, SecurityReport as Report } from "../domain/it";
+import type { DismissedFinding, FindingGroup, FixedRow, FixKind, ScanRun, SecurityReport as Report } from "../domain/it";
 import { FindingActions, FixQueueControls, ReopenButton, RetryFixButton } from "./FindingActions";
 import { ScanNowButton } from "./ScanNowButton";
 
@@ -8,6 +8,14 @@ const SEVERITY_TONE: Record<string, string> = {
   MEDIUM: "text-amber-700 dark:text-amber-400",
   LOW: "text-muted-foreground",
   INFO: "text-muted-foreground",
+};
+const FIX_TONE: Record<FixKind, string> = {
+  merged: "text-status-ok",
+  inProgress: "text-muted-foreground",
+  queued: "text-muted-foreground",
+  failed: "text-red-700 dark:text-red-400",
+  closed: "text-muted-foreground",
+  manual: "text-amber-700 dark:text-amber-400",
 };
 const label = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 const when = (d: Date) => d.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -21,7 +29,7 @@ export interface ScanSchedule {
   invalid: boolean;
 }
 
-export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null, pause = null, failedFixes = 0 }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null; pause?: string | null; failedFixes?: number }) {
+export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null, pause = null, failedFixes = 0, groups = [], moreGroups = 0, recentlyFixed = [] }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null; pause?: string | null; failedFixes?: number; groups?: FindingGroup[]; moreGroups?: number; recentlyFixed?: FixedRow[] }) {
   const frequency = schedule ? (
     <div className="text-xs text-muted-foreground">
       <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
@@ -81,27 +89,83 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
           </div>
         </div>
       ) : null}
-      {report.top.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {report.top.map((f) => (
-            <li key={f.id} className="text-sm">
+      {groups.length > 0 ? (
+        <ul className="flex flex-col gap-3" data-testid="security-groups">
+          {groups.map((g) => (
+            <li key={g.key} className="rounded-lg border border-foreground/10 p-2 text-sm">
               <p>
-                <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
+                <span className={`font-medium ${SEVERITY_TONE[g.severity]}`}>{label(g.severity)}</span> - <span className="font-medium">{g.title}</span>
+                {g.findings.length > 1 ? <span className="text-muted-foreground"> ({g.findings.length} problems)</span> : null}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {f.tool}{f.file ? ` - ${f.file}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
-                {f.itRequestNumber && !f.fixFailed ? ` - being fixed in ${f.itRequestNumber}` : ""}
-                {f.fixFailed ? ` - the fix (${f.itRequestNumber}) did not work` : ""}
+              <p className={`mt-1 text-xs ${FIX_TONE[g.fix.kind]}`} data-testid="security-fix-state">
+                {g.fix.text}
+                {g.fix.requestId ? (
+                  <>
+                    {" "}
+                    <a href={`/it?tab=security&open=${encodeURIComponent(g.fix.requestId)}`} className="underline">Open {g.fix.requestNumber}</a>
+                  </>
+                ) : null}
+                {g.fix.prUrl ? (
+                  <>
+                    {" "}
+                    <a href={g.fix.prUrl} target="_blank" rel="noreferrer" className="underline">View the change &#8599;</a>
+                  </>
+                ) : null}
               </p>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {readOnly ? null : f.fixFailed ? <RetryFixButton id={f.id} /> : null}
-                {readOnly ? null : <FindingActions id={f.id} hasFix={f.hasFix} />}
-              </div>
+              {g.fix.kind === "failed" && !readOnly ? (
+                <div className="mt-1">
+                  <RetryFixButton id={g.findings[0]!.id} />
+                </div>
+              ) : null}
+              <details className="mt-1" open={g.findings.length === 1}>
+                <summary className="cursor-pointer text-xs text-muted-foreground">{g.findings.length === 1 ? "Details" : `The ${g.findings.length} problems`}</summary>
+                <ul className="mt-1 flex flex-col gap-2">
+                  {g.findings.map((f) => (
+                    <li key={f.id}>
+                      <p>
+                        <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {f.tool}{f.file ? ` - ${f.file}` : ""}{f.fixedIn ? ` - fixed in ${f.fixedIn}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
+                      </p>
+                      {readOnly ? null : (
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <FindingActions id={f.id} hasFix={g.fix.kind === "inProgress"} />
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </li>
           ))}
         </ul>
       ) : null}
-      {report.openTotal > report.top.length ? <p className="text-xs text-muted-foreground">And {report.openTotal - report.top.length} more, lower down the list.</p> : null}
+      {moreGroups > 0 ? <p className="text-xs text-muted-foreground">And {moreGroups} more, lower down the list.</p> : null}
+      {recentlyFixed.length > 0 ? (
+        <details className="text-sm" data-testid="security-fixed">
+          <summary className="cursor-pointer text-xs text-muted-foreground">Recently fixed ({recentlyFixed.length})</summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            {recentlyFixed.map((f) => (
+              <li key={f.id}>
+                <p>
+                  <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {f.requestId ? (
+                    <>
+                      Fixed by <a href={`/it?tab=security&open=${encodeURIComponent(f.requestId)}`} className="underline">{f.requestNumber}</a>
+                    </>
+                  ) : (
+                    "No longer reported by the scan"
+                  )}{" "}
+                  - {when(f.at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       {dismissed.length > 0 ? (
         <details className="text-sm" data-testid="security-dismissed">
           <summary className="cursor-pointer text-xs text-muted-foreground">Dismissed ({dismissed.length})</summary>
