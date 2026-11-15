@@ -24,7 +24,7 @@ export function startItSync(everyMs = 60_000, client: AiBuilderClient | null = d
       const m = await autoMergeDependencyFixes(client);
       if (m) console.log(`[it] auto-merged ${m} dependency fix(es)`);
       const q = await advanceFixQueue(client);
-      if (q.errors || q.findings) console.log(`[it] queue: opened ${q.errors} error fix(es) and ${q.findings} security fix(es)`);
+      if (q.errors) console.log(`[it] queue: opened ${q.errors} error fix(es)`);
       const g = await checkRevertGuard(client);
       if (g.spikes) console.log(`[it] revert guard: ${g.spikes} change(s) followed by more errors, ${g.reverts} revert(s) prepared`);
       if (host && render) {

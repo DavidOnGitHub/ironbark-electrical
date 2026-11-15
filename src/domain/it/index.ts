@@ -260,7 +260,6 @@ export * from "./pause";
 export * from "./semver";
 export * from "./autoMerge";
 export * from "./securityGroups";
-export * from "./retry";
 export * from "./queue";
 export * from "./scanNow";
 export * from "./scanSchedule";

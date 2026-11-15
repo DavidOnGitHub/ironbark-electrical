@@ -6,7 +6,6 @@ import { appDb } from "../../db/app";
 import { type AiBuilderClient, defaultClient } from "./index";
 import { MAX_FIX_ATTEMPTS, openErrorFix } from "./errors";
 import { laneBusy } from "./lane";
-import { openNextFindingFix, queuedFindingCount } from "./triage";
 
 /** Errors the classifier called code bugs that are not fixed and have nothing in flight: never tried, or came back after a fix went live. */
 async function waitingErrorIds(): Promise<string[]> {
@@ -22,18 +21,17 @@ async function waitingErrorIds(): Promise<string[]> {
 
 export interface QueueCounts {
   errors: number;
-  findings: number;
 }
 
 /** How many automated fixes are waiting for their turn. */
 export async function queuedFixCounts(env: Record<string, string | undefined> = process.env): Promise<QueueCounts> {
-  const [errors, findings] = await Promise.all([laneBusy("ERROR", env).then((busy) => (busy ? waitingErrorIds().then((ids) => ids.length) : 0)), laneBusy("FINDING", env).then((busy) => (busy ? queuedFindingCount() : 0))]);
-  return { errors, findings };
+  const errors = (await laneBusy("ERROR", env)) ? (await waitingErrorIds()).length : 0;
+  return { errors };
 }
 
-/** Opens the next fix in each free lane. Safe to call as often as you like. */
-export async function advanceFixQueue(client: AiBuilderClient | null = defaultClient(), env: Record<string, string | undefined> = process.env): Promise<{ errors: number; findings: number }> {
-  const result = { errors: 0, findings: 0 };
+/** Opens the next error fix when the lane is free. Security fixes are not queued: a person chooses them. Safe to call as often as you like. */
+export async function advanceFixQueue(client: AiBuilderClient | null = defaultClient(), env: Record<string, string | undefined> = process.env): Promise<{ errors: number }> {
+  const result = { errors: 0 };
   if (!client) return result;
   if (!(await laneBusy("ERROR", env))) {
     for (const id of await waitingErrorIds()) {
@@ -45,6 +43,5 @@ export async function advanceFixQueue(client: AiBuilderClient | null = defaultCl
       if (r && !r.opened && /^Waiting for /.test(r.reason ?? "")) break;
     }
   }
-  if (!(await laneBusy("FINDING", env))) result.findings = (await openNextFindingFix(client, env)).opened ? 1 : 0;
   return result;
 }
