@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { appDb } from "../src/db/app";
 import {
-  buildReviewPrompt, ingestScan, parseReview, reviewAvailable, REVIEW_COOLDOWN_MS, runAiReview, ScanFindingSchema, selectReviewFiles, toFindings, MAX_REVIEW_FILES,
+  buildReviewPrompt, extractJson, ingestScan, parseReview, reviewAvailable, REVIEW_COOLDOWN_MS, runAiReview, ScanFindingSchema, selectReviewFiles, toFindings, MAX_REVIEW_FILES,
   type ReviewItem,
 } from "../src/domain/it";
 import { truncateAll } from "./helpers";
@@ -63,6 +63,16 @@ describe("parseReview", () => {
   it("accepts a well-formed answer, even wrapped in other text", () => {
     expect(parseReview(`Here you go:\n${answer([good])}\nThanks`, shown)).toEqual([expect.objectContaining({ ruleId: "authz-missing", severity: "HIGH", file: "src/actions/it.ts" })]);
   });
+  it("finds the JSON after a preamble that has braces of its own, or inside a code fence", () => {
+    expect(parseReview(`Let me look at \`const a = {}\` in src/actions/it.ts first.\n\`\`\`json\n${answer([good])}\n\`\`\``, shown)).toHaveLength(1);
+  });
+  it("survives remarks with braces after the JSON", () => {
+    expect(parseReview(`${answer([good])}\n\nNote: handlers like { id } are checked.`, shown)).toHaveLength(1);
+  });
+  it("finds nothing in an answer that is not the expected JSON", () => {
+    expect(extractJson("no json here")).toBeNull();
+    expect(extractJson('{"findings": [')).toBeNull(); // cut off
+  });
   it("is null when the answer is not the expected JSON, so nothing is recorded", () => {
     expect(parseReview("I could not review this", shown)).toBeNull();
     expect(parseReview('{"results":[]}', shown)).toBeNull();
@@ -112,7 +122,7 @@ interface Fake {
   prompts: string[];
 }
 
-function fake(opts: { answer?: unknown; modelStatus?: number; compareStatus?: number; headStatus?: number } = {}): Fake {
+function fake(opts: { answer?: unknown; modelStatus?: number; compareStatus?: number; headStatus?: number; stopReason?: string } = {}): Fake {
   const calls: string[] = [];
   const prompts: string[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -123,7 +133,7 @@ function fake(opts: { answer?: unknown; modelStatus?: number; compareStatus?: nu
       prompts.push(JSON.parse(String(init?.body)).messages[0].content);
       if (opts.modelStatus) return new Response("no", { status: opts.modelStatus });
       const answer = opts.answer ?? { findings: [{ ruleId: "authz-missing", severity: "HIGH", file: "src/actions/it.ts", title: "No role check", explanation: "Anyone can call it." }] };
-      return json({ content: [{ type: "text", text: typeof answer === "string" ? answer : JSON.stringify(answer) }] });
+      return json({ content: [{ type: "text", text: typeof answer === "string" ? answer : JSON.stringify(answer) }], stop_reason: opts.stopReason ?? "end_turn" });
     }
     if (url.includes("/commits/")) return opts.headStatus ? json({}, opts.headStatus) : json({ sha: HEAD });
     if (url.includes("/compare/")) return opts.compareStatus ? json({}, opts.compareStatus) : json({ files: [{ filename: "src/actions/it.ts", status: "modified", patch: "+ added line" }, { filename: "README.md", status: "modified", patch: "+ docs" }] });
@@ -198,6 +208,15 @@ describe("runAiReview", () => {
     const r = await runAiReview(env, { runId: "x", fetchImpl: fake({ answer: "Sorry, I cannot do that." }).fetchImpl });
     expect(r).toMatchObject({ ok: false, status: 502 });
     expect(await appDb.securityScan.count()).toBe(0);
+  });
+
+  it("says why when the answer cannot be read, without repeating what the model wrote", async () => {
+    const cut = await runAiReview(env, { runId: "x", fetchImpl: fake({ answer: '{"findings":[{"ruleId":"injection","title":"SECRETDETAIL', stopReason: "max_tokens" }).fetchImpl });
+    expect(cut).toMatchObject({ ok: false, status: 502 });
+    expect((cut as { reason: string }).reason).toContain("cut off");
+    expect((cut as { reason: string }).reason).not.toContain("SECRETDETAIL");
+    const odd = await runAiReview(env, { runId: "y", fetchImpl: fake({ answer: "I cannot review this." }).fetchImpl });
+    expect((odd as { reason: string }).reason).toContain("not in the expected form");
   });
 
   it("ignores a finding about a file it was not shown, whatever the code told it to say", async () => {
