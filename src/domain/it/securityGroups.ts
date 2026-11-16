@@ -6,6 +6,7 @@ import { appDb } from "../../db/app";
 import { SEVERITIES, type Severity } from "./security";
 import { IT_STATUS_LABEL, type ItStatusValue } from "./status";
 import { fixability, packageOf } from "./triage";
+import { TRIAGE_CONFIDENCES, TRIAGE_VERDICTS, type TriageConfidence, type TriageVerdict } from "./aiTriage";
 
 const DEPENDENCY_TOOLS = ["osv", "pnpm-audit"];
 const rank = (s: string) => SEVERITIES.indexOf(s as Severity);
@@ -22,6 +23,15 @@ export interface FixState {
   prUrl: string | null;
 }
 
+/** The AI's opinion of a finding. Advice only: a person still decides. Null until it has looked. */
+export interface TriageView {
+  verdict: TriageVerdict;
+  confidence: TriageConfidence;
+  reason: string;
+  /** For a duplicate, what it repeats, in words. */
+  duplicateOf: string | null;
+}
+
 export interface FindingRow {
   id: string;
   severity: Severity;
@@ -30,7 +40,11 @@ export interface FindingRow {
   file: string | null;
   seenCount: number;
   fixedIn: string | null;
+  triage: TriageView | null;
 }
+
+/** Noise the AI is sure enough about to offer for clearing (a hesitant noise call is stored as "not sure" already). */
+export const isClearNoise = (t: TriageView | null): boolean => t?.verdict === "noise" && (t.confidence === "high" || t.confidence === "medium");
 
 export interface FindingGroup {
   key: string;
@@ -56,9 +70,15 @@ export interface FixedRow {
   requestNumber: string | null;
 }
 
+function triageOf(f: { triageVerdict: string | null; triageConfidence: string | null; triageReason: string | null; triageDuplicateOf: string | null }, titleById: Map<string, string>): TriageView | null {
+  if (!f.triageVerdict || !(TRIAGE_VERDICTS as readonly string[]).includes(f.triageVerdict)) return null;
+  const confidence = (TRIAGE_CONFIDENCES as readonly string[]).includes(f.triageConfidence ?? "") ? (f.triageConfidence as TriageConfidence) : "low";
+  return { verdict: f.triageVerdict as TriageVerdict, confidence, reason: f.triageReason ?? "", duplicateOf: f.triageDuplicateOf ? (titleById.get(f.triageDuplicateOf)?.slice(0, 120) ?? null) : null };
+}
+
 const STATE_OF: Record<string, FixKind> = { BUILD_FAILED: "failed", FAILED: "failed", DEPLOY_FAILED: "failed", MERGED: "merged", LIVE: "merged", CLOSED: "closed" };
 
-export async function securityGroups(maxGroups = 60): Promise<{ groups: FindingGroup[]; moreGroups: number; recentlyFixed: FixedRow[] }> {
+export async function securityGroups(maxGroups = 60): Promise<{ groups: FindingGroup[]; moreGroups: number; recentlyFixed: FixedRow[]; untriaged: number }> {
   const [open, fixed] = await Promise.all([
     appDb.finding.findMany({ where: { status: { in: ["OPEN", "FIXING"] } } }),
     appDb.finding.findMany({ where: { status: "FIXED" }, orderBy: { fixedAt: "desc" }, take: 15 }),
@@ -67,6 +87,7 @@ export async function securityGroups(maxGroups = 60): Promise<{ groups: FindingG
   const requests = ids.length ? await appDb.itRequest.findMany({ where: { id: { in: ids } }, select: { id: true, number: true, status: true, prUrl: true } }) : [];
   const byId = new Map(requests.map((r) => [r.id, r]));
 
+  const titleById = new Map(open.map((f) => [f.id, DEPENDENCY_TOOLS.includes(f.tool) ? (packageOf(f.message) ?? f.message) : f.message]));
   // One row per package for dependency findings; everything else stands alone.
   const buckets = new Map<string, typeof open>();
   for (const f of open) {
@@ -98,14 +119,16 @@ export async function securityGroups(maxGroups = 60): Promise<{ groups: FindingG
       key, title, severity: sorted[0]!.severity as Severity, fix,
       selectable: fix.kind !== "inProgress" && fix.kind !== "merged",
       fixable: fix.kind !== "manual",
-      findings: sorted.map((f) => ({ id: f.id, severity: f.severity as Severity, message: f.message, tool: f.tool, file: f.file, seenCount: f.seenCount, fixedIn: f.fixedIn })),
+      findings: sorted.map((f) => ({ id: f.id, severity: f.severity as Severity, message: f.message, tool: f.tool, file: f.file, seenCount: f.seenCount, fixedIn: f.fixedIn, triage: triageOf(f, titleById) })),
     };
   });
-  groups.sort((a, b) => rank(b.severity) - rank(a.severity) || b.findings.length - a.findings.length || a.title.localeCompare(b.title));
+  // Within a severity, what the AI judged to be noise goes last, so the findings worth reading come first.
+  const noisy = (g: FindingGroup) => (g.findings.every((f) => isClearNoise(f.triage)) ? 1 : 0);
+  groups.sort((a, b) => rank(b.severity) - rank(a.severity) || noisy(a) - noisy(b) || b.findings.length - a.findings.length || a.title.localeCompare(b.title));
 
   const recentlyFixed: FixedRow[] = fixed.map((f) => {
     const req = f.itRequestId ? byId.get(f.itRequestId) : undefined;
     return { id: f.id, severity: f.severity as Severity, message: f.message, tool: f.tool, at: f.fixedAt ?? f.updatedAt, requestId: req?.id ?? null, requestNumber: req?.number ?? null };
   });
-  return { groups: groups.slice(0, maxGroups), moreGroups: Math.max(0, groups.length - maxGroups), recentlyFixed };
+  return { groups: groups.slice(0, maxGroups), moreGroups: Math.max(0, groups.length - maxGroups), recentlyFixed, untriaged: open.filter((f) => f.status === "OPEN" && !f.triagedAt).length };
 }

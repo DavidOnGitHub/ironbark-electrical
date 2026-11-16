@@ -693,11 +693,21 @@ model Finding {
   fixedAt      DateTime?
   /// The ItRequest opened to fix it, if any.
   itRequestId  String?
+  /// The AI's opinion of it: real | noise | duplicate | unsure. Advice only: it never changes `status`, a person does.
+  triageVerdict    String?
+  /// high | medium | low
+  triageConfidence String?
+  triageReason     String?
+  /// For a duplicate: the id of the finding it repeats.
+  triageDuplicateOf String?
+  /// Null until the AI has looked at it.
+  triagedAt        DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
   @@index([status, severity])
   @@index([tool, status])
+  @@index([triagedAt])
 }
 
 /// One scan run as received: when it ran, what it covered and how many findings each tool reported. Drives the report's trend.

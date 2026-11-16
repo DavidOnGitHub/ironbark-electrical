@@ -2,7 +2,7 @@
 
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
-import { currentScanRun, dismissFindings, fixSelectedFindings, ItActionError, reopenFinding, startScan, type Responder } from "../domain/it";
+import { currentScanRun, dismissFindings, fixSelectedFindings, ItActionError, reopenFinding, runAiTriage, startScan, type Responder } from "../domain/it";
 import { userActor } from "../domain/shared/actor";
 import { errorMessage } from "./shared";
 
@@ -11,6 +11,13 @@ export async function scanNowAction(): Promise<{ error: string | null }> {
   await requireRole(Access.IT_MANAGE);
   const r = await startScan();
   return r.started ? { error: null } : { error: r.reason };
+}
+
+/** Owner and Office: have the AI give its opinion of the findings nobody has judged yet. Waits for it (up to a minute or two). */
+export async function triageFindingsAction(): Promise<{ error: string | null; judged?: number }> {
+  await requireRole(Access.IT_MANAGE);
+  const r = await runAiTriage();
+  return r.ok ? { error: null, judged: r.judged } : { error: r.reason };
 }
 
 type AuthedUser = Awaited<ReturnType<typeof requireRole>>;

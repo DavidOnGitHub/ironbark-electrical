@@ -1,6 +1,7 @@
 import type { DismissedFinding, FindingGroup, FixedRow, ScanRun, SecurityReport as Report } from "../domain/it";
 import { ReopenButton } from "./FindingActions";
 import { FindingSelection } from "./FindingSelection";
+import { TriageButton } from "./TriageButton";
 import { ScanNowButton } from "./ScanNowButton";
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -22,7 +23,7 @@ export interface ScanSchedule {
   invalid: boolean;
 }
 
-export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null, pause = null, groups = [], moreGroups = 0, recentlyFixed = [] }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null; pause?: string | null; groups?: FindingGroup[]; moreGroups?: number; recentlyFixed?: FixedRow[] }) {
+export function SecurityReport({ report, canScan = false, schedule, dismissed = [], scanRun = null, pause = null, groups = [], moreGroups = 0, recentlyFixed = [], untriaged = 0, canTriage = false }: { report: Report; canScan?: boolean; schedule?: ScanSchedule; dismissed?: DismissedFinding[]; scanRun?: ScanRun | null; pause?: string | null; groups?: FindingGroup[]; moreGroups?: number; recentlyFixed?: FixedRow[]; untriaged?: number; canTriage?: boolean }) {
   const frequency = schedule ? (
     <div className="text-xs text-muted-foreground">
       <p>Scheduled scans: {schedule.label.toLowerCase()}{schedule.nextText ? `. ${schedule.nextText}` : ""}</p>
@@ -80,6 +81,7 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
           </div>
         </div>
       ) : null}
+      {canTriage && !readOnly && untriaged > 0 ? <TriageButton waiting={untriaged} /> : null}
       {groups.length > 0 ? <FindingSelection groups={groups} canAct={!readOnly} /> : null}
       {moreGroups > 0 ? <p className="text-xs text-muted-foreground">And {moreGroups} more, lower down the list.</p> : null}
       {recentlyFixed.length > 0 ? (

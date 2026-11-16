@@ -268,3 +268,4 @@ export * from "./queue";
 export * from "./scanNow";
 export * from "./scanSchedule";
 export * from "./aiReview";
+export * from "./aiTriage";
