@@ -42,3 +42,7 @@ overrides:
   'undici@<7.30.1': ^7.30.1
   # via vitest (GHSA-587h-7wmj-h5pm)
   'vite@<7.3.7': ^7.3.7
+  # via vitest (GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8)
+  '@vitest/mocker@<4.1.12': ^4.1.12
+  # via @typescript-eslint/typescript-estree (eslint-config-next) (GHSA-g3hv-75wg-m249)
+  'minimatch@>=10.0.0 <11.0.1': ^11.0.1
