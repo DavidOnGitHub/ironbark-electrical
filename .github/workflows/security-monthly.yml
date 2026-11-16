@@ -1,0 +1,50 @@
+name: Security scan (monthly, live site)
+
+# A ZAP baseline scan of the staging site: passive checks on what a visitor can reach (missing security headers,
+# cookie flags, information leaks). It never attacks: the baseline only spiders and watches responses. The result is
+# normalised and POSTed, HMAC-signed, to the app's /api/it/scan as kind "monthly", reporting only the `zap` tool, so it
+# cannot mark the weekly scan's findings as fixed. See PLAN-it-assistant.md, Phase 2.
+# Needs: repo variable IT_ZAP_TARGET (the staging site, e.g. https://ironbark-web-staging.onrender.com), the
+# repo variable IT_SCAN_URL and the repo secret IT_SCAN_SECRET (as for the weekly scan). Without IT_ZAP_TARGET the
+# job is skipped. Point it at staging only, never production.
+
+on:
+  schedule:
+    - cron: "23 4 1 * *" # the 1st of each month, 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-monthly
+  cancel-in-progress: false
+
+jobs:
+  zap:
+    if: vars.IT_ZAP_TARGET != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUT: ${{ github.workspace }}/scan-out
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The ZAP container runs as an unprivileged user and writes its report into this folder.
+      - run: mkdir -p "$OUT" && chmod 777 "$OUT"
+      # A failed run leaves no zap.json, so the report step reports "did not run" instead of fixing anything.
+      # Exit codes 0-2 are "clean", "failures" and "warnings"; anything higher means ZAP itself broke.
+      - name: ZAP baseline scan
+        continue-on-error: true
+        env:
+          TARGET: ${{ vars.IT_ZAP_TARGET }}
+        run: |
+          docker run --rm -v "$OUT:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "$TARGET" -J zap.json -m 5 -I || [ $? -le 2 ]
+      - name: Send the report
+        env:
+          IT_SCAN_URL: ${{ vars.IT_SCAN_URL }}
+          IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
+          SCAN_ID: scan-monthly-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/security/report.mjs "$OUT" monthly

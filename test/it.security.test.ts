@@ -118,6 +118,16 @@ describe("securityReport", () => {
     expect(r.lastScanKind).toBe("weekly");
   });
 
+  it("keeps a monthly live-site scan out of the trend, because its total is not comparable", async () => {
+    const { securityReport } = await import("../src/domain/it");
+    await ingestScan(scan("s1", [finding({ fingerprint: "osv:aaaaaaa:1" }), finding({ fingerprint: "osv:bbbbbbb:2" })]));
+    await ingestScan({ scanId: "m1", kind: "monthly", tools: ["zap"], findings: [finding({ tool: "zap", ruleId: "10038", fingerprint: "zap:10038", file: null, line: null })] });
+    const r = await securityReport();
+    expect(r.trend.map((t) => t.id)).toEqual(["s1"]);
+    expect(r.lastScanKind).toBe("monthly"); // it still counts as the latest scan
+    expect(r.openTotal).toBe(3); // and its finding is open like any other
+  });
+
   it("has no last scan before the first one", async () => {
     const { securityReport } = await import("../src/domain/it");
     expect((await securityReport()).lastScanAt).toBeNull();

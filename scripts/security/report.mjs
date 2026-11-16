@@ -1,5 +1,5 @@
 // Usage: node scripts/security/report.mjs <dir> <kind>
-// Reads osv.json, pnpm-audit.json, gitleaks.json and semgrep.json from <dir> (any may be missing), builds the report
+// Reads osv.json, pnpm-audit.json, gitleaks.json, semgrep.json and zap.json from <dir> (any may be missing), builds the report
 // and POSTs it, HMAC-signed, to $IT_SCAN_URL. Without IT_SCAN_URL it prints the report (dry run).
 import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -23,7 +23,7 @@ const read = (name) => {
     return undefined;
   }
 };
-const inputs = { osv: read("osv.json"), "pnpm-audit": read("pnpm-audit.json"), gitleaks: read("gitleaks.json"), semgrep: read("semgrep.json") };
+const inputs = { osv: read("osv.json"), "pnpm-audit": read("pnpm-audit.json"), gitleaks: read("gitleaks.json"), semgrep: read("semgrep.json"), zap: read("zap.json") };
 // gitleaks writes null/empty when clean; an existing file with null means it ran.
 if (existsSync(join(dir, "gitleaks.json")) && inputs.gitleaks === undefined && readFileSync(join(dir, "gitleaks.json"), "utf8").trim() === "null") inputs.gitleaks = [];
 

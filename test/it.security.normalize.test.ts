@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReport, compareVersions, fromGitleaks, fromOsv, fromPnpmAudit, fromSemgrep, pickFixedVersion, severityFromScore } from "../scripts/security/normalize.mjs";
+import { buildReport, compareVersions, fromGitleaks, fromOsv, fromPnpmAudit, fromSemgrep, fromZap, pickFixedVersion, severityFromScore } from "../scripts/security/normalize.mjs";
 import { ScanReportSchema } from "../src/domain/it";
 
 const osv = { results: [{ source: { path: "/src/pnpm-lock.yaml" }, packages: [{ package: { name: "lodash", version: "4.17.0" }, vulnerabilities: [{ id: "GHSA-1", summary: "Prototype pollution" }], groups: [{ ids: ["GHSA-1"], max_severity: "7.4" }] }] }] };
@@ -34,6 +34,42 @@ describe("scan normalisation", () => {
     expect(buildReport({ scanId: "s", kind: "weekly", inputs: { gitleaks: [] } }).tools).toEqual(["gitleaks"]);
     expect(fromOsv({})).toEqual([]);
     expect(fromPnpmAudit({})).toEqual([]);
+  });
+});
+
+const zap = {
+  site: [
+    {
+      "@name": "https://staging.example.com",
+      alerts: [
+        { pluginid: "10038", alertRef: "10038-1", name: "Content Security Policy (CSP) Header Not Set", riskcode: "2", instances: [{ uri: "https://staging.example.com/login?next=/x" }, { uri: "https://staging.example.com/book/abc" }, { uri: "https://staging.example.com/login" }] },
+        { pluginid: "10021", alertRef: "10021", name: "X-Content-Type-Options Header Missing", riskcode: "1", instances: [{ uri: "https://staging.example.com/" }] },
+        { pluginid: "10109", alertRef: "10109", name: "Modern Web Application", riskcode: "0", instances: [{ uri: "https://staging.example.com/" }] },
+      ],
+    },
+  ],
+};
+
+describe("ZAP baseline normalisation", () => {
+  it("makes one finding per alert, maps risk to severity and drops informational alerts", () => {
+    const f = fromZap(zap);
+    expect(f.map((x) => [x.ruleId, x.severity])).toEqual([["10038-1", "MEDIUM"], ["10021", "LOW"]]);
+    expect(f.every((x) => x.tool === "zap" && x.file === null && x.source === "scan")).toBe(true);
+  });
+  it("names the pages once each, without query strings or the host", () => {
+    const [csp] = fromZap(zap);
+    expect(csp.message).toBe("Content Security Policy (CSP) Header Not Set (2 pages, e.g. /login, /book/abc)");
+  });
+  it("keeps the same fingerprint when the pages change, and survives bad input", () => {
+    const moved = { site: [{ alerts: [{ ...zap.site[0].alerts[0], instances: [{ uri: "https://staging.example.com/other" }] }] }] };
+    expect(fromZap(moved)[0].fingerprint).toBe(fromZap(zap)[0].fingerprint);
+    expect(fromZap({})).toEqual([]);
+    expect(fromZap({ site: [{ alerts: [{ alertRef: "1", name: "x", riskcode: "3", instances: [{ uri: "not a url" }] }] }] })[0].message).toBe("x");
+  });
+  it("produces a monthly report the API accepts, reporting only the zap tool", () => {
+    const report = buildReport({ scanId: "m", kind: "monthly", inputs: { zap } });
+    expect(report.tools).toEqual(["zap"]);
+    expect(ScanReportSchema.parse(report).findings).toHaveLength(2);
   });
 });
 
