@@ -110,11 +110,15 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
   });
   if (claim.count === 0) return { request: await appDb.itRequest.findUniqueOrThrow({ where: { id } }), started: false, reason: "Already being started" };
 
-  const who = current.requestedByEmail ? { email: current.requestedByEmail, name: current.requestedByLabel, role: "requester" as const } : undefined;
+  // AI Builder lets only a service token or an admin start the automated intents (bugfix, maintenance), so a delegated
+  // requester would be refused. The person who chose the fix stays on the request here, and accepts it as an approver.
+  const intent = intentFor(current.kind, (current.intent as "feature" | "bugfix" | "maintenance" | null) ?? undefined);
+  const automated = intent === "bugfix" || intent === "maintenance";
+  const who = current.requestedByEmail && !automated ? { email: current.requestedByEmail, name: current.requestedByLabel, role: "requester" as const } : undefined;
   try {
     const session = await client.createSession(
       {
-        intent: intentFor(current.kind, (current.intent as "feature" | "bugfix" | "maintenance" | null) ?? undefined),
+        intent,
         text: `${current.title}\n\n${current.description}`,
         context: {
           itRequest: { id: current.id, number: current.number, kind: current.kind },

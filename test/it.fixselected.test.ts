@@ -52,6 +52,19 @@ describe("fixSelectedFindings", () => {
     expect(await appDb.finding.count({ where: { status: "FIXING", itRequestId: req.id } })).toBe(4);
   });
 
+  it("starts the session as the service, since AI Builder refuses automated intents from a delegated person", async () => {
+    await ingestScan(scan([dep("undici", "7.31.0"), code()]));
+    for (const withCode of [true, false]) {
+      await appDb.itRequest.deleteMany();
+      await appDb.finding.updateMany({ data: { status: "OPEN", itRequestId: null } });
+      const c = client();
+      const ids = (await appDb.finding.findMany({ where: withCode ? {} : { tool: { in: ["osv", "pnpm-audit"] } } })).map((f) => f.id);
+      await fixSelectedFindings(ids, owner, c, {});
+      expect((c.createSession as any).mock.calls[0][1]).toBeUndefined();
+      expect((await appDb.itRequest.findFirstOrThrow()).requestedByEmail).toBe("dave@example.test");
+    }
+  });
+
   it("names the package in the title when it is only one", async () => {
     await ingestScan(scan([dep("undici", "7.31.0"), dep("undici", "7.32.1")]));
     await fixSelectedFindings(await idsOf(), owner, client(), {});
