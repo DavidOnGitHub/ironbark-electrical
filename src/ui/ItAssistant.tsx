@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AssistantAvatar } from "@kabosh-digital/m-street-kit/components/AssistantAvatar";
 import { useAssistantDock } from "@kabosh-digital/m-street-kit/components/AssistantDockContext";
+import { AvatarPicker } from "@kabosh-digital/m-street-kit/components/AvatarPicker";
+import { useAssistantAvatarState, useAvatarCharacter } from "@kabosh-digital/m-street-kit/components/useAssistantAvatar";
+import { getAvatarCharacter } from "@kabosh-digital/m-street-kit/lib/assistantAvatar";
 import { Button } from "@kabosh-digital/m-street-kit/ui/button";
 import { Input } from "@kabosh-digital/m-street-kit/ui/input";
 import { Textarea } from "@kabosh-digital/m-street-kit/ui/textarea";
@@ -13,9 +17,8 @@ import { listItRequestsAction, submitItRequestAction, type ItRequestView } from 
 
 const DOCK_ID = "it";
 const LABEL = "IT assistant";
-/** Placeholder picture until the assistant has its own art. */
-const PICTURE = "/it-assistant.svg";
-const LAUNCHER_PROPS = {};
+/** How long the avatar celebrates after a request is sent. */
+const SENT_CELEBRATION_MS = 3000;
 
 /**
  * The IT assistant as a dock entry beside the Business Master and the Workflow expert: ask for a change to this app,
@@ -32,15 +35,35 @@ export function ItAssistant() {
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [sent, setSent] = useState(false);
+  const [characterId, setCharacterId] = useAvatarCharacter("it");
 
   const register = dock?.register;
   const setMeta = dock?.setMeta;
   useEffect(() => register?.({ id: DOCK_ID, label: LABEL }), [register]);
-  useEffect(() => {
-    setMeta?.(DOCK_ID, { state: "idle", characterId: "default", imageSrc: PICTURE, name: LABEL, launcherProps: LAUNCHER_PROPS });
-  }, [setMeta]);
 
   const active = dock?.isActive(DOCK_ID) ?? false;
+  const needsYou = (requests ?? []).filter((r) => r.waiting);
+  // The character reinforces what the panel says: thinking while requests load or send, presenting when something
+  // is waiting on the person, confused on an error, celebrating once a request has gone.
+  const avatar = useAssistantAvatarState({
+    open: active,
+    busy: pending || (active && requests === null && error === null),
+    streaming: false,
+    stalled: false,
+    failed: error !== null,
+    hasProposal: needsYou.length > 0,
+    applied: sent,
+  });
+  useEffect(() => {
+    setMeta?.(DOCK_ID, { state: avatar.state, characterId, launcherProps: avatar.launcherProps });
+  }, [setMeta, avatar.state, avatar.launcherProps, characterId]);
+  useEffect(() => {
+    if (!sent) return;
+    const t = setTimeout(() => setSent(false), SENT_CELEBRATION_MS);
+    return () => clearTimeout(t);
+  }, [sent]);
+
   const load = useCallback(() => {
     listItRequestsAction()
       .then(setRequests)
@@ -59,12 +82,11 @@ export function ItAssistant() {
       setTitle("");
       setDescription("");
       setComposing(false);
+      setSent(true);
       load();
       router.refresh();
     });
   }
-
-  const needsYou = (requests ?? []).filter((r) => r.waiting);
 
   const slot = dock?.slot(DOCK_ID);
   if (!slot) return null;
@@ -72,12 +94,14 @@ export function ItAssistant() {
   return createPortal(
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-foreground/10 px-4 py-3">
-        {/* eslint-disable-next-line @next/next/no-img-element -- small fixed placeholder */}
-        <img src={PICTURE} alt="" className="size-10 shrink-0 rounded-full" />
+        <span className="size-14 shrink-0">
+          <AssistantAvatar state={avatar.state} characterId={characterId} chip />
+        </span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-medium">{LABEL}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Ask for a change to this app</p>
+          <h2 className="truncate text-sm font-medium">{getAvatarCharacter(characterId).name}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{LABEL} - ask for a change to this app</p>
         </div>
+        <AvatarPicker assistant="it" value={characterId} onChange={setCharacterId} />
         {!composing ? (
           <Button size="sm" onClick={() => setComposing(true)}>
             New request
