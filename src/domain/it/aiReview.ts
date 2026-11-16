@@ -126,14 +126,28 @@ export interface ReviewItem {
  * Reads the model's answer. Null when it is not the expected JSON at all. Inside valid JSON, a finding that names an
  * unknown rule, or a file the model was not shown, is dropped rather than trusted.
  */
-export function parseReview(raw: string, shown: ReadonlySet<string>): ReviewItem[] | null {
-  let data: unknown;
-  try {
-    data = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
-  } catch {
-    return null;
+/**
+ * Finds the answer's JSON in text that may have a preamble, a code fence or trailing remarks around it (and braces in
+ * them). Starts at the `{"findings"` the answer must contain, then tries the closing braces from the last one back,
+ * so prose after the JSON cannot break it.
+ */
+export function extractJson(raw: string): unknown {
+  const start = raw.search(/\{\s*"findings"\s*:/);
+  if (start < 0) return null;
+  let end = raw.lastIndexOf("}");
+  for (let tries = 0; end > start && tries < 25; tries++, end = raw.lastIndexOf("}", end - 1)) {
+    try {
+      return JSON.parse(raw.slice(start, end + 1));
+    } catch {
+      // try an earlier closing brace
+    }
   }
-  const list = (data as { findings?: unknown })?.findings;
+  return null;
+}
+
+export function parseReview(raw: string, shown: ReadonlySet<string>): ReviewItem[] | null {
+  const data = extractJson(raw);
+  const list = (data as { findings?: unknown } | null)?.findings;
   if (!Array.isArray(list)) return null;
   const out: ReviewItem[] = [];
   for (const f of list) {
@@ -223,16 +237,16 @@ export async function gatherContext(env: Env, base: string | null, f: typeof fet
 
 // ---- model -------------------------------------------------------------------------------------------------------
 
-export async function askModel(ctx: ReviewContext, opts: { apiKey: string; model?: string; fetchImpl?: typeof fetch }): Promise<string> {
+export async function askModel(ctx: ReviewContext, opts: { apiKey: string; model?: string; fetchImpl?: typeof fetch }): Promise<{ text: string; stopReason: string | null }> {
   const res = await (opts.fetchImpl ?? fetch)("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": opts.apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: opts.model ?? DEFAULT_REVIEW_MODEL, max_tokens: 4000, system: REVIEW_SYSTEM, messages: [{ role: "user", content: buildReviewPrompt(ctx) }] }),
+    body: JSON.stringify({ model: opts.model ?? DEFAULT_REVIEW_MODEL, max_tokens: 8000, system: REVIEW_SYSTEM, messages: [{ role: "user", content: buildReviewPrompt(ctx) }] }),
     signal: AbortSignal.timeout(240_000),
   });
   if (!res.ok) throw new Error(`The AI service answered ${res.status}`);
-  const body = (await res.json()) as { content?: { type: string; text?: string }[] };
-  return (body.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("");
+  const body = (await res.json()) as { content?: { type: string; text?: string }[]; stop_reason?: string };
+  return { text: (body.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join(""), stopReason: body.stop_reason ?? null };
 }
 
 // ---- running it --------------------------------------------------------------------------------------------------
@@ -254,15 +268,21 @@ export async function runAiReview(env: Env = process.env, opts: { runId?: string
   if (last && now.getTime() - last.receivedAt.getTime() < REVIEW_COOLDOWN_MS) return { ok: false, status: 429, reason: "A review finished within the last hour." };
 
   let ctx: ReviewContext;
-  let raw: string;
+  let answer: { text: string; stopReason: string | null };
   try {
     ctx = await gatherContext(env, last?.commit ?? null, opts.fetchImpl);
-    raw = await askModel(ctx, { apiKey: env.ANTHROPIC_API_KEY!, model: env.IT_REVIEW_MODEL || undefined, fetchImpl: opts.fetchImpl });
+    answer = await askModel(ctx, { apiKey: env.ANTHROPIC_API_KEY!, model: env.IT_REVIEW_MODEL || undefined, fetchImpl: opts.fetchImpl });
   } catch (err) {
     return { ok: false, status: 502, reason: err instanceof Error ? err.message : "The review could not be completed." };
   }
-  const items = parseReview(raw, new Set(ctx.files.map((f) => f.path)));
-  if (!items) return { ok: false, status: 502, reason: "The AI answered in a form that could not be read, so nothing was recorded." };
+  const items = parseReview(answer.text, new Set(ctx.files.map((f) => f.path)));
+  if (!items) {
+    // The reason goes back to the workflow, whose log is public: say what went wrong, never what the model wrote about the code.
+    // The start of the answer goes to the server log only, to work out why it could not be read.
+    console.error(`AI review: unreadable answer (stop_reason=${answer.stopReason}, ${answer.text.length} characters): ${answer.text.slice(0, 400)}`);
+    const why = answer.stopReason === "max_tokens" ? "it was cut off before it finished" : answer.text.trim() === "" ? "it was empty" : "it was not in the expected form";
+    return { ok: false, status: 502, reason: `The AI's answer could not be read (${why}; stop reason ${answer.stopReason ?? "unknown"}), so nothing was recorded.` };
+  }
 
   const findings = toFindings(items);
   const ingest = await ingestScan({
