@@ -1,8 +1,11 @@
-import { ingestScan, verifyScanSignature } from "../../../../src/domain/it";
+import { after } from "next/server";
+import { ingestScan, runAiTriage, verifyScanSignature } from "../../../../src/domain/it";
 import { ZodError } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** The AI triage of new findings runs after the response and can take a minute or two. */
+export const maxDuration = 300;
 
 /**
  * The scheduled security scans (GitHub Actions) post their normalised report here. Not behind sign-in - the HMAC
@@ -22,7 +25,9 @@ export async function POST(request: Request) {
   }
   try {
     const result = await ingestScan(json);
-    // A scan only reports. Which findings get fixed is a person's choice on the Security tab.
+    // A scan only reports. Which findings get fixed is a person's choice on the Security tab. The AI gives its opinion of the
+    // new ones after the response, so the scan job is not kept waiting; a failure there leaves them for the next run.
+    if (!result.duplicate && result.created + result.reopened > 0) after(() => runAiTriage().catch((err) => console.error("AI triage failed", err)));
     return Response.json({ received: true, ...result });
   } catch (err) {
     if (err instanceof ZodError) return Response.json({ error: "Invalid report.", issues: err.issues.slice(0, 10).map((i) => `${i.path.join(".")}: ${i.message}`) }, { status: 400 });

@@ -1,4 +1,5 @@
-import { runAiReview, verifyScanSignature } from "../../../../src/domain/it";
+import { after } from "next/server";
+import { runAiReview, runAiTriage, verifyScanSignature } from "../../../../src/domain/it";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,5 +26,6 @@ export async function POST(request: Request) {
   }
   const result = await runAiReview(process.env, { runId });
   if (!result.ok) return Response.json({ error: result.reason }, { status: result.status });
+  if (result.ingest.created + result.ingest.reopened > 0) after(() => runAiTriage().catch((err) => console.error("AI triage failed", err)));
   return Response.json({ reviewed: true, commit: result.commit, compared: result.compared, filesRead: result.filesRead, findings: result.findings, ...result.ingest });
 }
