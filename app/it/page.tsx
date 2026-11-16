@@ -6,7 +6,7 @@ import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status"
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
 import { SecurityReport } from "../../src/ui/SecurityReport";
-import { currentScanRun, securityPause, listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityGroups, securityReport } from "../../src/domain/it";
+import { currentScanRun, securityPause, listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityGroups, securityReport, triageAvailable } from "../../src/domain/it";
 import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
 import { demoBreakAvailable, listDemoBugs } from "../../src/domain/demo";
 import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
@@ -67,7 +67,7 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
           {waitingCount === 1 ? "1 fix is" : `${waitingCount} fixes are`} waiting for the current one to finish. They go one at a time so two changes cannot clash.
         </p>
       ) : null}
-      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} schedule={schedule} dismissed={dismissed} scanRun={scanRun} pause={fixPause} groups={arranged?.groups} moreGroups={arranged?.moreGroups} recentlyFixed={arranged?.recentlyFixed} /> : null}
+      {security ? <SecurityReport report={security} canScan={scanNowAvailable()} schedule={schedule} dismissed={dismissed} scanRun={scanRun} pause={fixPause} groups={arranged?.groups} moreGroups={arranged?.moreGroups} recentlyFixed={arranged?.recentlyFixed} untriaged={arranged?.untriaged ?? 0} canTriage={triageAvailable()} /> : null}
       {unfixed.length > 0 ? (
         <section className="flex flex-col gap-2 rounded-xl border border-foreground/10 p-3" data-testid="it-unfixed">
           <h2 className="text-sm font-semibold">Looked at, not changed by the assistant</h2>

@@ -128,11 +128,11 @@ export interface ReviewItem {
  */
 /**
  * Finds the answer's JSON in text that may have a preamble, a code fence or trailing remarks around it (and braces in
- * them). Starts at the `{"findings"` the answer must contain, then tries the closing braces from the last one back,
+ * them). Starts at the `{"<key>"` (findings, by default) the answer must contain, then tries the closing braces from the last one back,
  * so prose after the JSON cannot break it.
  */
-export function extractJson(raw: string): unknown {
-  const start = raw.search(/\{\s*"findings"\s*:/);
+export function extractJson(raw: string, key = "findings"): unknown {
+  const start = raw.search(new RegExp(`\\{\\s*"${key}"\\s*:`));
   if (start < 0) return null;
   let end = raw.lastIndexOf("}");
   for (let tries = 0; end > start && tries < 25; tries++, end = raw.lastIndexOf("}", end - 1)) {
@@ -194,6 +194,12 @@ const gh = (env: Env, f: typeof fetch) => async (path: string, accept = "applica
     signal: AbortSignal.timeout(20_000),
     cache: "no-store",
   });
+
+/** One file's text at a branch, or null when GitHub does not have it. Used by the triage to show a finding's code. */
+export async function fetchRepoFile(env: Env, ref: string, path: string, f: typeof fetch = fetch): Promise<string | null> {
+  const r = await gh(env, f)(`/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`, "application/vnd.github.raw+json");
+  return r.ok ? r.text() : null;
+}
 
 /** Reads what the reviewer needs from GitHub. Throws a plain Error on a failure, which the caller turns into a reason. */
 export async function gatherContext(env: Env, base: string | null, f: typeof fetch = fetch): Promise<ReviewContext> {

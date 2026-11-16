@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { dismissSelectedAction, fixSelectedAction } from "../actions/security";
-import type { FindingGroup, FixKind } from "../domain/it";
+import { isClearNoise, type FindingGroup, type FixKind, type TriageView } from "../domain/it";
 
 const SEVERITY_TONE: Record<string, string> = {
   CRITICAL: "text-red-700 dark:text-red-400",
@@ -21,6 +21,27 @@ const FIX_TONE: Record<FixKind, string> = {
   manual: "text-amber-700 dark:text-amber-400",
 };
 const label = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+const VERDICT_TEXT: Record<string, string> = { real: "AI: real", noise: "AI: probably noise", duplicate: "AI: duplicate", unsure: "AI: not sure" };
+const VERDICT_TONE: Record<string, string> = { real: "text-red-700 dark:text-red-400", noise: "text-muted-foreground", duplicate: "text-muted-foreground", unsure: "text-amber-700 dark:text-amber-400" };
+
+/** One line saying what the AI made of a finding, with its reason. Nothing when it has not looked. */
+function Verdict({ t }: { t: TriageView | null }) {
+  if (!t) return null;
+  return (
+    <p className="text-xs" data-testid="triage-verdict">
+      <span className={`font-medium ${VERDICT_TONE[t.verdict]}`}>{VERDICT_TEXT[t.verdict]} ({t.confidence})</span>
+      <span className="text-muted-foreground"> - {t.reason}{t.verdict === "duplicate" && t.duplicateOf ? ` Repeats: ${t.duplicateOf}.` : ""}</span>
+    </p>
+  );
+}
+
+/** What the AI said about a whole row: the verdict when every problem in it agrees, else the worst one for a person to look at. */
+const rowTriage = (g: FindingGroup): TriageView | null => {
+  const all = g.findings.map((f) => f.triage);
+  if (all.some((t) => !t)) return null;
+  const order = ["real", "unsure", "duplicate", "noise"];
+  return [...(all as TriageView[])].sort((a, b) => order.indexOf(a.verdict) - order.indexOf(b.verdict))[0]!;
+};
 
 /**
  * The open findings, one row per package, each with a tick box. Owner and Office choose what to do with the ticked ones:
@@ -38,6 +59,8 @@ export function FindingSelection({ groups, canAct }: { groups: FindingGroup[]; c
   const selectable = useMemo(() => groups.filter((g) => g.selectable), [groups]);
   const chosen = groups.filter((g) => picked.has(g.key));
   const fixable = chosen.filter((g) => g.fixable);
+  const noiseGroups = selectable.filter((g) => g.findings.every((f) => isClearNoise(f.triage)));
+  const realGroups = selectable.filter((g) => g.findings.some((f) => f.triage?.verdict === "real"));
   const allPicked = selectable.length > 0 && selectable.every((g) => picked.has(g.key));
   const idsOf = (gs: FindingGroup[]) => gs.flatMap((g) => g.findings.map((f) => f.id));
 
@@ -79,6 +102,20 @@ export function FindingSelection({ groups, canAct }: { groups: FindingGroup[]; c
               Select all ({selectable.length})
             </label>
             <span className="text-xs text-muted-foreground">{chosen.length === 0 ? "Tick the findings to deal with." : `${chosen.length} selected`}</span>
+            {realGroups.length > 0 || noiseGroups.length > 0 ? (
+              <span className="flex flex-wrap gap-2" data-testid="triage-select">
+                {realGroups.length > 0 ? (
+                  <button type="button" onClick={() => setPicked(new Set(realGroups.map((g) => g.key)))} disabled={pending} className="rounded-md border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50">
+                    Select AI-judged real ({realGroups.length})
+                  </button>
+                ) : null}
+                {noiseGroups.length > 0 ? (
+                  <button type="button" onClick={() => setPicked(new Set(noiseGroups.map((g) => g.key)))} disabled={pending} className="rounded-md border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50">
+                    Select AI-judged noise ({noiseGroups.length})
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
             <span className="flex flex-wrap gap-2">
               <button type="button" onClick={fix} disabled={pending || fixable.length === 0} className="rounded-md border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50">
                 {pending && !accepting ? "Starting..." : `Fix selected${fixable.length ? ` (${fixable.length})` : ""}`}
@@ -122,6 +159,7 @@ export function FindingSelection({ groups, canAct }: { groups: FindingGroup[]; c
                 <span className={`font-medium ${SEVERITY_TONE[g.severity]}`}>{label(g.severity)}</span> - <span className="font-medium">{g.title}</span>
                 {g.findings.length > 1 ? <span className="text-muted-foreground"> ({g.findings.length} problems)</span> : null}
               </p>
+              <Verdict t={rowTriage(g)} />
               <p className={`mt-1 text-xs ${FIX_TONE[g.fix.kind]}`} data-testid="security-fix-state">
                 {g.fix.text}
                 {g.fix.requestId ? (
@@ -145,6 +183,7 @@ export function FindingSelection({ groups, canAct }: { groups: FindingGroup[]; c
                       <p>
                         <span className={`font-medium ${SEVERITY_TONE[f.severity]}`}>{label(f.severity)}</span> - {f.message}
                       </p>
+                      {g.findings.length > 1 ? <Verdict t={f.triage} /> : null}
                       <p className="text-xs text-muted-foreground">
                         {f.tool}{f.file ? ` - ${f.file}` : ""}{f.fixedIn ? ` - fixed in ${f.fixedIn}` : ""} - seen {f.seenCount} {f.seenCount === 1 ? "time" : "times"}
                       </p>
