@@ -190,7 +190,8 @@ export async function securityReport(topN = 25): Promise<SecurityReport> {
     lastScanKind: scans[0]?.kind ?? null,
     openBySeverity: [...SEVERITIES].reverse().map((severity) => ({ severity, count: count.get(severity) ?? 0 })),
     openTotal: open.length,
-    trend: [...scans].reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
+    // A monthly scan carries only the live-site tool's findings, so its total is not comparable with a full scan's.
+    trend: [...scans].filter((s) => s.kind !== "monthly").reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
     history: scans.slice(1).map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total, findings: Array.isArray(s.findings) ? (s.findings as unknown as HistoricFinding[]).slice(0, 100) : null })),
     top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId) && !failedIds.has(f.itRequestId!), fixFailed: Boolean(f.itRequestId) && failedIds.has(f.itRequestId!), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };

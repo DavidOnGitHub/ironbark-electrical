@@ -37,7 +37,8 @@ export interface ScanDue {
 export async function scanDue(now: Date = new Date(), env: Env = process.env): Promise<ScanDue> {
   const frequency = scanFrequency(env);
   if (frequency === "never") return { due: false, frequency, reason: "Scheduled scans are switched off" };
-  const last = await appDb.securityScan.findFirst({ orderBy: { receivedAt: "desc" }, select: { receivedAt: true } });
+  // The monthly ZAP scan reports only its own tool, so it must not count as "a scan ran" for the weekly one.
+  const last = await appDb.securityScan.findFirst({ where: { kind: { not: "monthly" } }, orderBy: { receivedAt: "desc" }, select: { receivedAt: true } });
   if (!last) return { due: true, frequency, reason: "No scan has run yet" };
   const wait = INTERVAL_DAYS[frequency] * DAY_MS - TOLERANCE_MS;
   return now.getTime() - last.receivedAt.getTime() >= wait ? { due: true, frequency, reason: "The last scan is old enough" } : { due: false, frequency, reason: "The last scan is recent enough" };
