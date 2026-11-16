@@ -123,10 +123,45 @@ export function fromSemgrep(json) {
   });
 }
 
+/**
+ * ZAP baseline scan (`zap-baseline.py -J`): alerts per site, each listing the pages it was seen on. One finding per
+ * alert, not per page, so a header missing everywhere is one problem. Informational alerts (risk 0) are dropped: the
+ * baseline reports a lot of them and none is something to fix. The finding is about the running site, so it has no file.
+ */
+export function fromZap(json) {
+  const RISK = { 3: "HIGH", 2: "MEDIUM", 1: "LOW" };
+  const out = [];
+  for (const site of json?.site ?? []) {
+    for (const a of site?.alerts ?? []) {
+      const severity = RISK[Number(a.riskcode)];
+      if (!severity) continue;
+      const paths = [
+        ...new Set(
+          (a.instances ?? []).map((i) => {
+            try {
+              return new URL(i.uri).pathname || "/";
+            } catch {
+              return null;
+            }
+          }).filter(Boolean),
+        ),
+      ];
+      const where = paths.length > 0 ? ` (${paths.length} page${paths.length === 1 ? "" : "s"}, e.g. ${paths.slice(0, 3).join(", ")})` : "";
+      const id = a.alertRef ?? a.pluginid;
+      out.push({
+        tool: "zap", ruleId: String(id), severity, file: null, line: null,
+        message: clip(`${a.name ?? a.alert ?? id}${where}`, 500),
+        fingerprint: `zap:${safe(id)}`, source: "scan",
+      });
+    }
+  }
+  return out;
+}
+
 /** Builds the report from whichever tool outputs exist. A tool with no output did not run, so it is left out of
  *  `tools` and cannot mark its earlier findings fixed. `inputs` maps tool name to parsed JSON or undefined. */
 export function buildReport({ scanId, kind, commit = null, inputs }) {
-  const parsers = { osv: fromOsv, "pnpm-audit": fromPnpmAudit, gitleaks: fromGitleaks, semgrep: fromSemgrep };
+  const parsers = { osv: fromOsv, "pnpm-audit": fromPnpmAudit, gitleaks: fromGitleaks, semgrep: fromSemgrep, zap: fromZap };
   const tools = [];
   const findings = [];
   for (const [tool, parse] of Object.entries(parsers)) {

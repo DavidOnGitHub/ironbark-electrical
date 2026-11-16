@@ -71,6 +71,12 @@ describe("scanDue", () => {
     expect((await scanDue(new Date(), env("monthly"))).due).toBe(true);
   });
 
+  it("a recent monthly (live-site) scan does not delay the weekly scan", async () => {
+    await lastScanAt(8); // the last full scan was eight days ago
+    await ingestScan({ scanId: "monthly-1", kind: "monthly", tools: ["zap"], findings: [] }); // a ZAP-only scan just now
+    expect((await scanDue(new Date(), env("weekly"))).due).toBe(true);
+  });
+
   it("never is never due, however old the last scan", async () => {
     await lastScanAt(400);
     expect((await scanDue(new Date(), env("never"))).due).toBe(false);
