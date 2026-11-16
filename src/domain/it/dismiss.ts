@@ -52,6 +52,26 @@ export async function dismissFinding(input: { id: string; status: string; reason
   });
 }
 
+/** Accepts or dismisses several findings with one reason. Returns how many were done and which could not be. */
+export async function dismissFindings(input: { ids: string[]; status: string; reason?: string | null }, who: Responder, client: AiBuilderClient | null = defaultClient()): Promise<{ done: number; failed: { id: string; reason: string }[] }> {
+  if (!mayDecide(who)) throw new ItActionError("Only the Owner or Office can do this.");
+  const ids = [...new Set(input.ids)].slice(0, 500);
+  if (ids.length === 0) throw new ItActionError("Choose at least one finding.");
+  let done = 0;
+  const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      await dismissFinding({ id, status: input.status, reason: input.reason }, who, client);
+      done++;
+    } catch (err) {
+      // The first refusal that is about the choice itself (a missing reason) applies to all of them: say it once.
+      if (err instanceof ItActionError && done === 0 && failed.length === 0 && /Choose accept|Say briefly/.test(err.message)) throw err;
+      failed.push({ id, reason: err instanceof ItActionError ? err.message : "Could not be saved" });
+    }
+  }
+  return { done, failed };
+}
+
 /** Undoes a dismissal. The finding is open again and, if it is serious enough, goes back in line for a fix. */
 export async function reopenFinding(id: string, who: Responder): Promise<void> {
   if (!mayDecide(who)) throw new ItActionError("Only the Owner or Office can do this.");

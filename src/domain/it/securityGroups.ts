@@ -5,12 +5,12 @@
 import { appDb } from "../../db/app";
 import { SEVERITIES, type Severity } from "./security";
 import { IT_STATUS_LABEL, type ItStatusValue } from "./status";
-import { decideFinding, packageOf, securityFixEnabled } from "./triage";
+import { fixability, packageOf } from "./triage";
 
 const DEPENDENCY_TOOLS = ["osv", "pnpm-audit"];
 const rank = (s: string) => SEVERITIES.indexOf(s as Severity);
 
-export type FixKind = "merged" | "inProgress" | "failed" | "closed" | "queued" | "manual";
+export type FixKind = "merged" | "inProgress" | "failed" | "closed" | "pending" | "manual";
 
 /** Where the fix for one group stands. */
 export interface FixState {
@@ -38,6 +38,10 @@ export interface FindingGroup {
   title: string;
   severity: Severity;
   fix: FixState;
+  /** A person may tick it: nothing is being done about it right now. */
+  selectable: boolean;
+  /** The assistant can fix it (a leaked secret can only be accepted once rotated). */
+  fixable: boolean;
   findings: FindingRow[];
 }
 
@@ -71,7 +75,6 @@ export async function securityGroups(maxGroups = 60): Promise<{ groups: FindingG
     buckets.set(key, [...(buckets.get(key) ?? []), f]);
   }
 
-  const autoFix = securityFixEnabled();
   const groups: FindingGroup[] = [...buckets.entries()].map(([key, rows]) => {
     const sorted = [...rows].sort((a, b) => rank(b.severity) - rank(a.severity) || b.seenCount - a.seenCount);
     const req = sorted.map((f) => (f.itRequestId ? byId.get(f.itRequestId) : undefined)).find(Boolean);
@@ -85,16 +88,16 @@ export async function securityGroups(maxGroups = 60): Promise<{ groups: FindingG
         : `Being fixed in ${req.number} (${IT_STATUS_LABEL[req.status as ItStatusValue].toLowerCase()}).`;
       fix = { kind, text, requestId: req.id, requestNumber: req.number, prUrl: req.prUrl };
     } else {
-      const decision = decideFinding(sorted[0]!);
-      fix = !autoFix && decision.action === "fix"
-        ? { kind: "manual", text: "Automatic security fixes are switched off.", requestId: null, requestNumber: null, prUrl: null }
-        : decision.action === "fix"
-          ? { kind: "queued", text: "Waiting in line for a fix. They are made one at a time.", requestId: null, requestNumber: null, prUrl: null }
-          : { kind: "manual", text: `Not fixed automatically. ${decision.reason}.`, requestId: null, requestNumber: null, prUrl: null };
+      const fx = fixability(sorted[0]!);
+      fix = fx.fixable
+        ? { kind: "pending", text: "Not fixed yet. Tick it to have it fixed, or to accept the risk.", requestId: null, requestNumber: null, prUrl: null }
+        : { kind: "manual", text: `${fx.reason}. Tick it to accept the risk once it has been dealt with.`, requestId: null, requestNumber: null, prUrl: null };
     }
     const title = key.startsWith("pkg:") ? key.slice(4) : sorted[0]!.message;
     return {
       key, title, severity: sorted[0]!.severity as Severity, fix,
+      selectable: fix.kind !== "inProgress" && fix.kind !== "merged",
+      fixable: fix.kind !== "manual",
       findings: sorted.map((f) => ({ id: f.id, severity: f.severity as Severity, message: f.message, tool: f.tool, file: f.file, seenCount: f.seenCount, fixedIn: f.fixedIn })),
     };
   });

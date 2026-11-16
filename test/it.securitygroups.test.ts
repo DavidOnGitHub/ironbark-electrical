@@ -23,11 +23,12 @@ describe("securityGroups", () => {
     expect(groups[0]).toMatchObject({ severity: "CRITICAL", fix: { kind: "inProgress", requestNumber: "IT-77", requestId: req.id } });
     expect(groups[0]!.fix.text).toMatch(/Being fixed in IT-77/);
     expect(groups[0]!.findings).toHaveLength(2);
-    expect(groups[1]!.fix.kind).toBe("queued");
+    expect(groups[1]).toMatchObject({ fix: { kind: "pending" }, selectable: true, fixable: true });
+    expect(groups[0]).toMatchObject({ selectable: false });
   });
 
-  it("says plainly when a fix merged, failed, or is not made automatically", async () => {
-    await ingestScan(scan("s1", [f({ message: "next@1.0.0: a", fingerprint: "osv:aaaaaaaa:1" }), f({ message: "vite@1.0.0: b", fingerprint: "osv:bbbbbbbb:2" }), f({ message: "lodash@1.0.0: c", severity: "LOW", fingerprint: "osv:cccccccc:3" })]));
+  it("says plainly when a fix merged, failed, or cannot be fixed by the assistant", async () => {
+    await ingestScan(scan("s1", [f({ message: "next@1.0.0: a", fingerprint: "osv:aaaaaaaa:1" }), f({ message: "vite@1.0.0: b", fingerprint: "osv:bbbbbbbb:2" }), f({ tool: "gitleaks", message: "Possible secret", fingerprint: "gitleaks:aws:cccccccc" })]));
     const merged = await request("IT-1", "LIVE");
     const failed = await request("IT-2", "BUILD_FAILED");
     await appDb.finding.update({ where: { fingerprint: "osv:aaaaaaaa:1" }, data: { status: "FIXING", itRequestId: merged.id } });
@@ -35,8 +36,8 @@ describe("securityGroups", () => {
     const by = Object.fromEntries((await securityGroups()).groups.map((g) => [g.title, g.fix]));
     expect(by.next).toMatchObject({ kind: "merged", requestNumber: "IT-1", prUrl: expect.stringContaining("/pull/1") });
     expect(by.vite).toMatchObject({ kind: "failed" });
-    expect(by.lodash).toMatchObject({ kind: "manual" });
-    expect(by.lodash!.text).toMatch(/Below high severity/);
+    expect(by["Possible secret"]).toMatchObject({ kind: "manual" });
+    expect(by["Possible secret"]!.text).toMatch(/rotated by a person/);
   });
 
   it("lists recently fixed findings with the fix that cleared them, or says the scan stopped reporting them", async () => {

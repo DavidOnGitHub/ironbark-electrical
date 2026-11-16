@@ -42,14 +42,14 @@ describe("the fix lanes", () => {
     expect(await laneBusy("FINDING")).toBeNull(); // separate lanes
 
     // The queue does not move while the first is in flight, and the waiting one is counted.
-    expect(await advanceFixQueue(c, on)).toEqual({ errors: 0, findings: 0 });
-    expect(await queuedFixCounts()).toEqual({ errors: 1, findings: 0 });
+    expect(await advanceFixQueue(c, on)).toEqual({ errors: 0 });
+    expect(await queuedFixCounts()).toEqual({ errors: 1 });
 
     // Once the first has merged, the next minute's tick opens the second.
     await appDb.itRequest.updateMany({ data: { status: "MERGED" } });
-    expect(await advanceFixQueue(c, on)).toEqual({ errors: 1, findings: 0 });
+    expect(await advanceFixQueue(c, on)).toEqual({ errors: 1 });
     expect(await appDb.itRequest.count()).toBe(2);
-    expect(await queuedFixCounts()).toEqual({ errors: 0, findings: 0 });
+    expect(await queuedFixCounts()).toEqual({ errors: 0 });
   });
 
   it("does not make an error wait for its own earlier attempt", async () => {
@@ -64,7 +64,7 @@ describe("the fix lanes", () => {
   it("does nothing to move the queue when auto-fix is off", async () => {
     const a = await capture("/a", "fnA");
     await openErrorFix(a, client(), {}); // classified, not opened
-    expect(await advanceFixQueue(client(), {})).toEqual({ errors: 0, findings: 0 });
+    expect(await advanceFixQueue(client(), {})).toEqual({ errors: 0 });
     expect(await appDb.itRequest.count()).toBe(0);
   });
 
@@ -78,6 +78,6 @@ describe("the fix lanes", () => {
 
   it("does not start anything without AI Builder", async () => {
     await capture("/a", "fnA");
-    expect(await advanceFixQueue(null, on)).toEqual({ errors: 0, findings: 0 });
+    expect(await advanceFixQueue(null, on)).toEqual({ errors: 0 });
   });
 });

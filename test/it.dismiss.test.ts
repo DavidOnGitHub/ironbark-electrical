@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../src/db/app";
-import { dismissFinding, ingestScan, ItActionError, laneBusy, listDismissedFindings, openNextFindingFix, reopenFinding, securityHeadline, type AiBuilderClient, type Responder } from "../src/domain/it";
+import { dismissFinding, ingestScan, ItActionError, laneBusy, listDismissedFindings, fixSelectedFindings, reopenFinding, securityHeadline, type AiBuilderClient, type Responder } from "../src/domain/it";
 import { truncateAll } from "./helpers";
 
 const owner: Responder = { actor: { type: "USER", userId: "u1", label: "Dave Owner" }, userId: "u1", email: "dave@example.test", name: "Dave Owner", roles: ["ADMIN"] };
@@ -15,7 +15,12 @@ const client = (closeOnCancel = true) =>
     cancel: vi.fn(async () => undefined),
     getSession: vi.fn(async (id: string) => ({ session: { id, appId: "i", intent: "bugfix", title: "t", status: closeOnCancel ? "closed" : "working", costUsd: 0, prUrl: null }, events: [], acceptance: null })),
   }) as unknown as AiBuilderClient;
-const first = () => appDb.finding.findFirstOrThrow({ orderBy: { createdAt: "asc" } });
+/** Opens a fix for the worst open finding, the way a person ticking it would. */
+const fixOne = async (c: AiBuilderClient) => {
+  const row = await appDb.finding.findFirst({ where: { status: "OPEN" }, orderBy: { severity: "desc" } });
+  return row ? fixSelectedFindings([row.id], owner, c, {}) : { opened: false };
+};
+const first = () => appDb.finding.findFirstOrThrow({ orderBy: [{ severity: "desc" }, { createdAt: "asc" }] });
 
 beforeEach(truncateAll);
 afterAll(async () => {
@@ -56,7 +61,7 @@ describe("dismissFinding", () => {
   it("calls off a fix that is under way and frees the security lane for the next finding", async () => {
     await ingestScan(scan("s1", [f({ message: "First", severity: "CRITICAL" }), f({ message: "Second" })]));
     const c = client();
-    expect((await openNextFindingFix(c, {})).opened).toBe(true);
+    expect((await fixOne(c)).opened).toBe(true);
     const row = await first();
     expect(row.status).toBe("FIXING");
     expect(await laneBusy("FINDING")).not.toBeNull();
@@ -66,14 +71,14 @@ describe("dismissFinding", () => {
     expect(await laneBusy("FINDING")).toBeNull();
     expect((await first()).status).toBe("ACCEPTED_RISK");
     // The next finding is now next in line.
-    expect((await openNextFindingFix(c, {})).opened).toBe(true);
+    expect((await fixOne(c)).opened).toBe(true);
     expect(await appDb.itRequest.count()).toBe(2);
   });
 
   it("closes a request the assistant never picked up, without calling AI Builder", async () => {
     await ingestScan(scan("s1", [f()]));
     const noSession = { createSession: vi.fn(async () => { throw new Error("down"); }) } as unknown as AiBuilderClient;
-    await openNextFindingFix(noSession, {});
+    await fixOne(noSession);
     expect((await appDb.itRequest.findFirstOrThrow()).sessionId).toBeNull();
     const c = client();
     await dismissFinding({ id: (await first()).id, status: "FALSE_POSITIVE" }, owner, c);
@@ -84,7 +89,7 @@ describe("dismissFinding", () => {
 
   it("changes nothing when the fix cannot be called off", async () => {
     await ingestScan(scan("s1", [f()]));
-    await openNextFindingFix(client(), {});
+    await fixOne(client());
     await expect(dismissFinding({ id: (await first()).id, status: "FALSE_POSITIVE" }, owner, null)).rejects.toThrow(/not connected/);
     expect((await first()).status).toBe("FIXING");
   });
@@ -95,7 +100,7 @@ describe("dismissFinding", () => {
     await dismissFinding({ id: (await first()).id, status: "ACCEPTED_RISK", reason: "Fine" }, owner, null);
     await ingestScan(scan("s2", [same]));
     expect((await first()).status).toBe("ACCEPTED_RISK");
-    expect((await openNextFindingFix(client(), {})).opened).toBe(false); // never sent to the assistant
+    expect((await fixOne(client())).opened).toBe(false); // never sent to the assistant
   });
 });
 
@@ -108,7 +113,7 @@ describe("reopenFinding", () => {
     await expect(reopenFinding(id, tech)).rejects.toThrow(/Owner or Office/);
     await reopenFinding(id, owner);
     expect(await first()).toMatchObject({ status: "OPEN", itRequestId: null });
-    expect((await openNextFindingFix(client(), {})).opened).toBe(true);
+    expect((await fixOne(client())).opened).toBe(true);
     expect(await listDismissedFindings()).toHaveLength(0);
   });
 });

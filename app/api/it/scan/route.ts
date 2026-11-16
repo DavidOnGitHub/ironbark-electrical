@@ -1,4 +1,4 @@
-import { ingestScan, triageScan, verifyScanSignature } from "../../../../src/domain/it";
+import { ingestScan, verifyScanSignature } from "../../../../src/domain/it";
 import { ZodError } from "zod";
 
 export const runtime = "nodejs";
@@ -22,9 +22,8 @@ export async function POST(request: Request) {
   }
   try {
     const result = await ingestScan(json);
-    // Fixes for the worst new findings. A failure here must not make the scanner retry a report that was stored.
-    const triage = result.duplicate ? null : await triageScan((json as { scanId: string }).scanId).catch(() => null);
-    return Response.json({ received: true, ...result, triage });
+    // A scan only reports. Which findings get fixed is a person's choice on the Security tab.
+    return Response.json({ received: true, ...result });
   } catch (err) {
     if (err instanceof ZodError) return Response.json({ error: "Invalid report.", issues: err.issues.slice(0, 10).map((i) => `${i.path.join(".")}: ${i.message}`) }, { status: 400 });
     throw err;
