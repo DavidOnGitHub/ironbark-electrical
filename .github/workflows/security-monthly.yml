@@ -1,12 +1,14 @@
-name: Security scan (monthly, live site)
+name: Security scan (monthly)
 
-# A ZAP baseline scan of the staging site: passive checks on what a visitor can reach (missing security headers,
+# Two independent jobs. `zap`: a ZAP baseline scan of the staging site: passive checks on what a visitor can reach (missing security headers,
 # cookie flags, information leaks). It never attacks: the baseline only spiders and watches responses. The result is
 # normalised and POSTed, HMAC-signed, to the app's /api/it/scan as kind "monthly", reporting only the `zap` tool, so it
 # cannot mark the weekly scan's findings as fixed. See PLAN-it-assistant.md, Phase 2.
 # Needs: repo variable IT_ZAP_TARGET (the staging site, e.g. https://ironbark-web-staging.onrender.com), the
 # repo variable IT_SCAN_URL and the repo secret IT_SCAN_SECRET (as for the weekly scan). Without IT_ZAP_TARGET the
 # job is skipped. Point it at staging only, never production.
+# `review`: asks the app to run its AI security review of the code (the app holds the model key and does the reading,
+# see src/domain/it/aiReview.ts). Needs IT_SCAN_URL and IT_SCAN_SECRET only.
 
 on:
   schedule:
@@ -48,3 +50,18 @@ jobs:
           IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
           SCAN_ID: scan-monthly-${{ github.run_id }}-${{ github.run_attempt }}
         run: node scripts/security/report.mjs "$OUT" monthly
+
+  review:
+    if: vars.IT_SCAN_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ask the app for the AI review
+        env:
+          IT_SCAN_URL: ${{ vars.IT_SCAN_URL }}
+          IT_SCAN_SECRET: ${{ secrets.IT_SCAN_SECRET }}
+        run: node scripts/security/review.mjs

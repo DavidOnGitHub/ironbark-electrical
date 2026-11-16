@@ -9,5 +9,5 @@ export default function proxy(request: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|api/assistant|api/health|api/stripe|api/it/scan|pay|accept/|book/|auth|privacy|google-limited-use|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|api/assistant|api/health|api/stripe|api/it/scan|api/it/review|pay|accept/|book/|auth|privacy|google-limited-use|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
