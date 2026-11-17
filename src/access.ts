@@ -44,6 +44,8 @@ export const Access = {
   IT_DEMO: [OWNER],
   /** Release what is on staging to production. Owner only: it is the last gate before the public site. */
   IT_RELEASE: [OWNER],
+  /** The IT audit log: who did what, and what the assistant did. Owner only. */
+  IT_AUDIT: [OWNER],
 } satisfies Record<string, UserRole[]>;
 
 export const Roles = { OWNER, OFFICE, TECHNICIAN, BOOKKEEPER };
