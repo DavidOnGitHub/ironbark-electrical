@@ -45,6 +45,22 @@ export interface FailedRunsResult {
   paused: boolean;
 }
 
+/**
+ * Reads what Temporal threw when asked for a closed run's result. A step that threw is already recorded by the step
+ * wrapper; a run that was cancelled or terminated was stopped on purpose, which is not a bug; the rest is worth recording.
+ */
+export function classifyTemporalFailure(err: unknown): RunCause {
+  const e = err as { name?: string; message?: string; cause?: { name?: string; message?: string; stack?: string } };
+  if (e?.name === "WorkflowNotFoundError" || /not found/i.test(e?.message ?? "")) return { kind: "gone" };
+  if (e?.name === "WorkflowFailedError") {
+    const cause = e.cause?.name;
+    if (cause === "ActivityFailure") return { kind: "activity" };
+    if (cause === "CancelledFailure" || cause === "TerminatedFailure") return { kind: "gone" };
+    return { kind: "other", message: e.cause?.message ?? e.message ?? "The run failed", name: cause, stack: e.cause?.stack };
+  }
+  return { kind: "unknown" };
+}
+
 const definitionIds = Object.values(AUTOMATION_IDS);
 
 const realDeps: FailedRunDeps = {
@@ -59,17 +75,13 @@ const realDeps: FailedRunDeps = {
   },
   causeOf: async (runId) => {
     try {
-      const client = await getTemporalClient();
-      await client.workflow.getHandle(`instance-${runId}`).result();
+      const handle = (await getTemporalClient()).workflow.getHandle(`instance-${runId}`);
+      // Asking for the result of a run that is still going would wait for it to end.
+      if ((await handle.describe()).status.name === "RUNNING") return { kind: "unknown" };
+      await handle.result();
       return { kind: "gone" }; // it finished fine after all: nothing to report
     } catch (err) {
-      const e = err as { name?: string; message?: string; cause?: { name?: string; message?: string; stack?: string } };
-      if (e?.name === "WorkflowNotFoundError" || /not found/i.test(e?.message ?? "")) return { kind: "gone" };
-      if (e?.name === "WorkflowFailedError") {
-        if (e.cause?.name === "ActivityFailure") return { kind: "activity" };
-        return { kind: "other", message: e.cause?.message ?? e.message ?? "The run failed", name: e.cause?.name, stack: e.cause?.stack };
-      }
-      return { kind: "unknown" };
+      return classifyTemporalFailure(err);
     }
   },
   getCursor: async () => (await appDb.watchCursor.findUnique({ where: { key: FAILED_RUNS_CURSOR } }))?.at ?? null,
