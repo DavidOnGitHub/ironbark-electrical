@@ -10,6 +10,7 @@ import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, summarizeSession, type AiBuilderClient } from "./aiBuilder";
+import { budgetPause } from "./budget";
 import { costCapUsd, filesPushed, mayChangeDependencies, overCostCap, protectedFilesFor, PROTECTED_RULES } from "./guardrails";
 import { syncWorkflowFix, workflowFixClientFromEnv, type WorkflowFixClient } from "./workflowFix";
 import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
@@ -102,6 +103,11 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
   const current = await appDb.itRequest.findUniqueOrThrow({ where: { id } });
   if (current.sessionId) return { request: current, started: false };
   if (!client) return { request: current, started: false, reason: "AI Builder is not configured" };
+  // A revert is never held back by money. Everything else waits, and is started by the next sync once the budget allows.
+  if (current.sourceType !== "revert") {
+    const paused = await budgetPause();
+    if (paused) return { request: current, started: false, reason: paused.reason };
+  }
 
   const now = new Date();
   const claim = await appDb.itRequest.updateMany({
@@ -270,3 +276,4 @@ export * from "./scanSchedule";
 export * from "./aiReview";
 export * from "./aiTriage";
 export * from "./release";
+export * from "./budget";
