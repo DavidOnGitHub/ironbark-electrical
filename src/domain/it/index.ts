@@ -11,6 +11,7 @@ import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, summarizeSession, type AiBuilderClient } from "./aiBuilder";
 import { budgetPause } from "./budget";
+import { notifyBudgetUsedUp } from "./notify";
 import { costCapUsd, filesPushed, mayChangeDependencies, overCostCap, protectedFilesFor, PROTECTED_RULES } from "./guardrails";
 import { syncWorkflowFix, workflowFixClientFromEnv, type WorkflowFixClient } from "./workflowFix";
 import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
@@ -106,7 +107,10 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
   // A revert is never held back by money. Everything else waits, and is started by the next sync once the budget allows.
   if (current.sourceType !== "revert") {
     const paused = await budgetPause();
-    if (paused) return { request: current, started: false, reason: paused.reason };
+    if (paused) {
+      await notifyBudgetUsedUp(paused);
+      return { request: current, started: false, reason: paused.reason };
+    }
   }
 
   const now = new Date();
@@ -277,4 +281,5 @@ export * from "./aiReview";
 export * from "./aiTriage";
 export * from "./release";
 export * from "./budget";
+export * from "./notify";
 export * from "./auditLog";
