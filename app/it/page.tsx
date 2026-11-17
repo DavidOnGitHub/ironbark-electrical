@@ -58,6 +58,7 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="IT" subtitle={TAB_ABOUT[tab]} />
+      {hasAnyRole(user.roles, Access.IT_AUDIT) ? <p className="text-sm"><Link href="/it/audit" className="underline">Audit log</Link></p> : null}
       {needsYou ? <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm">{needsYou === 1 ? "1 request needs you." : `${needsYou} requests need you.`}</p> : null}
       {release && (release.ahead > 0 || release.pr) ? <ReleasePanel ahead={release.ahead} changes={release.changes} prUrl={release.pr?.url ?? null} autoMerge={release.pr?.autoMerge ?? false} canRelease={hasAnyRole(user.roles, Access.IT_RELEASE)} /> : null}
       {usage ? <UsagePanel months={usage.map((m) => ({ label: m.month.toLocaleDateString("en-AU", { month: "short", year: "numeric", timeZone: "UTC" }), spent: m.spent, requests: m.requests, byKind: m.byKind }))} budget={monthlyBudgetUsd()} pause={budgetStop} /> : null}
