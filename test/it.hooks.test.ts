@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { TEST_MODE_CONTEXT_KEY } from "@kabosh-digital/workflow-temporal/testing";
 import { appDb } from "../src/db/app";
 import { withErrorReporting } from "../src/automation/errorHooks";
-import { reportFailedRuns, type FailedRun, type FailedRunDeps, type RunCause } from "../src/automation/failedRuns";
+import { classifyTemporalFailure, reportFailedRuns, type FailedRun, type FailedRunDeps, type RunCause } from "../src/automation/failedRuns";
 import { captureError, resetErrorThrottle, whereLabel } from "../src/domain/it";
 import { truncateAll } from "./helpers";
 
@@ -179,5 +179,23 @@ describe("a slow report never holds up the failing step", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("classifyTemporalFailure", () => {
+  const failed = (cause: Record<string, unknown>) => Object.assign(new Error("Workflow execution failed"), { name: "WorkflowFailedError", cause });
+  it("leaves a step that threw to the step wrapper", () => {
+    expect(classifyTemporalFailure(failed({ name: "ActivityFailure", message: "x" }))).toEqual({ kind: "activity" });
+  });
+  it("does not report a run that was cancelled or terminated on purpose", () => {
+    expect(classifyTemporalFailure(failed({ name: "TerminatedFailure" }))).toEqual({ kind: "gone" });
+    expect(classifyTemporalFailure(failed({ name: "CancelledFailure" }))).toEqual({ kind: "gone" });
+  });
+  it("reports a timeout or an engine failure with its message and stack", () => {
+    expect(classifyTemporalFailure(failed({ name: "TimeoutFailure", message: "Workflow timed out", stack: "at x" }))).toEqual({ kind: "other", message: "Workflow timed out", name: "TimeoutFailure", stack: "at x" });
+  });
+  it("treats an unknown run as gone and anything else, such as Temporal being down, as unknown", () => {
+    expect(classifyTemporalFailure(Object.assign(new Error("workflow not found"), { name: "WorkflowNotFoundError" }))).toEqual({ kind: "gone" });
+    expect(classifyTemporalFailure(new Error("14 UNAVAILABLE: connect ECONNREFUSED"))).toEqual({ kind: "unknown" });
   });
 });
