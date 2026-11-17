@@ -16,6 +16,7 @@ import { recordActivity } from "../activity";
 import { submitItRequest, defaultClient } from "./index";
 import { delegatedRoleFor, type AiBuilderClient } from "./aiBuilder";
 import { laneBusy } from "./lane";
+import { releaseParked } from "./parked";
 import { securityPause } from "./pause";
 import { highestVersion } from "./semver";
 import { ItActionError, type Responder } from "./respond";
@@ -118,6 +119,19 @@ export async function fixSelectedFindings(ids: string[], who: Responder, client:
       usable.push(f);
       reopen.push(f);
     } else skipped.push({ id: f.id, reason: f.status === "FIXING" ? "Already being fixed" : "Already closed" });
+  }
+  // Findings handed to AI Builder for a developer: take them back, unless a developer has already started one.
+  for (const f of [...usable]) {
+    let taken: Awaited<ReturnType<typeof releaseParked>>;
+    try {
+      taken = await releaseParked("finding", f.id, client, "Picked up by the IT assistant");
+    } catch {
+      return refuse("The assistant could not be reached to take this over from AI Builder. Try again in a minute.", skipped);
+    }
+    if (taken === "in_progress") {
+      usable.splice(usable.indexOf(f), 1);
+      skipped.push({ id: f.id, reason: "A developer is already working on it in AI Builder" });
+    }
   }
   if (usable.length === 0) return refuse("None of those can be fixed now.", skipped);
 

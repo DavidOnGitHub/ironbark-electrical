@@ -14,6 +14,7 @@ import type { Actor } from "../shared/actor";
 import { ERROR_CLASS_LABEL, ensureClassified, worthFixing, worthWorkflowFix, type AiOptions } from "./classify";
 import { type AiBuilderClient, defaultClient, submitItRequest } from "./index";
 import { filesPushed } from "./guardrails";
+import { releaseParked } from "./parked";
 import { laneBusy } from "./lane";
 import { whereLabel } from "./plain";
 import { IT_STATUS_LABEL } from "./status";
@@ -252,10 +253,12 @@ export async function openErrorFix(errorId: string, client: AiBuilderClient | nu
   }
   const err = await appDb.errorEvent.findUniqueOrThrow({ where: { id: errorId } });
 
-  const tried = await appDb.itRequest.count({ where: { sourceType: "error", sourceId: errorId } });
+  // An issue handed to AI Builder is not an attempt. If nobody has started it, the assistant takes it over; if a developer has, leave it to them.
+  if ((await releaseParked("error", errorId, client, "Picked up by the IT assistant")) === "in_progress") return { opened: false, reason: "A developer is already working on it in AI Builder" };
+  const tried = await appDb.itRequest.count({ where: { sourceType: "error", sourceId: errorId, parked: false } });
   if (tried >= MAX_FIX_ATTEMPTS) return { opened: false, reason: `Already tried ${tried} times; a person should look` };
 
-  const recent = await appDb.itRequest.findMany({ where: { sourceType: "error" }, orderBy: { createdAt: "desc" }, take: CIRCUIT_BREAKER_FAILURES, select: { status: true } });
+  const recent = await appDb.itRequest.findMany({ where: { sourceType: "error", parked: false }, orderBy: { createdAt: "desc" }, take: CIRCUIT_BREAKER_FAILURES, select: { status: true } });
   if (recent.length === CIRCUIT_BREAKER_FAILURES && recent.every((r) => r.status === "BUILD_FAILED" || r.status === "FAILED" || r.status === "CLOSED")) {
     return { opened: false, reason: "The last fixes all failed or were rejected; paused until a person looks" };
   }
@@ -300,7 +303,7 @@ export interface EarlierAttempt {
 
 /** What earlier fixes of this error did, so a retry starts from what failed instead of repeating it. Best effort: never throws. */
 export async function earlierAttempts(errorId: string, client: AiBuilderClient | null): Promise<EarlierAttempt[]> {
-  const rows = await appDb.itRequest.findMany({ where: { sourceType: "error", sourceId: errorId }, orderBy: { createdAt: "asc" }, take: MAX_FIX_ATTEMPTS, select: { number: true, status: true, prUrl: true, sessionId: true } });
+  const rows = await appDb.itRequest.findMany({ where: { sourceType: "error", sourceId: errorId, parked: false }, orderBy: { createdAt: "asc" }, take: MAX_FIX_ATTEMPTS, select: { number: true, status: true, prUrl: true, sessionId: true } });
   const out: EarlierAttempt[] = [];
   for (const r of rows) {
     let filesChanged: string[] = [];

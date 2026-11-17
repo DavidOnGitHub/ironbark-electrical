@@ -12,7 +12,9 @@ async function waitingErrorIds(): Promise<string[]> {
   const candidates = await appDb.errorEvent.findMany({ where: { resolvedAt: null, classification: "code_bug", classConfidence: { not: "low" } }, orderBy: [{ count: "desc" }, { lastSeenAt: "desc" }], take: 100 });
   const out: string[] = [];
   for (const e of candidates) {
-    const tried = await appDb.itRequest.findMany({ where: { sourceType: "error", sourceId: e.id }, orderBy: { createdAt: "desc" }, select: { status: true } });
+    const parked = await appDb.itRequest.findFirst({ where: { sourceType: "error", sourceId: e.id, parked: true, status: { notIn: ["PARKED", "CLOSED", "LIVE"] } } });
+    if (parked) continue; // a developer is on it in AI Builder
+    const tried = await appDb.itRequest.findMany({ where: { sourceType: "error", sourceId: e.id, parked: false }, orderBy: { createdAt: "desc" }, select: { status: true } });
     if (tried.length >= MAX_FIX_ATTEMPTS) continue;
     if (tried.length === 0 || tried[0]!.status === "LIVE") out.push(e.id);
   }

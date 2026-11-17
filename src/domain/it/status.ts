@@ -4,7 +4,7 @@
  */
 
 export type ItKindValue = "FEATURE" | "ERROR" | "FINDING";
-export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "LIVE" | "DEPLOY_FAILED" | "CLOSED" | "FAILED" | "PROPOSED" | "APPLIED";
+export type ItStatusValue = "SUBMITTED" | "DRAFTING_SPEC" | "NEEDS_ANSWERS" | "SPEC_REVIEW" | "BUILDING" | "BUILD_FAILED" | "PR_OPEN" | "ACCEPTED" | "MERGED" | "LIVE" | "DEPLOY_FAILED" | "CLOSED" | "FAILED" | "PROPOSED" | "APPLIED" | "PARKED";
 export type AiIntent = "feature" | "bugfix" | "maintenance";
 
 export const IT_KIND_LABEL: Record<ItKindValue, string> = {
@@ -29,6 +29,7 @@ export const IT_STATUS_LABEL: Record<ItStatusValue, string> = {
   FAILED: "Failed",
   PROPOSED: "Fix prepared, waiting for review",
   APPLIED: "Fix applied - publish the workflow to make it live",
+  PARKED: "Waiting for a developer in AI Builder",
 };
 
 /** Nothing more happens to these; the sync stops looking at them. */
@@ -53,6 +54,8 @@ const SESSION_STATUS: Record<string, ItStatusValue> = {
   merged: "MERGED",
   closed: "CLOSED",
   failed: "FAILED",
+  // An issue handed over for a developer to start or dismiss. Nothing runs until then.
+  parked: "PARKED",
 };
 
 export function fromSessionStatus(sessionStatus: string): ItStatusValue {

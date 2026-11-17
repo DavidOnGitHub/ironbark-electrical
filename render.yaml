@@ -91,6 +91,8 @@ services:
       - { key: RENDER_API_KEY, sync: false }
       # The worker moves the fix queue along every minute, so it needs the same settings as the web service.
       - { key: IT_FIX_QUEUE, sync: false }
+      - { key: IT_PARK_ISSUES, sync: false } # "off" stops handing errors and findings to AI Builder for a developer
+      - { key: IT_PARK_MIN_SEVERITY, sync: false } # lowest security severity handed over (default MEDIUM)
       - { key: IT_SECURITY_DAILY_CAP_USD, sync: false }
       - { key: IT_MONTHLY_BUDGET_USD, sync: false }
       - { key: BREVO_API_KEY, sync: false }
