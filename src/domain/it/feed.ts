@@ -185,6 +185,8 @@ function standing(status: ItRequest["status"]): string | null {
       return "Waiting for someone to approve the plan";
     case "PROPOSED":
       return "Waiting for someone to review the prepared fix in the workflow editor";
+    case "PARKED":
+      return "Waiting for a developer to start it or dismiss it in AI Builder";
     case "PR_OPEN":
       return "Getting the change ready to try"; // buildFeed refines this from the checks and the preview (prOpenStanding)
     case "ACCEPTED":

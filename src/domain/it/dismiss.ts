@@ -9,6 +9,7 @@ import { recordActivity } from "../activity";
 import { delegatedRoleFor, type AiBuilderClient } from "./aiBuilder";
 import { IN_FLIGHT } from "./lane";
 import { defaultClient } from "./index";
+import { releaseParked } from "./parked";
 import { cancelItRequest, ItActionError, type Responder } from "./respond";
 
 export const DISMISSALS = ["ACCEPTED_RISK", "FALSE_POSITIVE"] as const;
@@ -27,6 +28,9 @@ export async function dismissFinding(input: { id: string; status: string; reason
   const finding = await appDb.finding.findUnique({ where: { id: input.id } });
   if (!finding) throw new ItActionError("That finding was not found.");
   if (finding.status !== "OPEN" && finding.status !== "FIXING") throw new ItActionError("That finding is already closed.");
+
+  // An issue still waiting for a developer in AI Builder is closed there, so nobody picks up what was just dismissed.
+  await releaseParked("finding", finding.id, client, `Dismissed in Ironbark${reason ? `: ${reason}` : ""}`).catch(() => {});
 
   // Call off a fix that is still under way first: if that cannot be done, nothing else changes.
   if (finding.itRequestId) {

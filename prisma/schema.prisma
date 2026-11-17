@@ -526,6 +526,8 @@ enum ItRequestStatus {
   PROPOSED
   /// A person applied the prepared workflow fix to the draft.
   APPLIED
+  /// Handed to AI Builder as an issue nobody is working on yet: a developer starts or dismisses it there.
+  PARKED
 }
 
 /// A change the IT assistant works on: one the business asked for, or one it noticed itself (an error or a security
@@ -570,6 +572,8 @@ model ItRequest {
   workflowProposalId String?
   workflowId         String?
   needsDeveloper    Boolean         @default(false)
+  /// Began as a parked issue in AI Builder. These are not fix attempts: they do not count against an error's attempt limit and do not hold the fix lane.
+  parked            Boolean         @default(false)
   protectedFiles    String[]
   /// When the merged change was confirmed running. The revert guard watches the 30 minutes after it.
   liveAt            DateTime?
