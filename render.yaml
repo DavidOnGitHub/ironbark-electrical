@@ -53,6 +53,7 @@ services:
       - { key: IT_SCAN_FREQUENCY, sync: false } # how often the scheduled security scan runs: weekly (default), fortnightly, monthly or never
       - { key: IT_SCAN_REPO, value: DavidOnGitHub/ironbark-electrical } # the "Scan now" button starts the scan workflow in this repo
       - { key: IT_SCAN_DISPATCH_TOKEN, sync: false } # fine-grained token, Actions: read and write on that repo only
+      - { key: IT_RELEASE_TOKEN, sync: false } # fine-grained token, Contents and Pull requests: read and write on that repo only; the Owner's Release to production button
 
   - type: worker
     name: ironbark-worker

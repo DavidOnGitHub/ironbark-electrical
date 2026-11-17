@@ -42,6 +42,8 @@ export const Access = {
   IT_MANAGE: [OWNER, OFFICE],
   /** The staging-only "break something on purpose" switch. Owner only, and only where IT_DEMO_BREAK=on. */
   IT_DEMO: [OWNER],
+  /** Release what is on staging to production. Owner only: it is the last gate before the public site. */
+  IT_RELEASE: [OWNER],
 } satisfies Record<string, UserRole[]>;
 
 export const Roles = { OWNER, OFFICE, TECHNICIAN, BOOKKEEPER };

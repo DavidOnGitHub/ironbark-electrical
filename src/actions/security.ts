@@ -2,7 +2,7 @@
 
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
-import { currentScanRun, dismissFindings, fixSelectedFindings, ItActionError, reopenFinding, runAiTriage, startScan, type Responder } from "../domain/it";
+import { currentScanRun, dismissFindings, fixSelectedFindings, ItActionError, reopenFinding, releaseToProduction, runAiTriage, startScan, type Responder } from "../domain/it";
 import { userActor } from "../domain/shared/actor";
 import { errorMessage } from "./shared";
 
@@ -18,6 +18,13 @@ export async function triageFindingsAction(): Promise<{ error: string | null; ju
   await requireRole(Access.IT_MANAGE);
   const r = await runAiTriage();
   return r.ok ? { error: null, judged: r.judged } : { error: r.reason };
+}
+
+/** Owner only: approves moving what is on staging to production. */
+export async function releaseAction(): Promise<{ error: string | null; state?: "waiting" | "merged"; url?: string }> {
+  const user = await requireRole(Access.IT_RELEASE);
+  const r = await releaseToProduction({ actor: userActor(user), name: user.name ?? null });
+  return r.ok ? { error: null, state: r.state, url: r.url } : { error: r.reason };
 }
 
 type AuthedUser = Awaited<ReturnType<typeof requireRole>>;
