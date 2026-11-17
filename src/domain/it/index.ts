@@ -9,15 +9,16 @@ import type { ItRequest } from "ironbark-electrical-client";
 import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
-import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, summarizeSession, type AiBuilderClient } from "./aiBuilder";
+import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, issueOf, summarizeSession, type AiBuilderClient } from "./aiBuilder";
 import { budgetPause } from "./budget";
 import { notifyBudgetUsedUp } from "./notify";
+import { applyParkedChange } from "./parked";
 import { costCapUsd, filesPushed, mayChangeDependencies, overCostCap, protectedFilesFor, PROTECTED_RULES } from "./guardrails";
 import { syncWorkflowFix, workflowFixClientFromEnv, type WorkflowFixClient } from "./workflowFix";
 import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
 
 export * from "./status";
-export { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, delegatedRoleFor, summarizeSession } from "./aiBuilder";
+export { aiBuilderConfigFromEnv, AiBuilderError, issueOf, createAiBuilderClient, delegatedRoleFor, summarizeSession } from "./aiBuilder";
 export type { AiBuilderClient, AiBuilderConfig, AiEvent, AiSession, AiSessionDetail, OnBehalfOf } from "./aiBuilder";
 export type { ItRequest } from "ironbark-electrical-client";
 
@@ -67,7 +68,7 @@ export async function createItRequest(
   const data = NewItRequestSchema.parse(input);
   if (data.sourceType && data.sourceId) {
     const open = await appDb.itRequest.findFirst({
-      where: { sourceType: data.sourceType, sourceId: data.sourceId, status: { notIn: IT_TERMINAL } },
+      where: { sourceType: data.sourceType, sourceId: data.sourceId, parked: false, status: { notIn: IT_TERMINAL } },
       orderBy: { createdAt: "desc" },
     });
     if (open) return { request: open, created: false };
@@ -103,6 +104,8 @@ export async function createItRequest(
 export async function startItRequest(id: string, client: AiBuilderClient | null = defaultClient()): Promise<{ request: ItRequest; started: boolean; reason?: string }> {
   const current = await appDb.itRequest.findUniqueOrThrow({ where: { id } });
   if (current.sessionId) return { request: current, started: false };
+  // A parked issue is handed to AI Builder when it is created and started there by a developer, never from here.
+  if (current.status === "PARKED") return { request: current, started: false, reason: "Waiting for a developer in AI Builder" };
   if (!client) return { request: current, started: false, reason: "AI Builder is not configured" };
   // A revert is never held back by money. Everything else waits, and is started by the next sync once the budget allows.
   if (current.sourceType !== "revert") {
@@ -129,6 +132,7 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
     const session = await client.createSession(
       {
         intent,
+        issue: issueOf(current),
         text: `${current.title}\n\n${current.description}`,
         context: {
           itRequest: { id: current.id, number: current.number, kind: current.kind },
@@ -170,7 +174,7 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
   if (!row || isTerminal(row.status) || inDeployPhase(row.status)) return row;
   // A prepared workflow fix has no AI Builder session: the person's choice in the editor is what is followed.
   if (row.workflowProposalId) return syncWorkflowFix(id, fixClient);
-  if (!row.sessionId) return (await startItRequest(id, client)).request;
+  if (!row.sessionId) return row.parked ? row : (await startItRequest(id, client)).request;
   if (!client) return row;
 
   try {
@@ -218,6 +222,7 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
       }
       if (status !== row.status) {
         await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "STATUS_CHANGED", summary: `${row.number}: ${IT_STATUS_LABEL[status]}` });
+        if (row.parked) await applyParkedChange(tx, row, status, detail.events);
       }
       return updated;
     });
@@ -233,13 +238,28 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
 /** Syncs every request that can still change. One failing request never stops the rest. */
 export async function syncOpenItRequests(client: AiBuilderClient | null = defaultClient(), limit = 100, fixClient?: WorkflowFixClient | null): Promise<{ checked: number; changed: number }> {
   if (!client && !(fixClient === undefined ? workflowFixClientFromEnv() : fixClient)) return { checked: 0, changed: 0 };
-  const open = await appDb.itRequest.findMany({ where: { status: { notIn: [...IT_TERMINAL, ...IT_DEPLOY_PHASE] } }, orderBy: { createdAt: "asc" }, take: limit });
+  const open = await appDb.itRequest.findMany({ where: { status: { notIn: [...IT_TERMINAL, ...IT_DEPLOY_PHASE, "PARKED"] } }, orderBy: { createdAt: "asc" }, take: limit });
   let changed = 0;
   for (const row of open) {
     const after = await syncItRequest(row.id, client, fixClient);
     if (after && after.status !== row.status) changed++;
   }
   return { checked: open.length, changed };
+}
+
+/**
+ * Follows the issues parked in AI Builder: a developer starting or dismissing one there is picked up here. There can be
+ * many and they rarely change, so each pass looks at the few that were checked longest ago.
+ */
+export async function syncParkedRequests(client: AiBuilderClient | null = defaultClient(), limit = 20): Promise<{ checked: number; changed: number }> {
+  if (!client) return { checked: 0, changed: 0 };
+  const rows = await appDb.itRequest.findMany({ where: { status: "PARKED", sessionId: { not: null } }, orderBy: [{ lastSyncedAt: { sort: "asc", nulls: "first" } }], take: limit });
+  let changed = 0;
+  for (const row of rows) {
+    const after = await syncItRequest(row.id, client);
+    if (after && after.status !== row.status) changed++;
+  }
+  return { checked: rows.length, changed };
 }
 
 export function getItRequest(id: string) {
@@ -282,4 +302,5 @@ export * from "./aiTriage";
 export * from "./release";
 export * from "./budget";
 export * from "./notify";
+export * from "./parked";
 export * from "./auditLog";

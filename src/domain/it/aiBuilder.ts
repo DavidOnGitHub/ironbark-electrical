@@ -74,6 +74,20 @@ export interface CreateSessionInput {
   text: string;
   /** Untrusted data from the app (route, error, finding); AI Builder frames it as data for the agent. */
   context?: Record<string, unknown>;
+  /** Hand the issue over without starting work: a developer starts or dismisses it in AI Builder. */
+  parked?: boolean;
+  /** What an automated session is about, so AI Builder can list the app's issues: an error or a security finding. */
+  issue?: { kind: "error" | "finding"; severity?: "info" | "low" | "medium" | "high" | "critical"; ref?: string };
+}
+
+const SEVERITY_WORDS = ["info", "low", "medium", "high", "critical"] as const;
+/** The issue description for a request, or undefined for a change request. */
+export function issueOf(row: { kind: string; number: string; context?: unknown }): CreateSessionInput["issue"] {
+  if (row.kind !== "ERROR" && row.kind !== "FINDING") return undefined;
+  const finding = (row.context as { finding?: { severity?: unknown } } | null | undefined)?.finding;
+  const sev = typeof finding?.severity === "string" ? finding.severity.toLowerCase() : "";
+  const severity = (SEVERITY_WORDS as readonly string[]).includes(sev) ? (sev as (typeof SEVERITY_WORDS)[number]) : undefined;
+  return { kind: row.kind === "ERROR" ? "error" : "finding", ...(row.kind === "FINDING" && severity ? { severity } : {}), ref: row.number };
 }
 
 /** One answer: the options picked, and/or free text. */
@@ -92,6 +106,8 @@ export interface AiBuilderClient {
   requestChanges(id: string, version: number, feedback: string, who: OnBehalfOf): Promise<void>;
   accept(id: string, sha: string, who: OnBehalfOf): Promise<void>;
   cancel(id: string, who: OnBehalfOf): Promise<void>;
+  /** Closes a parked issue without working on it. Refused (409) once a developer has started it. */
+  dismiss(id: string, reason?: string): Promise<void>;
 }
 
 const TIMEOUT_MS = 20_000;
@@ -140,6 +156,7 @@ export function createAiBuilderClient(config: AiBuilderConfig, fetchImpl: typeof
     requestChanges: (id, version, feedback, who) => call("POST", `/api/sessions/${encodeURIComponent(id)}/request-changes`, { body: { version, feedback }, who, parse: none }),
     accept: (id, sha, who) => call("POST", `/api/sessions/${encodeURIComponent(id)}/accept`, { body: { sha }, who, parse: none }),
     cancel: (id, who) => call("POST", `/api/sessions/${encodeURIComponent(id)}/cancel`, { body: {}, who, parse: none }),
+    dismiss: (id, reason) => call("POST", `/api/sessions/${encodeURIComponent(id)}/dismiss`, { body: { reason }, parse: none }),
   };
 }
 
