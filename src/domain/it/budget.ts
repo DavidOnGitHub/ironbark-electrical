@@ -52,6 +52,10 @@ export async function usageHistory(months = 3, now: Date = new Date()): Promise<
 
 export interface BudgetPause {
   reason: string;
+  budget: number;
+  spent: number;
+  /** The month the budget ran out in (first day, UTC). */
+  month: Date;
 }
 
 /** Why no new request can start right now, or null when one may. */
@@ -60,5 +64,5 @@ export async function budgetPause(env: Env = process.env, now: Date = new Date()
   if (budget === null) return null;
   const { spent } = await usageForMonth(now);
   if (spent < budget) return null;
-  return { reason: `This month's budget of $${budget.toFixed(2)} is used up ($${spent.toFixed(2)} so far). New requests start next month, or when the Owner raises the budget.` };
+  return { budget, spent, month: monthStart(now), reason: `This month's budget of $${budget.toFixed(2)} is used up ($${spent.toFixed(2)} so far). New requests start next month, or when the Owner raises the budget.` };
 }

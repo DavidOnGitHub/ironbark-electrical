@@ -50,6 +50,9 @@ services:
       - { key: IT_SCAN_SECRET, sync: false } # HMAC secret for POST /api/it/scan; same value as the IT_SCAN_SECRET repo secret
       - { key: IT_SECURITY_DAILY_CAP_USD, sync: false } # a day's limit on security fixes people start, in dollars (default 10)
       - { key: IT_MONTHLY_BUDGET_USD, sync: false } # the month's budget for the IT assistant's builder work, in dollars (unset: no budget)
+      - { key: BREVO_API_KEY, sync: false } # sends the Owner an email when the budget is used up
+      - { key: IT_NOTIFY_EMAIL, sync: false } # who gets it
+      - { key: IT_NOTIFY_FROM, sync: false } # the sender: must be verified in Brevo
       - { key: IT_FIX_QUEUE, sync: false } # leave empty: automated fixes go one at a time per kind. "off" lets them run side by side
       - { key: IT_SCAN_FREQUENCY, sync: false } # how often the scheduled security scan runs: weekly (default), fortnightly, monthly or never
       - { key: IT_SCAN_REPO, value: DavidOnGitHub/ironbark-electrical } # the "Scan now" button starts the scan workflow in this repo
@@ -90,6 +93,9 @@ services:
       - { key: IT_FIX_QUEUE, sync: false }
       - { key: IT_SECURITY_DAILY_CAP_USD, sync: false }
       - { key: IT_MONTHLY_BUDGET_USD, sync: false }
+      - { key: BREVO_API_KEY, sync: false }
+      - { key: IT_NOTIFY_EMAIL, sync: false }
+      - { key: IT_NOTIFY_FROM, sync: false }
       - { key: IT_DEPLOY_SERVICES, value: "srv-dbkkivfb9u1s73fm23kg,srv-dbkkivfb9u1s73fm23jg" }
       - { key: EMAIL_ALLOWLIST, sync: false }
       - { key: DEMO_INBOX, sync: false }
