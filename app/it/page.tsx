@@ -6,7 +6,8 @@ import { IT_TABS, IT_TAB_OF_KIND, type ItTab } from "../../src/domain/it/status"
 import { PageHeader } from "../../src/ui/fields";
 import { ItHistory } from "../../src/ui/ItHistory";
 import { SecurityReport } from "../../src/ui/SecurityReport";
-import { currentScanRun, securityPause, listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityGroups, securityReport, triageAvailable } from "../../src/domain/it";
+import { currentScanRun, securityPause, listDismissedFindings, nextScanAfter, queuedFixCounts, SCAN_FREQUENCY_LABEL, scanFrequency, scanFrequencyInvalid, scanNowAvailable, securityGroups, securityReport, triageAvailable, releaseState } from "../../src/domain/it";
+import { ReleasePanel } from "../../src/ui/ReleasePanel";
 import { DemoBreakSwitch } from "../../src/ui/DemoBreakSwitch";
 import { demoBreakAvailable, listDemoBugs } from "../../src/domain/demo";
 import { CLASS_PLAIN, listUnfixedErrors, times, whereLabel } from "../../src/domain/it";
@@ -48,12 +49,14 @@ export default async function ItPage({ searchParams }: { searchParams: Promise<{
     : undefined;
   const queued = hasAnyRole(user.roles, Access.IT_MANAGE) && tab === "fixes" ? await queuedFixCounts() : null;
   const waitingCount = queued ? queued.errors : 0;
+  const release = hasAnyRole(user.roles, Access.IT_MANAGE) ? await releaseState() : null;
   const needsYou = all.filter((r) => r.waiting).length;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="IT" subtitle={TAB_ABOUT[tab]} />
       {needsYou ? <p className="rounded-md border border-foreground/10 bg-muted px-3 py-2 text-sm">{needsYou === 1 ? "1 request needs you." : `${needsYou} requests need you.`}</p> : null}
+      {release && (release.ahead > 0 || release.pr) ? <ReleasePanel ahead={release.ahead} changes={release.changes} prUrl={release.pr?.url ?? null} autoMerge={release.pr?.autoMerge ?? false} canRelease={hasAnyRole(user.roles, Access.IT_RELEASE)} /> : null}
       {showDemo ? <DemoBreakSwitch bugs={demoBugs} /> : null}
       <nav className="flex flex-wrap items-center gap-2 text-sm" aria-label="IT history">
         {IT_TABS.map((t) => (
