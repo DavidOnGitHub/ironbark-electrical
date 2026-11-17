@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../src/db/app";
 import { captureError, fingerprintOf, normaliseRoute, openErrorFix, reportError, resetErrorThrottle, resolveErrorsFor, scrub, topFrames, type AiBuilderClient } from "../src/domain/it";
@@ -151,6 +152,31 @@ describe("openErrorFix", () => {
     const fourth = await openErrorFix(id, client, env);
     expect(fourth.opened).toBe(false);
     expect(fourth.reason).toMatch(/Already tried 3/);
+  });
+
+  it("gives a retry what the earlier attempt changed and how it ended", async () => {
+    const client = fakeClient() as any;
+    client.getSession = vi.fn(async () => ({ events: [{ type: "commit_pushed", files: ["src/domain/quotes/validity.ts"] }, { type: "commit_pushed", reason: "base_update", files: ["package.json"] }] }));
+    const id = await seed();
+    await openErrorFix(id, client, env);
+    expect(client.createSession.mock.calls[0][0].context.earlierAttempts).toBeUndefined();
+    await appDb.itRequest.updateMany({ where: { sourceId: id }, data: { status: "LIVE", prUrl: "https://github.com/o/r/pull/7" } });
+    await openErrorFix(id, client, env);
+    const second = client.createSession.mock.calls[1][0];
+    expect(second.text).toContain("attempt 2");
+    expect(second.context.earlierAttempts).toEqual([{ number: expect.any(String), outcome: "Live", prUrl: "https://github.com/o/r/pull/7", filesChanged: ["src/domain/quotes/validity.ts"] }]);
+  });
+
+  it("still retries when AI Builder cannot say what the earlier attempt changed", async () => {
+    const client = fakeClient() as any;
+    client.getSession = vi.fn(async () => {
+      throw new Error("down");
+    });
+    const id = await seed();
+    await openErrorFix(id, client, env);
+    await appDb.itRequest.updateMany({ where: { sourceId: id }, data: { status: "CLOSED" } });
+    expect((await openErrorFix(id, client, env)).opened).toBe(true);
+    expect(client.createSession.mock.calls[1][0].context.earlierAttempts[0].filesChanged).toEqual([]);
   });
 
   it("pauses when the last fixes all failed or were rejected", async () => {
