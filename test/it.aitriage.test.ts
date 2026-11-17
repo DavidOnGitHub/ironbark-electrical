@@ -27,6 +27,16 @@ describe("parseTriage", () => {
     expect(parseTriage("I cannot do that", given)).toBeNull();
     expect(parseTriage('{"findings":[]}', given)).toBeNull();
   });
+  it("keeps the verdicts it can read when the answer as a whole is not valid JSON", () => {
+    const good = JSON.stringify(v({ id: "a" }));
+    const broken = '{"id":"b","verdict":"real","confidence":"high","reason":"a "quoted" word"}';
+    const cut = '{"id":"c","verdict":"real","confid';
+    const out = parseTriage(`{"verdicts":[${good},${broken},${JSON.stringify(v({ id: "d" }))},${cut}`, given)!;
+    expect(out.map((x) => x.id)).toEqual(["a", "d"]);
+  });
+  it("still has nothing to read when no verdicts array is there", () => {
+    expect(parseTriage('{"verdicts": "none"', given)).toBeNull();
+  });
   it("drops a verdict for an id it was not given, an unknown verdict, and a repeat", () => {
     const out = parseTriage(answer([v({ id: "zzz" }), v({ verdict: "maybe" }), v(), v({ verdict: "noise" })]), given)!;
     expect(out).toHaveLength(1);
