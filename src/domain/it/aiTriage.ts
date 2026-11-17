@@ -87,14 +87,46 @@ export interface TriageVerdictRow {
 }
 
 /**
+ * When the answer as a whole is not valid JSON (a stray quote in one reason, a cut-off ending), reads the objects of the
+ * array one by one and keeps the ones that parse. Null when there is no array to read from at all.
+ */
+export function salvageObjects(raw: string, key: string): unknown[] | null {
+  const m = new RegExp(`"${key}"\\s*:\\s*\\[`).exec(raw);
+  if (!m) return null;
+  const out: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  for (let i = m.index + m[0].length; i < raw.length; i++) {
+    const c = raw[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{") {
+      if (depth++ === 0) start = i;
+    } else if (c === "}" && depth > 0 && --depth === 0) {
+      try {
+        out.push(JSON.parse(raw.slice(start, i + 1)));
+      } catch {
+        // skip this one object
+      }
+    } else if (c === "]" && depth === 0) break;
+  }
+  return out;
+}
+
+/**
  * Reads the model's answer. Null when it is not the expected JSON. A verdict for an id it was not given is dropped; a
  * duplicate that names no real original becomes "unsure"; and a "noise" on a HIGH or CRITICAL finding stands only at high
  * confidence (and any "noise" below medium becomes "unsure"), so a hesitant call never hides a serious finding.
  */
 export function parseTriage(raw: string, findings: Pick<TriageInput, "id" | "severity">[], knownIds: ReadonlySet<string> = new Set()): TriageVerdictRow[] | null {
-  const data = extractJson(raw, "verdicts");
-  const list = (data as { verdicts?: unknown } | null)?.verdicts;
-  if (!Array.isArray(list)) return null;
+  const whole = extractJson(raw, "verdicts");
+  const list = Array.isArray((whole as { verdicts?: unknown } | null)?.verdicts) ? (whole as { verdicts: unknown[] }).verdicts : salvageObjects(raw, "verdicts");
+  if (!list) return null;
   const given = new Map(findings.map((f) => [f.id, f]));
   const seen = new Set<string>();
   const out: TriageVerdictRow[] = [];
@@ -160,6 +192,7 @@ export async function runAiTriage(env: Env = process.env, opts: { fetchImpl?: ty
 
     const inputs: TriageInput[] = batch.map((b) => ({ id: b.id, tool: b.tool, ruleId: b.ruleId, severity: b.severity, file: b.file, message: b.message }));
     let raw: string;
+    let stopReason: string | undefined;
     try {
       const res = await (opts.fetchImpl ?? fetch)("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -168,14 +201,15 @@ export async function runAiTriage(env: Env = process.env, opts: { fetchImpl?: ty
         signal: AbortSignal.timeout(180_000),
       });
       if (!res.ok) return { ok: false, reason: `The AI service answered ${res.status}.` };
-      const body = (await res.json()) as { content?: { type: string; text?: string }[] };
+      const body = (await res.json()) as { content?: { type: string; text?: string }[]; stop_reason?: string };
+      stopReason = body.stop_reason;
       raw = (body.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("");
     } catch (err) {
       return { ok: false, reason: err instanceof Error ? err.message : "The AI service could not be reached." };
     }
     const verdicts = parseTriage(raw, inputs, new Set(knownRows.map((k) => k.id)));
     if (!verdicts) {
-      console.error(`AI triage: unreadable answer (${raw.length} characters): ${raw.slice(0, 400)}`);
+      console.error(`AI triage: unreadable answer (${raw.length} characters, stop: ${stopReason ?? "unknown"}): ${raw.slice(0, 300)} ... ${raw.slice(-300)}`);
       return { ok: false, reason: "The AI's answer could not be read, so nothing was recorded." };
     }
 
