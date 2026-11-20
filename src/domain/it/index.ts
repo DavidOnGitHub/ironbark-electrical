@@ -11,6 +11,7 @@ import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { aiBuilderConfigFromEnv, AiBuilderError, createAiBuilderClient, issueOf, summarizeSession, type AiBuilderClient } from "./aiBuilder";
 import { budgetPause } from "./budget";
+import { creditPause } from "./credits";
 import { notifyBudgetUsedUp } from "./notify";
 import { applyParkedChange } from "./parked";
 import { costCapUsd, filesPushed, mayChangeDependencies, overCostCap, protectedFilesFor, PROTECTED_RULES } from "./guardrails";
@@ -107,8 +108,13 @@ export async function startItRequest(id: string, client: AiBuilderClient | null 
   // A parked issue is handed to AI Builder when it is created and started there by a developer, never from here.
   if (current.status === "PARKED") return { request: current, started: false, reason: "Waiting for a developer in AI Builder" };
   if (!client) return { request: current, started: false, reason: "AI Builder is not configured" };
-  // A revert is never held back by money. Everything else waits, and is started by the next sync once the budget allows.
-  if (current.sourceType !== "revert") {
+  // A change request waits while none of the month's credits are left (its price is charged when its plan is approved).
+  // Error and security fixes wait on their own budget in dollars, except a revert, which is never held back by money.
+  // Either way the next sync starts it once there is room.
+  if (current.kind === "FEATURE") {
+    const noCredits = await creditPause();
+    if (noCredits) return { request: current, started: false, reason: noCredits };
+  } else if (current.sourceType !== "revert") {
     const paused = await budgetPause();
     if (paused) {
       await notifyBudgetUsedUp(paused);
@@ -301,6 +307,7 @@ export * from "./aiReview";
 export * from "./aiTriage";
 export * from "./release";
 export * from "./budget";
+export * from "./credits";
 export * from "./notify";
 export * from "./parked";
 export * from "./auditLog";
