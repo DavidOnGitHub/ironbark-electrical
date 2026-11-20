@@ -4,6 +4,7 @@
  * are AI Builder's own, read defensively because they cross a service boundary.
  */
 import type { AiEvent, AiSessionDetail } from "./aiBuilder";
+import { creditsFor, isEstimateSize, type EstimateSize } from "./pricing";
 
 export interface ItQuestion {
   id: string;
@@ -20,6 +21,11 @@ export interface ItSpec {
   acceptanceCriteria: string[];
   edgeCases: string[];
   outOfScope: string[];
+  /**
+   * The assistant's size for the plan, and the price it sets (null credits: too large to price, a developer must quote).
+   * Null when the plan has no size (an automated fix, or an AI Builder older than sizing).
+   */
+  estimate: { size: EstimateSize; reason: string; credits: number | null } | null;
   /** pending: waiting for a decision; approved; changes_requested: the assistant is revising it. */
   state: "pending" | "approved" | "changes_requested";
 }
@@ -74,6 +80,8 @@ function readSpec(events: AiEvent[]): ItSpec | null {
   const after = events.slice(found.index + 1);
   const approved = after.some((x) => x.type === "spec_approved" && x.version === version);
   const changes = after.some((x) => x.type === "changes_requested" && x.version === version);
+  const est = typeof e.spec.estimate === "object" && e.spec.estimate ? (e.spec.estimate as Record<string, unknown>) : null;
+  const estimate = est && isEstimateSize(est.size) ? { size: est.size, reason: str(est.reason), credits: creditsFor(est.size) } : null;
   const criteria = Array.isArray(e.spec.acceptanceCriteria) ? (e.spec.acceptanceCriteria as Record<string, unknown>[]).map((c) => str(c.text)).filter(Boolean) : [];
   return {
     version,
@@ -82,6 +90,7 @@ function readSpec(events: AiEvent[]): ItSpec | null {
     acceptanceCriteria: criteria,
     edgeCases: strList(e.spec.edgeCases),
     outOfScope: strList(e.spec.outOfScope),
+    estimate,
     state: approved ? "approved" : changes ? "changes_requested" : "pending",
   };
 }

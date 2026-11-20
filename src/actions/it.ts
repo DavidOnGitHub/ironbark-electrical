@@ -3,7 +3,7 @@
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
-import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, mayChangeDependencies, securityAutoMergeOn, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
+import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, mayChangeDependencies, securityAutoMergeOn, creditBalance, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
 import { errorMessage } from "./shared";
 
 /** What the assistant panel shows for one request. */
@@ -102,6 +102,8 @@ export interface ItDetailView {
   feed: ItFeedLine[] | null;
   /** For an error: what went wrong, what happens now, and proof, in plain language. */
   summary: FixSummary | null;
+  /** For a change request: what it was charged once its plan was approved, and the month's credits left (null: no limit). */
+  credits: { charged: number | null; left: number | null; allowance: number | null } | null;
 }
 
 /** One line of an error's activity feed, ready to show. */
@@ -141,7 +143,9 @@ export async function getItDetailAction(id: string): Promise<ItDetailView | null
       console.error("[it] could not build the fix summary", err instanceof Error ? err.message : err);
     }
   }
-  return { request: view(synced), conversation, error, canApprove: mayManage(user), lastError: synced.lastError, deploy, feed, summary };
+  const balance = synced.kind === "FEATURE" ? await creditBalance() : null;
+  const credits = balance ? { charged: synced.creditsChargedAt ? synced.credits : null, left: balance.left, allowance: balance.allowance } : null;
+  return { request: view(synced), conversation, error, canApprove: mayManage(user), lastError: synced.lastError, deploy, feed, summary, credits };
 }
 
 /** Runs one of the actions below, handing a refusal back as a message. */

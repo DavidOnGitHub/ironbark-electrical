@@ -17,7 +17,7 @@ const technician = person({ userId: "u2", actor: { type: "USER", userId: "u2", l
 
 const session = (status: string, over: Record<string, unknown> = {}) => ({ id: "s1", appId: "ironbark", intent: "feature", title: "T", status, costUsd: 0, prUrl: null, ...over });
 const question = { type: "question", questions: [{ id: "q1", header: "Where", question: "Which page?", options: [{ label: "Quotes", description: "the list" }, { label: "Jobs" }], multiSelect: false }] };
-const specEvent = { type: "spec_ready", version: 2, spec: { title: "Rename panel", summary: "Call it Recent activities", acceptanceCriteria: [{ id: "AC-1", text: "Shows the new name" }], edgeCases: ["Long names"], outOfScope: ["Other panels"] } };
+const specEvent = { type: "spec_ready", version: 2, spec: { title: "Rename panel", summary: "Call it Recent activities", acceptanceCriteria: [{ id: "AC-1", text: "Shows the new name" }], edgeCases: ["Long names"], outOfScope: ["Other panels"], estimate: { size: "xs", reason: "Only a label changes." } } };
 
 function fake(events: any[], status: string, over: Record<string, unknown> = {}) {
   const client = {
@@ -53,7 +53,7 @@ describe("reading a conversation", () => {
 
   it("reads the latest plan and whether it was decided", () => {
     const pending = readConversation(detail([specEvent], "spec_review")).spec;
-    expect(pending).toMatchObject({ version: 2, title: "Rename panel", acceptanceCriteria: ["Shows the new name"], edgeCases: ["Long names"], outOfScope: ["Other panels"], state: "pending" });
+    expect(pending).toMatchObject({ version: 2, title: "Rename panel", acceptanceCriteria: ["Shows the new name"], edgeCases: ["Long names"], outOfScope: ["Other panels"], estimate: { size: "xs", reason: "Only a label changes.", credits: 1 }, state: "pending" });
     expect(readConversation(detail([specEvent, { type: "spec_approved", version: 2 }], "approved")).spec?.state).toBe("approved");
     expect(readConversation(detail([specEvent, { type: "changes_requested", version: 2, feedback: "x" }], "working")).spec?.state).toBe("changes_requested");
     const v3 = { ...specEvent, version: 3 };
@@ -106,10 +106,12 @@ describe("answering and deciding", () => {
 
   it("explains AI Builder's refusals and refuses finished or not-started requests", async () => {
     const row = await started();
-    const client = fake([], "spec_review", { approveSpec: vi.fn(async () => { throw Object.assign(new Error("Spec version is stale"), { status: 409 }); }) });
+    const client = fake([specEvent], "spec_review", { approveSpec: vi.fn(async () => { throw Object.assign(new Error("Spec version is stale"), { status: 409 }); }) });
     const { AiBuilderError } = await import("../src/domain/it");
     client.approveSpec.mockImplementation(async () => { throw new AiBuilderError(409, "Spec version is stale"); });
-    await expect(approveItSpec(row.id, 1, person(), client)).rejects.toThrow(/could not do that now: Spec version is stale/);
+    await expect(approveItSpec(row.id, 2, person(), client)).rejects.toThrow(/could not do that now: Spec version is stale/);
+    // The approval did not go through, so nothing was charged.
+    expect(await appDb.itRequest.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({ credits: null, creditsChargedAt: null });
 
     await appDb.itRequest.update({ where: { id: row.id }, data: { status: "MERGED" } });
     await expect(cancelItRequest(row.id, person(), client)).rejects.toThrow(/finished/);
