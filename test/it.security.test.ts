@@ -128,6 +128,23 @@ describe("securityReport", () => {
     expect(r.openTotal).toBe(3); // and its finding is open like any other
   });
 
+  it("stores what each scan changed and reports it in plain English, with the trend split by severity", async () => {
+    const { securityReport } = await import("../src/domain/it");
+    const low = finding({ fingerprint: "osv:GHSA-low:undici", ruleId: "GHSA-low", severity: "LOW", message: "undici@7.0.0: smuggling", fixedIn: "7.30.1" });
+    await ingestScan(scan("s1", [finding(), low]));
+    await ingestScan(scan("s2", [low, finding({ fingerprint: "osv:GHSA-new:qs", ruleId: "GHSA-new", severity: "MEDIUM", message: "qs: prototype pollution" })]));
+    expect((await appDb.securityScan.findUniqueOrThrow({ where: { id: "s2" } })).outcome).toEqual({ created: 1, reopened: 0, fixed: 1, newBySeverity: { MEDIUM: 1 } });
+    const r = await securityReport();
+    expect(r.trend.map((t) => t.bySeverity)).toEqual([{ HIGH: 1, LOW: 1 }, { MEDIUM: 1, LOW: 1 }]);
+    expect(r.summary[0]).toMatch(/^The scheduled scan on \d+ \w+ found 1 new problem: 1 medium, and confirmed 1 earlier problem is fixed\.$/);
+    expect(r.summary.slice(1)).toEqual([
+      "It reported 2 in all, the same as the scan before.",
+      "2 problems are open: 1 medium, 1 low.",
+      "The most urgent (medium) is a weakness in qs, a building block the app uses.",
+      "2 are waiting for someone to choose: fix it, or accept the risk.",
+    ]);
+  });
+
   it("has no last scan before the first one", async () => {
     const { securityReport } = await import("../src/domain/it");
     expect((await securityReport()).lastScanAt).toBeNull();
