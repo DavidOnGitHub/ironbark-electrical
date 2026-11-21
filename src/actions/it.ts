@@ -3,7 +3,7 @@
 import { requireRole } from "@kabosh-digital/m-street-kit/auth";
 import { Access } from "../access";
 import { userActor } from "../domain/shared/actor";
-import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, mayChangeDependencies, securityAutoMergeOn, creditBalance, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
+import { acceptItChange, answerItQuestions, approveItSpec, cancelItRequest, getFixSummary, getItConversation, getItFeed, getItRequest, ItActionError, IT_STATUS_LABEL, listItRequests, submitItRequest, syncItRequest, requestItSpecChanges, waitingOnPerson, protectedAreas, mayChangeDependencies, securityAutoMergeOn, creditBalance, riskSentence, type RiskLevel, type FeedTone, type FixSummary, type ItConversation, type ItStatusValue, type Responder } from "../domain/it";
 import { errorMessage } from "./shared";
 
 /** What the assistant panel shows for one request. */
@@ -22,6 +22,8 @@ export interface ItRequestView {
   workflowId: string | null;
   /** The areas a developer must review, named for people. Never file paths. */
   protectedAreas: string[];
+  /** Advice from the files it changed, never a block. Null until the files are known. */
+  risk: { level: RiskLevel; areas: string[]; sentence: string } | null;
   previewUrl: string | null;
   requestedBy: string;
   createdAt: string;
@@ -39,6 +41,7 @@ const view = (r: Awaited<ReturnType<typeof listItRequests>>[number]): ItRequestV
   needsDeveloper: r.needsDeveloper,
   workflowId: r.workflowProposalId ? r.workflowId : null,
   protectedAreas: protectedAreas(r.protectedFiles),
+  risk: r.riskLevel === "LOW" || r.riskLevel === "HIGH" ? { level: r.riskLevel, areas: r.riskAreas, sentence: riskSentence({ level: r.riskLevel, areas: r.riskAreas }) } : null,
   previewUrl: r.previewUrl,
   requestedBy: r.requestedByLabel,
   createdAt: r.createdAt.toISOString(),

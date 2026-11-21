@@ -14,6 +14,7 @@ import { budgetPause } from "./budget";
 import { creditPause } from "./credits";
 import { notifyBudgetUsedUp } from "./notify";
 import { applyParkedChange } from "./parked";
+import { changeRisk, riskSentence } from "./risk";
 import { costCapUsd, filesPushed, mayChangeDependencies, overCostCap, protectedFilesFor, PROTECTED_RULES } from "./guardrails";
 import { syncWorkflowFix, workflowFixClientFromEnv, type WorkflowFixClient } from "./workflowFix";
 import { fromSessionStatus, inDeployPhase, intentFor, IT_DEPLOY_PHASE, IT_STATUS_LABEL, IT_TERMINAL, isTerminal, type ItStatusValue } from "./status";
@@ -205,8 +206,11 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
       });
     }
 
-    const protectedFiles = protectedFilesFor(filesPushed(detail.events), row);
+    const files = filesPushed(detail.events);
+    const protectedFiles = protectedFilesFor(files, row);
     const newlyProtected = protectedFiles.length > 0 && !row.needsDeveloper;
+    const risk = changeRisk(files);
+    const riskChanged = risk !== null && (risk.level !== row.riskLevel || risk.areas.join("|") !== row.riskAreas.join("|"));
     return await appDb.$transaction(async (tx) => {
       const updated = await tx.itRequest.update({
         where: { id },
@@ -221,8 +225,12 @@ export async function syncItRequest(id: string, client: AiBuilderClient | null =
           lastSyncedAt: new Date(),
           needsDeveloper: protectedFiles.length > 0,
           protectedFiles,
+          ...(risk ? { riskLevel: risk.level, riskAreas: risk.areas } : {}),
         },
       });
+      if (riskChanged) {
+        await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "UPDATED", summary: `${row.number}: ${riskSentence(risk)}` });
+      }
       if (newlyProtected) {
         await recordActivity(tx, { actor: { type: "SYSTEM", label: "IT assistant" }, entityType: "itRequest", entityId: id, kind: "UPDATED", summary: `${row.number} touches protected files (${protectedFiles.slice(0, 3).join(", ")}); a developer must review it` });
       }
@@ -288,6 +296,7 @@ export * from "./errors";
 export * from "./feed";
 export * from "./classify";
 export * from "./guardrails";
+export * from "./risk";
 export * from "./workflowFix";
 export * from "./revertGuard";
 export * from "./fixSummary";

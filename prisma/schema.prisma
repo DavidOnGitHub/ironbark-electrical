@@ -575,6 +575,10 @@ model ItRequest {
   /// Began as a parked issue in AI Builder. These are not fix attempts: they do not count against an error's attempt limit and do not hold the fix lane.
   parked            Boolean         @default(false)
   protectedFiles    String[]
+  /// Advice for whoever accepts the change, from the files it changed (risk.ts): HIGH when it touches money, quoting,
+  /// sign-in and permissions, the database or workflow code, else LOW. Null until files are known. Never blocks anything.
+  riskLevel         String?
+  riskAreas         String[]
   /// When the merged change was confirmed running. The revert guard watches the 30 minutes after it.
   liveAt            DateTime?
   /// Set once the revert guard has looked at the 30 minutes after liveAt.

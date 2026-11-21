@@ -139,6 +139,11 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
               </p>
             </div>
           ) : null}
+          {request.risk && !request.needsDeveloper ? (
+            <p role="note" data-risk={request.risk.level} className={request.risk.level === "HIGH" ? "rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm" : "text-xs text-muted-foreground"}>
+              {request.risk.sentence}
+            </p>
+          ) : null}
           {acceptance && !acceptance.ready ? <List title="Not ready yet" items={acceptance.blockers} /> : null}
           {canApprove ? (
             <Button disabled={pending || request.needsDeveloper || !acceptance?.ready || !acceptance.sha} onClick={() => run(() => acceptItChangeAction(id, acceptance!.sha!))}>
