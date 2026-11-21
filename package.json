@@ -33,18 +33,18 @@
     "workflows:try": "tsx --env-file=.env scripts/tryWorkflow.ts"
   },
   "dependencies": {
-    "@kabosh-digital/m-street-kit": "0.14.2",
-    "@kabosh-digital/ui-kit": "0.14.2",
-    "@kabosh-digital/workflow-schema": "0.14.2",
-    "@kabosh-digital/workflow-temporal": "0.14.2",
-    "@kabosh-digital/workflow-types": "0.14.2",
+    "@kabosh-digital/m-street-kit": "0.15.0",
+    "@kabosh-digital/ui-kit": "0.15.0",
+    "@kabosh-digital/workflow-schema": "0.15.0",
+    "@kabosh-digital/workflow-temporal": "0.15.0",
+    "@kabosh-digital/workflow-types": "0.15.0",
     "@prisma/client": "^6.2.1",
     "@temporalio/activity": "1.24.0",
     "next": "16.4.6",
     "pdf-lib": "1.17.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "zod": "^3.24.1"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
