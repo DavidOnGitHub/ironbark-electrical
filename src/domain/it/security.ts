@@ -10,6 +10,7 @@ import type { Prisma } from "ironbark-electrical-client";
 import { appDb } from "../../db/app";
 import { recordActivity } from "../activity";
 import { IN_FLIGHT } from "./lane";
+import { securitySummary, type ScanOutcome } from "./securitySummary";
 import type { Actor } from "../shared/actor";
 
 export const SEVERITIES = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -120,6 +121,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
     let created = 0;
     let updated = 0;
     let reopened = 0;
+    const newBySeverity: ScanOutcome["newBySeverity"] = {};
 
     for (const f of findings) {
       const prev = byPrint.get(f.fingerprint);
@@ -129,6 +131,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
         });
         await recordActivity(tx, { actor, entityType: "finding", entityId: row.id, kind: "CREATED", summary: `${f.severity} finding from ${f.tool}: ${f.message.slice(0, 120)}` });
         created++;
+        newBySeverity[f.severity] = (newBySeverity[f.severity] ?? 0) + 1;
         continue;
       }
       const wasFixed = prev.status === "FIXED";
@@ -142,6 +145,7 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
       if (wasFixed) {
         await recordActivity(tx, { actor, entityType: "finding", entityId: prev.id, kind: "REOPENED", summary: `Finding came back: ${f.message.slice(0, 120)}` });
         reopened++;
+        newBySeverity[f.severity] = (newBySeverity[f.severity] ?? 0) + 1;
       } else updated++;
     }
 
@@ -154,6 +158,8 @@ export async function ingestScan(input: unknown, actor: Actor = { type: "SYSTEM"
       await tx.finding.update({ where: { id: g.id }, data: { status: "FIXED", fixedAt: now } });
       await recordActivity(tx, { actor, entityType: "finding", entityId: g.id, kind: "FIXED", summary: `No longer reported: ${g.message.slice(0, 120)}` });
     }
+    const outcome: ScanOutcome = { created, reopened, fixed: gone.length, newBySeverity };
+    await tx.securityScan.update({ where: { id: report.scanId }, data: { outcome: outcome as unknown as Prisma.InputJsonValue } });
     return { duplicate: false, created, updated, reopened, fixed: gone.length, total: findings.length };
   });
 }
@@ -164,8 +170,10 @@ export interface SecurityReport {
   /** Open findings (open or being fixed) by severity, worst first. */
   openBySeverity: { severity: Severity; count: number }[];
   openTotal: number;
-  /** The last few scans, oldest first, for the trend. */
-  trend: { id: string; at: Date; kind: string; total: number }[];
+  /** The last few scans, oldest first, for the trend, with each scan's count per severity. */
+  trend: { id: string; at: Date; kind: string; total: number; bySeverity: Partial<Record<Severity, number>> }[];
+  /** The latest scan in plain English (securitySummary.ts), one sentence per line. Empty before the first scan. */
+  summary: string[];
   /** Earlier scans, newest first, with what each reported. History only: nothing in it can be acted on. */
   history: { id: string; at: Date; kind: string; total: number; findings: HistoricFinding[] | null }[];
   /** The worst open findings. */
@@ -191,10 +199,39 @@ export async function securityReport(topN = 25): Promise<SecurityReport> {
     openBySeverity: [...SEVERITIES].reverse().map((severity) => ({ severity, count: count.get(severity) ?? 0 })),
     openTotal: open.length,
     // A monthly scan carries only the live-site tool's findings, so its total is not comparable with a full scan's.
-    trend: [...scans].filter((s) => s.kind !== "monthly").reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total })),
+    trend: [...scans].filter((s) => s.kind !== "monthly").reverse().map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total, bySeverity: severityCounts(s.bySeverity) })),
+    summary: scans[0]
+      ? securitySummary({
+          latest: summaryScan(scans[0]),
+          previous: (() => {
+            const prev = scans.slice(1).find((s) => s.kind === scans[0]!.kind);
+            return prev ? summaryScan(prev) : null;
+          })(),
+          open: open.map((f) => ({ severity: f.severity as Severity, tool: f.tool, status: f.status, message: f.message, fixedIn: f.fixedIn })),
+        })
+      : [],
     history: scans.slice(1).map((s) => ({ id: s.id, at: s.receivedAt, kind: s.kind, total: s.total, findings: Array.isArray(s.findings) ? (s.findings as unknown as HistoricFinding[]).slice(0, 100) : null })),
     top: worstFirst.map((f) => ({ id: f.id, hasFix: Boolean(f.itRequestId) && !failedIds.has(f.itRequestId!), fixFailed: Boolean(f.itRequestId) && failedIds.has(f.itRequestId!), severity: f.severity as Severity, tool: f.tool, message: f.message, file: f.file, status: f.status, seenCount: f.seenCount, itRequestNumber: f.itRequestId ? (numberOf.get(f.itRequestId) ?? null) : null })),
   };
+}
+
+/** A stored per-severity count, keeping only known severities and whole numbers. */
+function severityCounts(value: unknown): Partial<Record<Severity, number>> {
+  const out: Partial<Record<Severity, number>> = {};
+  if (value && typeof value === "object") for (const s of SEVERITIES) {
+    const n = (value as Record<string, unknown>)[s];
+    if (typeof n === "number" && Number.isFinite(n) && n > 0) out[s] = Math.floor(n);
+  }
+  return out;
+}
+
+function summaryScan(s: { receivedAt: Date; kind: string; total: number; outcome: unknown }) {
+  const o = s.outcome as Partial<ScanOutcome> | null;
+  const outcome: ScanOutcome | null =
+    o && typeof o.created === "number" && typeof o.reopened === "number" && typeof o.fixed === "number"
+      ? { created: o.created, reopened: o.reopened, fixed: o.fixed, newBySeverity: severityCounts(o.newBySeverity) }
+      : null;
+  return { at: s.receivedAt, kind: s.kind, total: s.total, outcome };
 }
 
 export interface SecurityHeadline {

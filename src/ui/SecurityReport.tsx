@@ -11,6 +11,19 @@ const SEVERITY_TONE: Record<string, string> = {
   LOW: "text-muted-foreground",
   INFO: "text-muted-foreground",
 };
+/** Trend bar segments, bottom to top: least severe at the bottom. */
+const TREND_ORDER = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+const TREND_TONE: Record<(typeof TREND_ORDER)[number], string> = {
+  CRITICAL: "bg-red-700 dark:bg-red-500",
+  HIGH: "bg-red-500 dark:bg-red-400",
+  MEDIUM: "bg-amber-500 dark:bg-amber-400",
+  LOW: "bg-foreground/35",
+  INFO: "bg-foreground/15",
+};
+const trendText = (by: Partial<Record<string, number>>) => {
+  const parts = [...TREND_ORDER].reverse().filter((s) => by[s]).map((s) => `${by[s]} ${s.toLowerCase()}`);
+  return parts.length ? ` (${parts.join(", ")})` : "";
+};
 const label = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 const when = (d: Date) => d.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
@@ -53,6 +66,13 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
           {canScan ? <ScanNowButton running={scanRun !== null} since={scanRun ? scanRun.since.toISOString() : null} runUrl={scanRun?.url ?? null} /> : null}
         </div>
       </div>
+      {report.summary.length > 0 ? (
+        <div className="flex flex-col gap-1 rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" data-testid="security-summary">
+          {report.summary.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      ) : null}
       <ul className="flex flex-wrap gap-2 text-sm">
         {report.openBySeverity.map((s) => (
           <li key={s.severity} className="rounded-md border px-2 py-1">
@@ -73,12 +93,34 @@ export function SecurityReport({ report, canScan = false, schedule, dismissed = 
       ) : null}
       {report.trend.length > 1 ? (
         <div>
-          <p className="mb-1 text-xs text-muted-foreground">Findings per scan, oldest to newest</p>
-          <div className="flex h-10 items-end gap-1" role="img" aria-label={`Findings per scan: ${report.trend.map((t) => t.total).join(", ")}`}>
+          <p className="mb-1 text-xs text-muted-foreground">Findings per scan by severity, oldest to newest</p>
+          <div
+            className="flex h-16 items-end gap-1"
+            role="img"
+            aria-label={`Findings per scan: ${report.trend.map((t) => `${when(t.at)} ${t.total}${trendText(t.bySeverity)}`).join("; ")}`}
+          >
             {report.trend.map((t) => (
-              <div key={t.id} title={`${when(t.at)}: ${t.total}`} className="w-4 rounded-sm bg-foreground/30" style={{ height: `${Math.max(4, (t.total / peak) * 100)}%` }} />
+              <div
+                key={t.id}
+                title={`${when(t.at)}: ${t.total}${trendText(t.bySeverity)}`}
+                className="flex w-5 flex-col-reverse overflow-hidden rounded-sm bg-foreground/10"
+                style={{ height: `${Math.max(4, (t.total / peak) * 100)}%` }}
+                data-testid="trend-bar"
+              >
+                {TREND_ORDER.map((sev) =>
+                  t.bySeverity[sev] ? <div key={sev} className={TREND_TONE[sev]} style={{ height: `${(t.bySeverity[sev]! / Math.max(1, t.total)) * 100}%` }} /> : null,
+                )}
+              </div>
             ))}
           </div>
+          <ul className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {[...TREND_ORDER].reverse().map((sev) => (
+              <li key={sev} className="flex items-center gap-1">
+                <span className={`inline-block size-2 rounded-sm ${TREND_TONE[sev]}`} aria-hidden="true" />
+                {label(sev)}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
       {canTriage && !readOnly && untriaged > 0 ? <TriageButton waiting={untriaged} /> : null}
