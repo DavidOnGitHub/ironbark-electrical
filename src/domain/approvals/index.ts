@@ -9,7 +9,7 @@ import { formatMoney } from "../../lib/money";
 import { resolveParams, str } from "../../steps/runtime";
 import { buildReview, type GraphNode, type Review } from "./review";
 import { editableFor, type Editable } from "./edit";
-import { canCompleteTask, canSeeRunData, visibleWorkflows, type WorkflowViewer } from "../../lib/workflowAccess";
+import { canCompleteTask, canSeeRunData, visibleWorkflows, type WorkflowViewer } from "@kabosh-digital/m-street-kit/access";
 
 export { buildReview, type Review } from "./review";
 export { approvalOutput, editableFor, type Editable } from "./edit";

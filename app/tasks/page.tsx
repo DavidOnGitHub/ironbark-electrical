@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { currentActor, redirectIfMfaPending } from "@kabosh-digital/m-street-kit/auth";
+import { currentActor, groupNamesByKey, reassignCandidates, redirectIfMfaPending } from "@kabosh-digital/m-street-kit/auth";
+import { canCompleteTask, canSeeRunData, visibleWorkflows } from "@kabosh-digital/m-street-kit/access";
 import { CompleteTaskForm } from "@kabosh-digital/m-street-kit/components/CompleteTaskForm";
+import { ReassignTaskForm } from "@kabosh-digital/m-street-kit/components/ReassignTaskForm";
 import { formatRelativeTime } from "@kabosh-digital/m-street-kit/format";
 import { prisma } from "@kabosh-digital/workflow-schema";
 import { parseHumanTaskOutputFields } from "@kabosh-digital/workflow-types";
 import { editableForTask, reviewForTask } from "../../src/domain/approvals";
-import { canCompleteTask, canSeeRunData, visibleWorkflows } from "../../src/lib/workflowAccess";
 import { PageHeader } from "../../src/ui/fields";
 import { ApprovalForm } from "../../src/ui/ApprovalForm";
 import { TaskReview } from "../../src/ui/TaskReview";
@@ -32,6 +33,10 @@ export default async function TasksPage() {
         orderBy: { createdAt: "asc" },
       })
     : [];
+  // "Reassign tasks": who an open task can be handed to (null without the permission).
+  const candidates = await reassignCandidates();
+  const groupNames = await groupNamesByKey();
+  const groupName = (key: string | null) => (key ? (groupNames[key] ?? key) : null);
   const rows = await Promise.all(
     tasks.map(async (t) => {
       const graph = ((t.instance.definition.publishedGraph ?? t.instance.definition.graph) as { nodes?: { id: string; label?: string }[] } | null) ?? {};
@@ -68,11 +73,14 @@ export default async function TasksPage() {
               instanceId={task.instanceId}
               nodeId={task.nodeId}
               canComplete={canComplete}
-              assigneeRole={assigneeRoleOf(task.input)}
+              assigneeRole={groupName(assigneeRoleOf(task.input))}
               approval={(task.input as { approval?: unknown } | null)?.approval === true}
               outputFields={parseHumanTaskOutputFields(task.input)}
             />
             )}
+            {candidates ? (
+              <ReassignTaskForm taskId={task.id} assigneeId={task.assigneeId} groupLabel={groupName(assigneeRoleOf(task.input))} candidates={candidates} />
+            ) : null}
           </li>
         ))}
       </ul>
