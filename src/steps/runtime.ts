@@ -23,6 +23,17 @@ export function isTestRun(context: WorkflowContext): boolean {
 
 export const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
 
+/**
+ * A setting the step cannot work without, as text. An empty one (left blank, or mapped to a field the run does not
+ * have) is a problem with how the workflow is set up, so the error says so in words the IT assistant's triage and a
+ * person both read that way, instead of a puzzling "Invoice  was not found."
+ */
+export function requiredSetting(step: string, label: string, value: unknown): string {
+  const text = str(value).trim();
+  if (!text) throw new Error(`${step}: the "${label}" setting is empty. It is required: set it, or map it to a field an earlier step provides.`);
+  return text;
+}
+
 /** The variables of a templated email from its resolved params: the mapped ones, with `variableDefaults` standing in for any
  * that has no value (for example the AI's draft, when no person edited it in their approval). */
 export function emailVariables(params: Record<string, unknown>): Record<string, string | undefined> {
