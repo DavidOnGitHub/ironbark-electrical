@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { issueMessage } from "@kabosh-digital/workflow-types";
 import type { DuplicateMatch } from "../domain/clients";
 
 /** What a form action hands back to useActionState. */
@@ -21,7 +22,7 @@ export function text(formData: FormData, key: string): string | undefined {
 }
 
 export function errorMessage(err: unknown): string {
-  if (err instanceof ZodError) return err.issues[0]?.message ?? "Please check the form.";
+  if (err instanceof ZodError) return err.issues[0] ? issueMessage(err.issues[0]) : "Please check the form.";
   if (err instanceof Error) return err.message;
   return "Something went wrong.";
 }
