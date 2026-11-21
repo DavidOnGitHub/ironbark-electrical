@@ -2,7 +2,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appDb } from "../src/db/app";
 import {
-  acceptItChange, buildFeed, captureError, checkRevertGuard, costCapUsd, createItRequest, filesPushed, ItActionError, judgeSpike, measureChange, normalisePath, overCostCap,
+  acceptItChange, buildFeed, changeRisk, riskArea, riskSentence, captureError, checkRevertGuard, costCapUsd, createItRequest, filesPushed, ItActionError, judgeSpike, measureChange, normalisePath, overCostCap,
   mayChangeDependencies, protectedFilesFor, protectedFilesIn, protectedReason, resetErrorThrottle, startItRequest, syncItRequest, type AiBuilderClient,
 } from "../src/domain/it";
 import { truncateAll } from "./helpers";
@@ -85,6 +85,42 @@ describe("judgeSpike", () => {
   });
 });
 
+describe("risk tiers by path", () => {
+  it.each([
+    ["src/domain/invoicing/calc.ts", "Money"],
+    ["src/integrations/stripeEvents.ts", "Money"],
+    ["app/pay/[token]/page.tsx", "Money"],
+    ["src/domain/it/credits.ts", "Money"],
+    ["src/domain/quotes/validity.ts", "Quoting"],
+    ["app/accept/[token]/page.tsx", "Quoting"],
+    ["src/access.ts", "Sign-in and permissions"],
+    ["app/admin/users/page.tsx", "Sign-in and permissions"],
+    ["prisma/schema.prisma", "Database"],
+    ["src/steps/impl.ts", "Workflows"],
+    ["src/automation/failedRuns.ts", "Workflows"],
+    [".github/workflows/ci.yml", "CI and workflows"],
+    ["package.json", "Dependencies"],
+    ["src/../../etc/passwd", "Outside the project"],
+    ["src/ui/ItRequestDetail.tsx", null],
+    ["app/jobs/page.tsx", null],
+    ["specs/fix.md", null],
+  ])("%s is %s", (file, area) => {
+    expect(riskArea(file)).toBe(area);
+  });
+
+  it("is high when any file is, naming each area once; low when none is; unknown with no files", () => {
+    expect(changeRisk(["./src/domain/quotes/calc.ts", "src/domain/quotes/index.ts", "src/steps/impl.ts", "src/ui/x.tsx"])).toEqual({ level: "HIGH", areas: ["Quoting", "Workflows"] });
+    expect(changeRisk(["src/ui/x.tsx", "test/x.test.ts"])).toEqual({ level: "LOW", areas: [] });
+    expect(changeRisk([])).toBeNull();
+    expect(changeRisk(["", "/"])).toBeNull();
+  });
+
+  it("says it in plain words", () => {
+    expect(riskSentence({ level: "LOW", areas: [] })).toMatch(/^Lower risk/);
+    expect(riskSentence({ level: "HIGH", areas: ["Money", "Quoting"] })).toBe("Higher risk: it changes Money, Quoting. Try those parts carefully in the preview before accepting.");
+  });
+});
+
 // ---- with a database -------------------------------------------------------------------------------------------
 
 const SYSTEM = { actor: { type: "SYSTEM" as const, label: "t" } };
@@ -144,9 +180,22 @@ describe("protected files on a request", () => {
     const row = await started(client);
     const synced = (await syncItRequest(row.id, client))!;
     expect(synced.needsDeveloper).toBe(false);
+    // Higher risk is advice only: it is stored and recorded once, and acceptance is not blocked.
+    expect(synced).toMatchObject({ riskLevel: "HIGH", riskAreas: ["Quoting"] });
+    await syncItRequest(row.id, client);
+    expect((await appDb.activityEvent.findMany({ where: { entityId: row.id } })).filter((a) => /Higher risk/.test(a.summary))).toHaveLength(1);
     const who = { actor: { type: "USER" as const, userId: "u_o", label: "Owner" }, userId: "u_o", email: "o@example.com", name: "Owner", roles: ["ADMIN"] };
     await acceptItChange(row.id, "abc", who, client);
     expect(client.accept).toHaveBeenCalled();
+  });
+
+  it("leaves the risk unknown until the assistant has pushed files, then marks a lower-risk change", async () => {
+    let state: any = { session: { status: "building" }, events: [] };
+    const client = fakeClient(() => state);
+    const row = await started(client);
+    expect(await syncItRequest(row.id, client)).toMatchObject({ riskLevel: null, riskAreas: [] });
+    state = { session: { status: "pr_open", prUrl: "u" }, events: [{ type: "commit_pushed", files: ["src/ui/QuotesList.tsx"] }] };
+    expect(await syncItRequest(row.id, client)).toMatchObject({ riskLevel: "LOW", riskAreas: [] });
   });
 
   it("shows in the feed", () => {
