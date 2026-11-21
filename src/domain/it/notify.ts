@@ -1,6 +1,6 @@
 /**
  * Email to the Owner about the IT assistant, sent through Brevo's transactional API. Today there is one notice: the month's
- * budget is used up. It is sent once per month: the first held request sends it and records that it did, so later held
+ * budget for error and security fixes is used up. It is sent once per month: the first held request sends it and records that it did, so later held
  * requests (and the worker, which also starts requests) stay quiet. A failure is logged and never stops the caller; the
  * next held request tries again, because nothing is recorded until Brevo has accepted the email.
  *
@@ -39,7 +39,7 @@ export async function sendEmail(env: Env, mail: { subject: string; text: string 
 
 const monthKey = (d: Date) => d.toISOString().slice(0, 7);
 
-/** Tells the Owner the budget is used up, once for the month. Returns whether an email was sent now. */
+/** Tells the Owner the fix budget is used up, once for the month. Returns whether an email was sent now. */
 export async function notifyBudgetUsedUp(pause: BudgetPause, env: Env = process.env, opts: { fetchImpl?: typeof fetch } = {}): Promise<boolean> {
   if (!notifyConfigured(env)) return false;
   const month = monthKey(pause.month);
@@ -49,13 +49,13 @@ export async function notifyBudgetUsedUp(pause: BudgetPause, env: Env = process.
     const sent = await sendEmail(
       env,
       {
-        subject: "IT assistant: this month's budget is used up",
+        subject: "IT assistant: this month's budget for fixes is used up",
         text: [
-          `This month's budget for the IT assistant is used up: $${pause.spent.toFixed(2)} spent of $${pause.budget.toFixed(2)}.`,
+          `This month's budget for the IT assistant's error and security fixes is used up: $${pause.spent.toFixed(2)} spent of $${pause.budget.toFixed(2)}.`,
           "",
-          "New requests, error fixes and security fixes are now held. Work already under way carries on, and undoing a change that broke something still starts.",
+          "New error fixes and security fixes are now held. Work already under way carries on, undoing a change that broke something still starts, and change requests are not affected (they use the month's credits).",
           "",
-          "They start again next month, or as soon as you raise IT_MONTHLY_BUDGET_USD on the web service and the worker in Render. The IT page shows the usage.",
+          "They start again next month, or as soon as you raise IT_FIX_MONTHLY_BUDGET_USD on the web service and the worker in Render. The IT page shows the usage.",
           "",
           "You will not get another email about this until next month.",
         ].join("\n"),

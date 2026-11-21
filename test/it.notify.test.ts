@@ -65,9 +65,9 @@ describe("notifyBudgetUsedUp", () => {
 
 describe("a held request", () => {
   it("still holds when the email is not set up", async () => {
-    vi.stubEnv("IT_MONTHLY_BUDGET_USD", "5");
-    await appDb.itRequest.create({ data: { number: "IT-1", kind: "FEATURE", title: "t", description: "d", requestedByLabel: "t", costUsd: 6 } as any });
-    const r = (await createItRequest({ kind: "FEATURE", title: "Change a label", description: "d" } as any, { actor: { type: "SYSTEM", label: "t" } } as any)).request;
+    vi.stubEnv("IT_FIX_MONTHLY_BUDGET_USD", "5");
+    await appDb.itRequest.create({ data: { number: "IT-1", kind: "ERROR", title: "t", description: "d", requestedByLabel: "t", costUsd: 6 } as any });
+    const r = (await createItRequest({ kind: "ERROR", title: "Fix an error", description: "d" } as any, { actor: { type: "SYSTEM", label: "t" } } as any)).request;
     const client = { createSession: vi.fn() } as unknown as AiBuilderClient;
     expect(await startItRequest(r.id, client)).toMatchObject({ started: false });
   });

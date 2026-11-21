@@ -10,6 +10,7 @@ import { recordActivity } from "../activity";
 import type { Actor } from "../shared/actor";
 import { AiBuilderError, delegatedRoleFor, type AiBuilderClient, type ItAnswer, type OnBehalfOf } from "./aiBuilder";
 import { readConversation, type ItConversation } from "./conversation";
+import { chargeCredits, CreditError, uncharge } from "./credits";
 import { defaultClient, syncItRequest } from "./index";
 import { inDeployPhase, isTerminal } from "./status";
 import { cancelWorkflowFix, type WorkflowFixClient } from "./workflowFix";
@@ -78,11 +79,38 @@ export async function answerItQuestions(id: string, answers: ItAnswer[], who: Re
   return afterAction(row, who, "questions answered", client);
 }
 
+/**
+ * Approves a plan. For a change request this is also when it is paid for: the price is set from the size the assistant
+ * gave the plan being approved (read from AI Builder, never from the page), and charged against the month's credits
+ * before AI Builder is told. If AI Builder refuses, the charge is taken back.
+ */
 export async function approveItSpec(id: string, version: number, who: Responder, client: AiBuilderClient | null = defaultClient()) {
   if (!client) throw new ItActionError("The assistant is not connected.");
   const row = await load(id, who, "approver");
-  await viaBuilder(() => client.approveSpec(row.sessionId, version, behalf(who)));
-  return afterAction(row, who, "plan approved", client);
+  const by = behalf(who);
+  if (row.kind !== "FEATURE") {
+    await viaBuilder(() => client.approveSpec(row.sessionId, version, by));
+    return afterAction(row, who, "plan approved", client);
+  }
+
+  const spec = readConversation(await client.getSession(row.sessionId)).spec;
+  if (!spec || spec.version !== version || spec.state !== "pending") throw new ItActionError("This plan has changed. Reload the page to see the latest one.");
+  if (!spec.estimate) throw new ItActionError("This plan has no price yet. Ask the assistant to revise it so it can be priced.");
+  const size = spec.estimate.size;
+  let credits: number;
+  try {
+    credits = await appDb.$transaction((tx) => chargeCredits(tx, row.id, size));
+  } catch (err) {
+    if (err instanceof CreditError) throw new ItActionError(err.message);
+    throw err;
+  }
+  try {
+    await viaBuilder(() => client.approveSpec(row.sessionId, version, by));
+  } catch (err) {
+    await uncharge(row.id);
+    throw err;
+  }
+  return afterAction(row, who, `plan approved for ${credits} ${credits === 1 ? "credit" : "credits"}`, client);
 }
 
 export async function requestItSpecChanges(id: string, version: number, feedback: string, who: Responder, client: AiBuilderClient | null = defaultClient()) {

@@ -7,12 +7,13 @@
  * Every handler calls this business's own domain module functions (never
  * appDb directly) - the same functions the pages use - and maps their result
  * to a lean shape so the model sees the figures it needs without the full
- * Prisma row (internal ids, audit columns, etc.). The assistant is only ever
- * offered to ADMIN/EDITOR sessions (Policy.APP_ASSISTANT in m-street-kit), so
- * no extra role-scoping happens here - those two roles already see every
- * record in these domains on the regular pages (see instrumentation.ts's nav
- * roles), with one exception: pricing is "Owner and Office only" by the
- * pricing module's own doc comment, which matches that same ADMIN/EDITOR gate.
+ * Prisma row (internal ids, audit columns, etc.).
+ *
+ * Who may use them: the kit offers the assistant to anyone holding its "App
+ * assistant" permission, and an admin can give that to any person or group
+ * (e.g. a Technician). These tools read business records that only the Owner
+ * and Office see on the regular pages (pricing included), so every handler
+ * first checks the caller is ADMIN or EDITOR - see ownerOrOffice() below.
  */
 import { listClients, getClient } from "../domain/clients";
 import { listRequests, getRequest, countByStatus as requestCountsByStatus } from "../domain/requests";
@@ -24,12 +25,30 @@ import { businessReport, REPORT_WINDOWS, type ReportWindow } from "../domain/rep
 import { DATASETS, PERIODS, TIME_GROUPS, runReport, type Dataset, type PeriodName } from "../domain/reports/query";
 import { formatMoney } from "../lib/money";
 import type { AppAssistantTool } from "@kabosh-digital/m-street-kit/lib/appAssistant";
+import { currentActor } from "@kabosh-digital/m-street-kit/auth";
 
 const STRING = { type: "string" } as const;
 const NUMBER_LIMIT = { type: "integer", minimum: 1, maximum: 100, description: "Max rows to return." } as const;
 const EMPTY_SCHEMA = { type: "object", properties: {}, additionalProperties: false } as const;
 
-export const ironbarkAppAssistantTools: AppAssistantTool[] = [
+const BUSINESS_ROLES = ["ADMIN", "EDITOR"];
+
+/** Refuses the call unless the signed-in person is Owner or Office (the tool's
+ * error text reaches the model, which tells the person). */
+function ownerOrOffice(tool: AppAssistantTool): AppAssistantTool {
+  return {
+    ...tool,
+    handler: async (args) => {
+      const actor = await currentActor();
+      if (!actor?.roles.some((r) => BUSINESS_ROLES.includes(r))) {
+        throw new Error("Business records (clients, quotes, jobs, invoices, prices, reports) are only available to the Owner and Office.");
+      }
+      return tool.handler(args);
+    },
+  };
+}
+
+export const ironbarkAppAssistantTools: AppAssistantTool[] = ([
   {
     name: "reportQuery",
     description:
@@ -397,4 +416,4 @@ export const ironbarkAppAssistantTools: AppAssistantTool[] = [
       }));
     },
   },
-];
+] satisfies AppAssistantTool[]).map(ownerOrOffice);

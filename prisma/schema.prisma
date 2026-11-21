@@ -582,11 +582,18 @@ model ItRequest {
   lastSyncedAt      DateTime?
   /// Claim taken while a process creates the session, so two processes never create two.
   startingAt        DateTime?
+  /// A change request's price, fixed when its plan is approved: the size the assistant gave the plan (xs, s, m, l) and
+  /// the credits it costs. The credits count against the month the plan was approved in, unless the request closes
+  /// without the change being made.
+  estimateSize      String?
+  credits           Int?
+  creditsChargedAt  DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
   @@index([status, createdAt(sort: Desc)])
   @@index([sourceType, sourceId])
+  @@index([creditsChargedAt])
 }
 
 /// An error the app noticed itself, one row per fingerprint. Repeats only raise the count. Message and stack are

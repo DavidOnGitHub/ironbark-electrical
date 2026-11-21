@@ -7,7 +7,15 @@ export async function register() {
   const { registerStepMetadata } = await import("@kabosh-digital/workflow-temporal/catalog");
   const { ironSparkStepDefs, ironSparkAssistantSteps } = await import("./src/steps/defs");
   const { ironbarkAppAssistantTools } = await import("./src/automation/appAssistantTools");
+  const { brevoMailerFromEnv } = await import("@kabosh-digital/m-street-kit/mailers/brevo");
   registerStepMetadata(ironSparkStepDefs);
+  // Password reset and invite emails. The sender defaults to the one the IT budget email already uses (verified in Brevo).
+  // Without BREVO_API_KEY and a sender, admins copy the links by hand and "Forgot password?" is hidden.
+  const sendEmail = brevoMailerFromEnv({
+    ...process.env,
+    MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL || process.env.IT_NOTIFY_FROM,
+    MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || process.env.BRANDING_BUSINESS_NAME,
+  });
   configureKit({
     nav: [
       {
@@ -48,6 +56,7 @@ export async function register() {
     assistantSteps: ironSparkAssistantSteps,
     appAssistantTools: ironbarkAppAssistantTools,
     policy: { DEFINITIONS_AND_INSTANCES: ["ADMIN"], CONNECTORS: ["ADMIN"] },
+    sendEmail,
   });
 }
 

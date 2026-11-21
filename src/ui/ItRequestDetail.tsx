@@ -12,7 +12,8 @@ import {
   requestItSpecChangesAction,
   type ItDetailView,
 } from "../actions/it";
-import type { ItQuestion } from "../domain/it/conversation";
+import type { ItQuestion, ItSpec } from "../domain/it/conversation";
+import { creditText, SIZE_LABEL } from "../domain/it/pricing";
 import { ItFeed } from "./ItFeed";
 import { ItFixSummary } from "./ItFixSummary";
 
@@ -97,8 +98,11 @@ export function ItRequestDetail({ id, onBack, onChanged }: { id: string; onBack:
           <List title="It will be done when" items={spec.acceptanceCriteria} />
           <List title="Things we considered" items={spec.edgeCases} />
           <List title="Left out" items={spec.outOfScope} />
+          {request.kind === "FEATURE" ? <Price estimate={spec.estimate} left={detail.credits?.left ?? null} allowance={detail.credits?.allowance ?? null} /> : null}
           <PlanActions
             canApprove={canApprove}
+            blocked={request.kind === "FEATURE" && !priceable(spec.estimate, detail.credits?.left ?? null)}
+            approveLabel={request.kind === "FEATURE" && spec.estimate?.credits ? `Approve for ${creditWord(spec.estimate.credits)}` : undefined}
             pending={pending}
             onApprove={() => run(() => approveItSpecAction(id, spec.version))}
             onChanges={(text, done) => run(() => requestItSpecChangesAction(id, spec.version, text), done)}
@@ -223,7 +227,37 @@ function Questions({ questions, pending, onSend }: { questions: ItQuestion[]; pe
   );
 }
 
-function PlanActions({ canApprove, pending, onApprove, onChanges }: { canApprove: boolean; pending: boolean; onApprove: () => void; onChanges: (text: string, done: () => void) => void }) {
+const creditWord = (n: number) => `${n} ${n === 1 ? "credit" : "credits"}`;
+
+type Estimate = ItSpec["estimate"];
+
+/** A change request's plan can be approved here only with a price the month's credits cover. */
+const priceable = (estimate: Estimate, left: number | null) => Boolean(estimate && estimate.credits !== null && (left === null || estimate.credits <= left));
+
+/** What the plan costs, and whether this month's credits cover it. */
+function Price({ estimate, left, allowance }: { estimate: Estimate; left: number | null; allowance: number | null }) {
+  if (!estimate) return <p className="rounded-lg bg-muted p-2 text-sm">This plan has no price yet. Ask for changes so the assistant can price it.</p>;
+  if (estimate.credits === null) {
+    return (
+      <div className="rounded-lg bg-muted p-2 text-sm" data-testid="it-price">
+        <p className="font-medium">{SIZE_LABEL[estimate.size]}: needs a developer to quote</p>
+        <p className="text-xs text-muted-foreground">{estimate.reason} Ask for changes to make it smaller, or ask a developer for a quote.</p>
+      </div>
+    );
+  }
+  const short = left !== null && estimate.credits > left;
+  return (
+    <div className="rounded-lg bg-muted p-2 text-sm" data-testid="it-price">
+      <p className="font-medium">Price: {creditText(estimate.credits)}</p>
+      <p className="text-xs text-muted-foreground">{SIZE_LABEL[estimate.size]} change. {estimate.reason}</p>
+      <p className={`text-xs ${short ? "text-destructive" : "text-muted-foreground"}`}>
+        {left === null ? "The price is fixed once you approve." : short ? `Only ${creditWord(left)} of this month's ${allowance} left. Ask for changes to make it smaller, or approve it next month.` : `The price is fixed once you approve. ${creditWord(left)} of this month's ${allowance} left.`}
+      </p>
+    </div>
+  );
+}
+
+function PlanActions({ canApprove, blocked = false, approveLabel, pending, onApprove, onChanges }: { canApprove: boolean; blocked?: boolean; approveLabel?: string; pending: boolean; onApprove: () => void; onChanges: (text: string, done: () => void) => void }) {
   const [asking, setAsking] = useState(false);
   const [text, setText] = useState("");
   return (
@@ -240,7 +274,7 @@ function PlanActions({ canApprove, pending, onApprove, onChanges }: { canApprove
         </>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {canApprove ? <Button disabled={pending} onClick={onApprove}>{pending ? "Working..." : "Approve the plan"}</Button> : null}
+          {canApprove ? <Button disabled={pending || blocked} onClick={onApprove}>{pending ? "Working..." : approveLabel ?? "Approve the plan"}</Button> : null}
           <Button variant="outline" disabled={pending} onClick={() => setAsking(true)}>Ask for changes</Button>
         </div>
       )}
