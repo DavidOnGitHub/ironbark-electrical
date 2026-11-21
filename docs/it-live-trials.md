@@ -130,10 +130,10 @@ automated or scripted test case; each fail becomes a bug to fix first.
 
 | Trial | Date | Result | Notes |
 | --- | --- | --- | --- |
-| 1 Workflow fix, apply | | | |
-| 1 Workflow fix, dismiss | | | |
-| 2 Revert guard, spike | | | |
-| 2 Revert guard, no spike | | | |
-| 2 Revert guard, no loop | | | |
-| 3a Terminated run ignored | | | |
-| 3b Timed-out run recorded once | | | |
+| 1 Workflow fix, apply | 2026-11-21 | PASS (after fixes) | First run FAIL: an empty id setting read "Invoice  was not found." and was classed a code bug. Fixed in #111 (steps say the setting is empty). Also needed WORKFLOW_FIX_URL/SECRET on both services and an LLM connector on staging. IT-1049: proposal "Map the confirm booking job ID to the trigger's required jobId field" was correct; Apply then publish; the next run completed. The request stays on "Fix applied - publish the workflow to make it live" after publishing. |
+| 1 Workflow fix, dismiss | 2026-11-21 | PASS | IT-1050 closed as "Closed without changes" about a minute after Dismiss; the workflow was unchanged. |
+| 2 Revert guard, spike | 2026-11-21 | Not run | Skipped by decision: needs two paid feature requests (about 2 credits) and uses up the demo bugs. |
+| 2 Revert guard, no spike | 2026-11-21 | Not run | Skipped by decision: needs two paid feature requests (about 2 credits) and uses up the demo bugs. |
+| 2 Revert guard, no loop | 2026-11-21 | Not run | Skipped by decision: needs two paid feature requests (about 2 credits) and uses up the demo bugs. |
+| 3a Terminated run ignored | 2026-11-21 | PASS (with Cancel, not terminate) | A trigger + 10-minute delay run filed under "Job to invoice" (started from a one-off Render job on the worker), cancelled in the console at 11:42:45: CANCELLED, nothing recorded. A cancel never reaches the watch (it only reads FAILED runs); terminate (marked FAILED by reconcile, then skipped as TerminatedFailure) was not tried live. |
+| 3b Timed-out run recorded once | 2026-11-21 | PASS | Same kind of run started with a 30s Temporal execution timeout. Recorded once at 11:49 as "TimeoutFailure: Workflow execution timed out", source "workflow", no repeats and no "failed-run check failed" lines. Took 7 minutes: reconcile runs every 10 minutes and skips runs under 2 minutes old, and the console showed the run RUNNING until then. The classifier called it workflow setup (high); the workflow assistant declined to change anything. |
