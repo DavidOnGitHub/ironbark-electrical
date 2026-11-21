@@ -84,6 +84,7 @@ services:
       - { key: AUTOMATIONS, value: "on" }
       - { key: AI_BUILDER_URL, value: "https://builder.mstreetsystem.com.au" }
       - { key: AI_BUILDER_APP_ID, value: ironbark-electrical }
+      - { key: IT_SCAN_REPO, value: DavidOnGitHub/ironbark-electrical } # error triage reads the code around a failing step from this (public) repo
       - { key: AI_BUILDER_TOKEN, sync: false } # the "ironbark" service token from AI Builder's SERVICE_TOKENS
       # Asks the web service's workflow assistant for a fix when a failed run needs the workflow changed.
       - { key: WORKFLOW_FIX_SECRET, sync: false } # identical on the web service
