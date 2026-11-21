@@ -15,6 +15,7 @@ import { activeHold, getJobByQuote, holdJobSlot, JobHoldError } from "../jobs";
 import { formatSite } from "../clients";
 import { dayKey, formatDayTime, formatTime } from "../../lib/tz";
 import type { Actor } from "../shared/actor";
+import { issueMessage } from "@kabosh-digital/workflow-types";
 
 export const bookingUrlFor = (token: string, env?: Record<string, string | undefined>) => `${appBaseUrl(env)}/book/${token}`;
 
@@ -76,7 +77,7 @@ export async function bookByLink(token: string, input: BookByLinkInput, opts: Bo
   let address: SiteInput | null = null;
   if (!site) {
     const parsed = SiteInputSchema.safeParse({ ...input.address, state: input.address?.state || "NSW" });
-    if (!parsed.success) throw new BookingError(parsed.error.issues[0]?.message ?? "Please enter the address we should visit.");
+    if (!parsed.success) throw new BookingError(parsed.error.issues[0] ? issueMessage(parsed.error.issues[0]) : "Please enter the address we should visit.");
     address = parsed.data;
   }
   if (data.needsPhone && !input.phone?.trim()) throw new BookingError("Please add a phone number the electrician can call.");
