@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@kabosh-digital/workflow-schema";
-import { requireUser } from "@kabosh-digital/m-street-kit/auth";
+import { currentActor, requireUser } from "@kabosh-digital/m-street-kit/auth";
 import { signalCompleteTask } from "@kabosh-digital/workflow-temporal/client";
 import { approvalOutput } from "../domain/approvals/edit";
+import { canCompleteTask, visibleWorkflows } from "../lib/workflowAccess";
 import { errorMessage, text, type ActionState } from "./shared";
 
 /**
@@ -17,20 +18,20 @@ export async function completeApprovalAction(_prev: ActionState, formData: FormD
   const instanceId = text(formData, "instanceId") ?? "";
   const nodeId = text(formData, "nodeId") ?? "";
   const user = await requireUser();
+  const actor = await currentActor();
+  if (!actor) return { error: "Not signed in." };
   try {
     const task = await prisma.workflowTask.findUnique({ where: { id: taskId } });
     if (!task) return { error: "Task not found." };
     if (task.status !== "PENDING") return { error: "Task is no longer pending." };
     if (task.instanceId !== instanceId || task.nodeId !== nodeId) return { error: "Task/instance/node mismatch - refresh and retry." };
-    // Only runs the person may see; knowing a task id is not enough.
-    const isAdmin = user.roles.includes("ADMIN" as never);
-    const visible = await prisma.workflowInstance.findFirst({ where: { id: instanceId, ...(isAdmin ? {} : { definition: { ownerId: user.id } }) }, select: { id: true } });
+    // Only runs of workflows the person may see (their own and those shared with them); knowing a task id is not enough.
+    const visible = await prisma.workflowInstance.findFirst({ where: { id: instanceId, definition: visibleWorkflows(actor) }, select: { id: true } });
     if (!visible) return { error: "Task not found." };
     const input = task.input as { assigneeRole?: string | null; approval?: unknown } | null;
-    // Same rule as the console: a task for a person is theirs alone; otherwise no role set = anyone, else that role or an administrator.
-    const allowed = task.assigneeId ? task.assigneeId === user.id : !input?.assigneeRole || user.roles.includes(input.assigneeRole as never) || isAdmin;
-    if (!allowed) {
-      return { error: `Forbidden: this task requires role ${input?.assigneeRole ?? "assigned"} (ADMIN can override).` };
+    // Same rule as the console: a task for a person is theirs alone; otherwise no group set = anyone, else that group or an administrator.
+    if (!canCompleteTask(actor, { assigneeRole: input?.assigneeRole ?? null, assigneeId: task.assigneeId })) {
+      return { error: task.assigneeId ? "This task is assigned to someone else." : `This task is for the ${input?.assigneeRole} group.` };
     }
     if (input?.approval !== true) return { error: "This task is not an approval." };
 
