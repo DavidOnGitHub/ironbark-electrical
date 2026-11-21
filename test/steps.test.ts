@@ -11,6 +11,7 @@ import { createInvoiceFromJob, getInvoice, issueInvoice, recordPayment } from ".
 import { listClientTimeline } from "../src/domain/activity";
 import { ironSparkMockAgent } from "../src/steps/fixtures";
 import { sydneyLocalToDate } from "../src/lib/tz";
+import { classifyByRules } from "../src/domain/it";
 import { truncateAll } from "./helpers";
 import type { Actor } from "../src/domain/shared/actor";
 
@@ -151,6 +152,17 @@ describe("getInvoice", () => {
     const out = await run("getInvoice", { invoiceId });
     expect(out.daysOverdue).toBe(15);
     expect(out.noticeBody).toContain("15 days overdue");
+  });
+  it("says the setting is empty when the invoice id is blank or mapped to a field the run does not have", async () => {
+    for (const params of [{ invoiceId: "" }, { invoiceId: { $ref: "trigger.invoiceRef" } }]) {
+      await expect(run("getInvoice", params, { trigger: { invoiceId: "inv_1" } })).rejects.toThrow('getInvoice: the "Invoice id" setting is empty. It is required');
+    }
+    // The IT assistant reads that as a workflow setup problem, not a bug in the code.
+    const message = await run("getInvoice", { invoiceId: "" }).then(
+      () => "",
+      (err: Error) => err.message,
+    );
+    expect(classifyByRules({ name: "Error", message, source: "step" })).toMatchObject({ class: "workflow_config", confidence: "medium" });
   });
 });
 
