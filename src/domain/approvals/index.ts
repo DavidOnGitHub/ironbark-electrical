@@ -9,6 +9,7 @@ import { formatMoney } from "../../lib/money";
 import { resolveParams, str } from "../../steps/runtime";
 import { buildReview, type GraphNode, type Review } from "./review";
 import { editableFor, type Editable } from "./edit";
+import { canCompleteTask, canSeeRunData, visibleWorkflows, type WorkflowViewer } from "../../lib/workflowAccess";
 
 export { buildReview, type Review } from "./review";
 export { approvalOutput, editableFor, type Editable } from "./edit";
@@ -74,16 +75,20 @@ async function quoteReview(node: GraphNode, context: Record<string, unknown>): P
   };
 }
 
-/** Pending approvals for one run (the run page shows what is being waited on). */
-export async function reviewsForInstance(instanceId: string, viewer: { id: string; roles: string[] }) {
+/** Pending approvals for one run (the run page shows what is being waited on). Same rules as the console: runs of
+ * workflows the viewer can see, and an approval's content only with the workflow's run data or when it is theirs to
+ * complete. */
+export async function reviewsForInstance(instanceId: string, viewer: WorkflowViewer) {
   const tasks = await prisma.workflowTask.findMany({
-    // Same visibility as the console: an administrator sees every run, anyone else only runs of their own workflows.
-    where: { instanceId, status: "PENDING", ...(viewer.roles.includes("ADMIN") ? {} : { instance: { definition: { ownerId: viewer.id } } }) },
-    include: { instance: { include: { definition: { select: { graph: true, publishedGraph: true } } } } },
+    where: { instanceId, status: "PENDING", instance: { definition: visibleWorkflows(viewer) } },
+    include: { instance: { include: { definition: { select: { graph: true, publishedGraph: true, ownerId: true } } } } },
     orderBy: { createdAt: "asc" },
   });
   const out: { taskId: string; nodeId: string; review: Review }[] = [];
   for (const t of tasks) {
+    const assigneeRole = (t.input as { assigneeRole?: unknown } | null)?.assigneeRole;
+    const mine = canCompleteTask(viewer, { assigneeRole: typeof assigneeRole === "string" ? assigneeRole : null, assigneeId: t.assigneeId });
+    if (!mine && !canSeeRunData(viewer, { id: t.instance.definitionId, ownerId: t.instance.definition.ownerId })) continue;
     const review = await reviewForTask(t);
     if (review) out.push({ taskId: t.id, nodeId: t.nodeId, review });
   }
