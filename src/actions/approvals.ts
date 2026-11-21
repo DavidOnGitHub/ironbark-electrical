@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@kabosh-digital/workflow-schema";
 import { currentActor, requireUser } from "@kabosh-digital/m-street-kit/auth";
+import { canCompleteTask, visibleWorkflows } from "@kabosh-digital/m-street-kit/access";
 import { signalCompleteTask } from "@kabosh-digital/workflow-temporal/client";
 import { approvalOutput } from "../domain/approvals/edit";
-import { canCompleteTask, visibleWorkflows } from "../lib/workflowAccess";
 import { errorMessage, text, type ActionState } from "./shared";
 
 /**
