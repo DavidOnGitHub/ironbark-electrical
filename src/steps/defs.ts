@@ -49,6 +49,8 @@ export const createEnquiryDef: StepCatalogEntry = {
     contactName: z.unknown().optional(),
     contactPhone: z.unknown().optional(),
     messageId: z.unknown().optional(),
+    /** "WEB" for the website form; anything else (or nothing) is an email enquiry. */
+    source: z.unknown().optional(),
   }),
   outputSchema: z.object({ requestId: z.string(), clientId: z.string().nullable(), linked: z.boolean(), isEmergency: z.boolean(), canEmail: z.boolean(), bookingUrl: z.string(), simulated: z.boolean() }),
 };

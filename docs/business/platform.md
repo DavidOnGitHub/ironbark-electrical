@@ -20,6 +20,7 @@ Rules marked "(inferred)" come from the code only and are not confirmed by a tes
 - BR-AUT-6: An approval task can name one email variable a person may rewrite; approving an editable task needs non-empty edited text of at most 6,000 characters, and rejecting hands the run `approved: false`.
 - BR-AUT-7: Workflow steps that find the recipient not allowed, or no connected Gmail account, fall back to a task for a person instead of sending.
 - BR-AUT-8: Accepting a quote (by the customer or the office) stops the quote chase (inferred from the README and the stop-chase tests).
+- BR-AUT-9: An enquiry sent through the website form runs the same enquiry-to-reply process as an emailed one: the form needs a name, an email and a message, the enquiry is logged with source Web, and the reply goes to the form's email only after a person approves it.
 
 ## Email safety and templates (EML)
 

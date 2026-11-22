@@ -1,5 +1,5 @@
 import { getLlmModelsForProvider, type WorkflowDefinitionGraph } from "@kabosh-digital/workflow-types";
-import { enquiryToReply } from "./enquiryToReply";
+import { enquiryToReply, webEnquiryToReply } from "./enquiryToReply";
 import { invoiceChase } from "./invoiceChase";
 import { quoteChase } from "./quoteChase";
 import { reviewRequest } from "./reviewRequest";
@@ -7,7 +7,7 @@ import { visitToQuote } from "./visitToQuote";
 import { jobBooking } from "./jobBooking";
 import { jobToInvoice } from "./jobToInvoice";
 
-export const ironSparkWorkflows: WorkflowDefinitionGraph[] = [enquiryToReply, visitToQuote, quoteChase, jobBooking, jobToInvoice, invoiceChase, reviewRequest];
+export const ironSparkWorkflows: WorkflowDefinitionGraph[] = [enquiryToReply, webEnquiryToReply, visitToQuote, quoteChase, jobBooking, jobToInvoice, invoiceChase, reviewRequest];
 
 import { inboxAlias } from "../integrations/allowlist";
 
@@ -49,4 +49,4 @@ function wireEmail(graph: WorkflowDefinitionGraph, { emailConnectorId, gmailAcco
   };
 }
 
-export { enquiryToReply, quoteChase, invoiceChase, reviewRequest, visitToQuote, jobBooking, jobToInvoice };
+export { enquiryToReply, webEnquiryToReply, quoteChase, invoiceChase, reviewRequest, visitToQuote, jobBooking, jobToInvoice };

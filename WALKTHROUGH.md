@@ -69,6 +69,11 @@ on the quote page, then use the accept link in the email and carry on from there
 **Optional, 30 seconds:** **Setup > Email templates** - open *Enquiry - approved reply* or *Invoice - sent to the customer*, change a line and watch the preview
 update. "Your wording, your look - no developer needed. The automations pick the change up on the next email."
 
+**Optional, 1 minute - the website form:** open **Workflows > Website enquiry to reply** and click **Create URL** (needs Publish access). Copy
+the form HTML into any page (or post to the URL with `curl -X POST <url> -d name=... -d email=... -d message=...`). The enquiry arrives on
+**Requests** marked *Web* and the same *Office approves the reply* task appears. "Email or website, it is one process: the AI reads it, the office
+approves the reply." Post as a customer whose address is on `EMAIL_ALLOWLIST`, as for email.
+
 **Optional card payment:** with Stripe test keys set up, the invoice email also has a card link. Open it in the private window and pay with
 `4242 4242 4242 4242`, any future date, any CVC; the invoice flips to **Paid** by itself (Stripe's webhook), and the thank-you follows. Skip it if you are
 showing bank transfer.
