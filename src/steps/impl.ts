@@ -56,13 +56,14 @@ export async function createEnquiryImpl(config: Cfg, context: WorkflowContext) {
   const isEmergency = urgency === "EMERGENCY";
   // Whether the automation may write back to this sender (see integrations/allowlist.ts).
   const canEmail = isAllowedRecipient(sender.email);
+  const fromWeb = str(p.source) === "WEB";
   if (isTestRun(context)) return { requestId: "test-request", clientId, linked: !!clientId, isEmergency, canEmail, bookingUrl: bookingUrlFor("test-booking-link"), simulated: true };
   const request = await createRequest(
     {
-      source: "EMAIL",
+      source: fromWeb ? "WEB" : "EMAIL",
       category: category as RequestInput["category"],
       urgency: urgency as RequestInput["urgency"],
-      summary: str(p.summary).slice(0, 200) || "Email enquiry",
+      summary: str(p.summary).slice(0, 200) || (fromWeb ? "Website enquiry" : "Email enquiry"),
       description: str(p.description) || undefined,
       clientId: clientId ?? undefined,
       contactName: str(p.contactName) || sender.name || undefined,
@@ -70,7 +71,7 @@ export async function createEnquiryImpl(config: Cfg, context: WorkflowContext) {
       contactPhone: phone,
       rawEmailRef: str(p.messageId) || undefined,
     },
-    { type: "WORKFLOW", label: "Enquiry to reply" },
+    { type: "WORKFLOW", label: fromWeb ? "Website enquiry to reply" : "Enquiry to reply" },
   );
   return { requestId: request.id, clientId, linked: !!clientId, isEmergency, canEmail, bookingUrl: await bookingUrlForRequest(request.id), simulated: false };
 }

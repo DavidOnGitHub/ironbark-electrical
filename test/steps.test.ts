@@ -277,6 +277,11 @@ describe("AI stand-ins for test runs", () => {
     expect(a.replyDraft).toContain("main switch");
     expect(a.replyDraft).toContain("(02) 5550 0142");
   });
+  it("takes the name and phone from the website form's own fields", () => {
+    const a = ironSparkMockAgent("triageEnquiry", { from: "sam@example.com", name: "Sam Lee", phone: "0400 111 222", body: "Can you quote on a new switchboard?" }) as Record<string, any>;
+    expect(a).toMatchObject({ isEnquiry: true, category: "QUOTE_REQUEST", contactName: "Sam Lee", contactPhone: "0400 111 222", summary: "Can you quote on a new switchboard?" });
+    expect(a.replyDraft).toContain("Hi Sam");
+  });
   it("reads unhappy replies as negative", () => {
     expect((ironSparkMockAgent("classifyFeedback", { body: "Not happy - they left a mess and were late" }) as Record<string, any>).isNegative).toBe(true);
     expect((ironSparkMockAgent("classifyFeedback", { body: "Great job, thanks!" }) as Record<string, any>).isNegative).toBe(false);

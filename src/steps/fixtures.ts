@@ -22,12 +22,13 @@ function triageEnquiry(p: Record<string, unknown>) {
   const subject = String(p.subject ?? "");
   const body = String(p.body ?? "");
   const text = `${subject}\n${body}`;
-  const name = senderName(from);
+  // The website form sends the name as its own field; an email carries it in From.
+  const name = typeof p.name === "string" && p.name.trim() ? p.name.trim() : senderName(from);
   const first = name.split(" ")[0] || "there";
   const isEnquiry = !NOT_ENQUIRY.test(text) && (QUOTE.test(text) || INSTALL.test(text) || FAULT.test(text) || EMERGENCY.test(text));
   const urgency = EMERGENCY.test(text) ? "EMERGENCY" : URGENT.test(text) ? "URGENT" : "ROUTINE";
   const category = FAULT.test(text) || EMERGENCY.test(text) ? "FAULT_REPAIR" : QUOTE.test(text) ? "QUOTE_REQUEST" : INSTALL.test(text) ? "NEW_INSTALL" : "OTHER";
-  const phone = text.match(/(?:\+?61|0)[\s-]?4\d{2}[\s-]?\d{3}[\s-]?\d{3}|\(0\d\)\s?\d{4}\s?\d{4}/)?.[0] ?? "";
+  const phone = (typeof p.phone === "string" && p.phone.trim()) || (text.match(/(?:\+?61|0)[\s-]?4\d{2}[\s-]?\d{3}[\s-]?\d{3}|\(0\d\)\s?\d{4}\s?\d{4}/)?.[0] ?? "");
   const summary = (subject || body.split("\n")[0] || "Email enquiry").replace(/^(re|fwd?):\s*/i, "").slice(0, 120);
   return {
     isEnquiry,

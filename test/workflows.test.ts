@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { validateGraph, type WorkflowDefinitionGraph } from "@kabosh-digital/workflow-types";
 import { getStepCatalog } from "@kabosh-digital/workflow-temporal/catalog";
-import { invoiceChase, ironSparkWorkflows, quoteChase, reviewRequest, enquiryToReply, visitToQuote, jobBooking, jobToInvoice, wireConnectors } from "../src/workflows";
+import { invoiceChase, ironSparkWorkflows, quoteChase, reviewRequest, enquiryToReply, webEnquiryToReply, visitToQuote, jobBooking, jobToInvoice, wireConnectors } from "../src/workflows";
+import { WebhookTriggerConfigSchema } from "@kabosh-digital/workflow-types";
 import { ironSparkStepDefs } from "../src/steps/defs";
 import { DAYS } from "../src/workflows/build";
 
@@ -180,5 +181,58 @@ describe("safety rules", () => {
       expect(n.config.connectorId, n.id).toBe(wantsEmail ? "conn_gmail" : undefined);
     }
     expect(wireConnectors(invoiceChase, {})).toBe(invoiceChase);
+  });
+});
+
+describe("website enquiry form", () => {
+  const shape = (g: WorkflowDefinitionGraph) => ({
+    nodes: g.nodes.map((n) => `${n.id}:${n.type}:${n.type === "TRIGGER" ? "" : n.stepKey}`),
+    edges: g.edges.map((e) => ({ from: e.fromNodeId, to: e.toNodeId, condition: e.condition ?? null })),
+  });
+
+  it("runs exactly the same process as an emailed enquiry, so the approval and emergency rules hold for it too", () => {
+    expect(shape(webEnquiryToReply)).toEqual(shape(enquiryToReply));
+    expect(webEnquiryToReply.id).not.toBe(enquiryToReply.id);
+  });
+
+  it("is started by the website form, which needs a name, an email and a message", () => {
+    const trigger = webEnquiryToReply.nodes.find((n) => n.type === "TRIGGER")!;
+    expect(trigger.stepKey).toBe("webhook");
+    const config = WebhookTriggerConfigSchema.parse(trigger.config);
+    expect(config.fields.filter((f) => f.required).map((f) => f.name)).toEqual(["name", "email", "message"]);
+    expect(config.fields.find((f) => f.name === "phone")!.required).toBe(false);
+  });
+
+  it("reads only fields the form sends, never the email trigger's", () => {
+    const declared = new Set(["name", "email", "phone", "message", "received_at"]);
+    const refs: string[] = [];
+    const walk = (v: unknown) => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") {
+        const r = v as Record<string, unknown>;
+        if (typeof r.$ref === "string") refs.push(r.$ref);
+        else Object.values(r).forEach(walk);
+      }
+    };
+    webEnquiryToReply.nodes.forEach((n) => walk(n.config));
+    const triggerFields = refs.filter((r) => r.startsWith("trigger.")).map((r) => r.slice("trigger.".length));
+    expect(triggerFields.length).toBeGreaterThan(0);
+    for (const field of triggerFields) expect(declared.has(field), `trigger.${field}`).toBe(true);
+  });
+
+  it("logs the enquiry as from the web, and replies to the form's email without threading", () => {
+    const log = webEnquiryToReply.nodes.find((n) => n.id === "log_enquiry")!;
+    expect((log.config as { params: Record<string, unknown> }).params).toMatchObject({ source: "WEB", from: { $ref: "trigger.email" }, contactName: { $ref: "trigger.name" } });
+    const send = webEnquiryToReply.nodes.find((n) => n.id === "send_reply")!;
+    const params = (send.config as { params: Record<string, unknown> }).params;
+    expect(params.to).toEqual({ $ref: "trigger.email" });
+    expect(params.inReplyTo).toBeUndefined();
+    expect((params.variables as Record<string, unknown>).subject).toBe("Your enquiry to Ironbark Electrical");
+  });
+
+  it("the email connector wires the reply but leaves the form trigger alone", () => {
+    const wired = wireConnectors(webEnquiryToReply, { emailConnectorId: "conn_gmail", gmailAccount: "owner@gmail.com" });
+    expect(wired.nodes.find((n) => n.type === "TRIGGER")!.config).toEqual(webEnquiryToReply.nodes.find((n) => n.type === "TRIGGER")!.config);
+    expect(wired.nodes.find((n) => n.id === "send_reply")!.config.connectorId).toBe("conn_gmail");
   });
 });

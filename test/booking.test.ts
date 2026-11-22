@@ -124,6 +124,21 @@ describe("the pick-a-time link", () => {
   });
 });
 
+describe("the website enquiry form", () => {
+  it("logs the enquiry as from the web, with the name the customer typed", async () => {
+    const out = (await createEnquiryImpl(
+      { params: { from: "sam.web@example.com", summary: "New switchboard", contactName: "Sam Lee", contactPhone: "0400 111 222", category: "QUOTE_REQUEST", urgency: "ROUTINE", source: "WEB" } },
+      { trigger: {} } as never,
+    )) as { requestId: string };
+    const request = await getRequest(out.requestId);
+    expect(request).toMatchObject({ source: "WEB", contactName: "Sam Lee", contactEmail: "sam.web@example.com", contactPhone: "0400 111 222" });
+  });
+  it("an emailed enquiry is still logged as email", async () => {
+    const out = (await createEnquiryImpl({ params: { from: "Pat Smith <pat.mail@example.com>", summary: "Rewire" } }, { trigger: {} } as never)) as { requestId: string };
+    expect((await getRequest(out.requestId))!.source).toBe("EMAIL");
+  });
+});
+
 describe("the enquiry reply", () => {
   it("carries the link: the step creates it and the office sees it in the approval", async () => {
     await ensureDefaultTemplates();

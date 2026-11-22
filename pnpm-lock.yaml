@@ -20,20 +20,20 @@ importers:
   .:
     dependencies:
       '@kabosh-digital/m-street-kit':
-        specifier: 0.16.0
-        version: 0.16.0(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.4.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
+        specifier: 0.17.0
+        version: 0.17.0(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.4.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
       '@kabosh-digital/ui-kit':
-        specifier: 0.16.0
-        version: 0.16.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 0.17.0
+        version: 0.17.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@kabosh-digital/workflow-schema':
-        specifier: 0.16.0
-        version: 0.16.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+        specifier: 0.17.0
+        version: 0.17.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       '@kabosh-digital/workflow-temporal':
-        specifier: 0.16.0
-        version: 0.16.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
+        specifier: 0.17.0
+        version: 0.17.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
       '@kabosh-digital/workflow-types':
-        specifier: 0.16.0
-        version: 0.16.0
+        specifier: 0.17.0
+        version: 0.17.0
       '@prisma/client':
         specifier: ^6.2.1
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -753,27 +753,27 @@ packages:
     peerDependencies:
       tslib: '2'
 
-  '@kabosh-digital/m-street-kit@0.16.0':
-    resolution: {integrity: sha512-u6jWUPUg2y2Js1d9v4LnafcRiK6FzBVMcuVHSRUJz9Fiu2ggCCjqYlNfAyhvsJT4LAv/UOuRpqSzf84vxyv/sA==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/m-street-kit/0.16.0/706e0d3120a0f4ea436f342cd43ef117d8ae125c}
+  '@kabosh-digital/m-street-kit@0.17.0':
+    resolution: {integrity: sha512-YKZ8x5JXY/VJ64IzOeq0YUb6XNKwMJLDkcj02E7v+Ry+Ujd2XFsrmVJgvPQx28eEvveIAnDxeLfozL9z6yGEWw==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/m-street-kit/0.17.0/e7ac4953c76038fc9e26e2e51ee4865c58747c94}
     peerDependencies:
       next: '>=16.4.5 <17'
       react: 19.2.8
       react-dom: 19.2.8
 
-  '@kabosh-digital/ui-kit@0.16.0':
-    resolution: {integrity: sha512-AfSstLqsmWHqp92zY5YGchnvcFgOWowR+1GAkD47vcFiCiJZvz7PqsqzTH5PzIcI057JzPSqgY36akQzDYstgg==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/ui-kit/0.16.0/72a04ade0b42f28386b8b59300f910fce89a0035}
+  '@kabosh-digital/ui-kit@0.17.0':
+    resolution: {integrity: sha512-zE0ZMxhKIZiDZIxmINDc6GPfL1zhaQx4ArIUK7zLWYsSpDr2BnUYpyywZeE9TXtXlepIeHmy3KPZXj3r230TxA==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/ui-kit/0.17.0/9a9f1a81482e604f396c9ecefe9198d5fbaea225}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
 
-  '@kabosh-digital/workflow-schema@0.16.0':
-    resolution: {integrity: sha512-rNvVe36609tA73w7GuV+iLi4kM4TZPVAeGYXyNen3YO1FEyyrv095aBa8BCEBYsXTpKs3D33kekoQQD5A4q++w==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/workflow-schema/0.16.0/ff18c2db76e8bc2884f21cee2f0bd61edf8efb7c}
+  '@kabosh-digital/workflow-schema@0.17.0':
+    resolution: {integrity: sha512-r7jxQUeUEfWi2JbntjIEsagLG0AmeKU1moJpIebS8HmwpI9zHccA8zwqpmB3rKcZTXBweMNB4z/sSxh9mWoDwQ==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/workflow-schema/0.17.0/c18ead30b9b218aeaada031807b91027f26425b5}
 
-  '@kabosh-digital/workflow-temporal@0.16.0':
-    resolution: {integrity: sha512-u9n5F2VsQ5YWvSblJOoGuOPSfa00jnCOCfNTgwk4sKbNAxNz2rqiLuiYs/WYWIvF3hpIqWiCq31VF589wloRrg==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/workflow-temporal/0.16.0/b5cfe6415293b3a8ea60c69b12d32dff2b3215b8}
+  '@kabosh-digital/workflow-temporal@0.17.0':
+    resolution: {integrity: sha512-Wtvj+YKadBkUnfoJ55ibc+XihI7chjXREamI2lvp3/07UHDzoIroAkVsbPAMgBbZLpQrH0nmFE0RSxvHPVvK9g==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/workflow-temporal/0.17.0/959a25928069e02fd298b8c89837bd143e9a5e00}
 
-  '@kabosh-digital/workflow-types@0.16.0':
-    resolution: {integrity: sha512-MVmamjnxgfQTV60GQlH1g8la6u6KcZx4joX/S2nusX4fJHaRBHDc0BRW/Pk9P84cxjNeFdkn1Bhie41fT1qtWw==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/workflow-types/0.16.0/de12fabe23cd26919506e3071dc26721d4104948}
+  '@kabosh-digital/workflow-types@0.17.0':
+    resolution: {integrity: sha512-Hg68cPG3oFx21utLxLLkkF995uuokB+Lzq4fp82Dv/C8OBcAsy1Qki+YfaugeEVx2NaUXenNw/aDdG477aD/eg==, tarball: https://npm.pkg.github.com/download/@kabosh-digital/workflow-types/0.17.0/0f1b0c92bcf921f7dfe9ea838b3cfda43ecd4df7}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -5027,12 +5027,12 @@ snapshots:
       '@jsonjoy.com/codegen': 17.67.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@kabosh-digital/m-street-kit@0.16.0(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.4.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)':
+  '@kabosh-digital/m-street-kit@0.17.0(@swc/helpers@0.5.23)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.2)(lightningcss@1.32.0)(next@16.4.6(@babel/core@7.29.7(supports-color@8.1.1))(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)':
     dependencies:
-      '@kabosh-digital/ui-kit': 0.16.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@kabosh-digital/workflow-schema': 0.16.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
-      '@kabosh-digital/workflow-temporal': 0.16.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
-      '@kabosh-digital/workflow-types': 0.16.0
+      '@kabosh-digital/ui-kit': 0.17.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@kabosh-digital/workflow-schema': 0.17.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@kabosh-digital/workflow-temporal': 0.17.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)
+      '@kabosh-digital/workflow-types': 0.17.0
       '@types/qrcode': 1.5.6
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -5078,9 +5078,9 @@ snapshots:
       - webpack-cli
       - ws
 
-  '@kabosh-digital/ui-kit@0.16.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@kabosh-digital/ui-kit@0.17.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@kabosh-digital/workflow-types': 0.16.0
+      '@kabosh-digital/workflow-types': 0.17.0
       '@xyflow/react': 12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       prettier: 3.9.9
       react: 19.2.8
@@ -5091,18 +5091,18 @@ snapshots:
       - '@types/react-dom'
       - immer
 
-  '@kabosh-digital/workflow-schema@0.16.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)':
+  '@kabosh-digital/workflow-schema@0.17.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
       '@prisma/client': 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
     transitivePeerDependencies:
       - prisma
       - typescript
 
-  '@kabosh-digital/workflow-temporal@0.16.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)':
+  '@kabosh-digital/workflow-temporal@0.17.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(prisma@6.19.3(typescript@5.9.3))(sharp@0.35.5(@types/node@22.20.4))(typescript@5.9.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.116.0(zod@4.6.7)
-      '@kabosh-digital/workflow-schema': 0.16.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
-      '@kabosh-digital/workflow-types': 0.16.0
+      '@kabosh-digital/workflow-schema': 0.17.0(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@kabosh-digital/workflow-types': 0.17.0
       '@temporalio/activity': 1.24.0
       '@temporalio/client': 1.24.0
       '@temporalio/worker': 1.24.0(@swc/helpers@0.5.23)(esbuild@0.28.2)(lightningcss@1.32.0)(postcss@8.5.28)(sharp@0.35.5(@types/node@22.20.4))
@@ -5135,7 +5135,7 @@ snapshots:
       - webpack-cli
       - ws
 
-  '@kabosh-digital/workflow-types@0.16.0':
+  '@kabosh-digital/workflow-types@0.17.0':
     dependencies:
       zod: 4.6.7
 
