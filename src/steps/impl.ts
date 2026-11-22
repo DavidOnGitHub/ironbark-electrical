@@ -21,7 +21,7 @@ import { isAllowedRecipient } from "../integrations/allowlist";
 import { renderTemplate } from "../domain/emailTemplates";
 import { sendHtmlEmail } from "../integrations/gmailSend";
 import { firstName, formalNotice, invoiceEmail, invoiceReminder, quoteEmail, quoteReminder, reviewRequest } from "./messages";
-import { emailVariables, isTestRun, resolveParams, str } from "./runtime";
+import { emailVariables, isTestRun, requiredSetting, resolveParams, str } from "./runtime";
 import { formatMoney } from "../lib/money";
 import { createItRequest, NewItRequestSchema, startItRequest } from "../domain/it";
 
@@ -77,8 +77,9 @@ export async function createEnquiryImpl(config: Cfg, context: WorkflowContext) {
 
 export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
-  const quote = await getQuote(str(p.quoteId));
-  if (!quote) throw new Error(`Quote ${str(p.quoteId)} was not found.`);
+  const quoteId = requiredSetting("getQuote", "Quote id", p.quoteId);
+  const quote = await getQuote(quoteId);
+  if (!quote) throw new Error(`Quote ${quoteId} was not found.`);
   const mail = {
     clientName: quote.client.name,
     number: quote.number,
@@ -121,8 +122,9 @@ export async function getQuoteImpl(config: Cfg, context: WorkflowContext) {
 
 export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
-  const invoice = await getInvoice(str(p.invoiceId));
-  if (!invoice) throw new Error(`Invoice ${str(p.invoiceId)} was not found.`);
+  const invoiceId = requiredSetting("getInvoice", "Invoice id", p.invoiceId);
+  const invoice = await getInvoice(invoiceId);
+  if (!invoice) throw new Error(`Invoice ${invoiceId} was not found.`);
   const mail = { clientName: invoice.client.name, number: invoice.number, title: invoice.job.title, balanceCents: invoice.balanceCents, totalCents: invoice.totalCents, dueAt: invoice.dueAt, payUrl: invoice.payUrl ?? "", daysOverdue: invoice.daysOverdue };
   const first = invoiceEmail(mail);
   const reminder = invoiceReminder(mail);
@@ -169,7 +171,7 @@ export async function getInvoiceImpl(config: Cfg, context: WorkflowContext) {
 
 export async function createPaymentLinkImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
-  const invoiceId = str(p.invoiceId);
+  const invoiceId = requiredSetting("createPaymentLink", "Invoice id", p.invoiceId);
   if (isTestRun(context)) {
     const invoice = await getInvoice(invoiceId);
     if (!invoice) throw new Error(`Invoice ${invoiceId} was not found.`);
@@ -231,8 +233,9 @@ const NO_QUOTE = { quoteId: "", number: "", title: "", lineCount: 0, totalText: 
 export async function draftQuoteImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
   if (isTestRun(context)) return { created: true, quoteId: "test-quote", number: "Q-TEST", title: "Test quote", lineCount: 0, totalText: formatMoney(0), source: "test", reason: "", simulated: true };
-  const visit = await getSiteVisit(str(p.visitId));
-  if (!visit) throw new Error(`Site visit ${str(p.visitId)} was not found.`);
+  const visitId = requiredSetting("draftQuote", "Visit id", p.visitId);
+  const visit = await getSiteVisit(visitId);
+  if (!visit) throw new Error(`Site visit ${visitId} was not found.`);
   const request = visit.request;
   if (!request.clientId) return { created: false, ...NO_QUOTE, reason: "The enquiry is not linked to a client yet, so a quote cannot be drafted.", simulated: false };
   if ((await listQuotes({ requestId: request.id })).length > 0) return { created: false, ...NO_QUOTE, reason: "This enquiry already has a quote.", simulated: false };
@@ -269,7 +272,7 @@ export async function draftQuoteImpl(config: Cfg, context: WorkflowContext) {
 export async function sendQuoteImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
   if (isTestRun(context)) return { sent: true, followUpStarted: false, reason: "", simulated: true };
-  const quoteId = str(p.quoteId);
+  const quoteId = requiredSetting("sendQuote", "Quote id", p.quoteId);
   const quote = await getQuote(quoteId);
   if (!quote) return { sent: false, followUpStarted: false, reason: "The quote no longer exists.", simulated: false };
   if (quote.status !== "DRAFT") return { sent: false, followUpStarted: false, reason: "The quote has already been sent or answered.", simulated: false };
@@ -291,8 +294,9 @@ export async function getJobBookingImpl(config: Cfg, context: WorkflowContext) {
   if (isTestRun(context)) {
     return { jobNumber: "J-TEST", title: "Test job", clientId: "test-client", clientName: "Test Customer", clientFirstName: "Test", emailAddress: "", hasEmail: false, hasHold: true, requestedText: "Tue 21 Oct, 8:00 am - 12:00 pm", technician: "Test Technician", addressText: "1 Test St, Newtown NSW 2042", acceptUrl: "", simulated: true };
   }
-  const job = await getJob(str(p.jobId));
-  if (!job) throw new Error(`Job ${str(p.jobId)} was not found.`);
+  const jobId = requiredSetting("getJobBooking", "Job id", p.jobId);
+  const job = await getJob(jobId);
+  if (!job) throw new Error(`Job ${jobId} was not found.`);
   const hold = activeHold(job);
   const labels = await staffLabelMap();
   const email = job.client.email ?? "";
@@ -318,7 +322,7 @@ export async function getJobBookingImpl(config: Cfg, context: WorkflowContext) {
 export async function confirmJobBookingImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
   if (isTestRun(context)) return { confirmed: true, reason: "", whenText: "", technician: "", simulated: true };
-  const jobId = str(p.jobId);
+  const jobId = requiredSetting("confirmJobBooking", "Job id", p.jobId);
   const job = await getJob(jobId);
   const hold = job ? activeHold(job) : null;
   const tech = hold ? ((await staffLabelMap()).get(hold.userId) ?? "the technician") : "";
@@ -334,7 +338,7 @@ export async function confirmJobBookingImpl(config: Cfg, context: WorkflowContex
 export async function releaseJobBookingImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
   if (isTestRun(context)) return { released: true, simulated: true };
-  await releaseJobHold(str(p.jobId), bookingActor);
+  await releaseJobHold(requiredSetting("releaseJobBooking", "Job id", p.jobId), bookingActor);
   return { released: true, simulated: false };
 }
 
@@ -345,7 +349,7 @@ export async function draftInvoiceImpl(config: Cfg, context: WorkflowContext) {
   const p = asParams(config, context);
   if (isTestRun(context)) return { created: true, invoiceId: "test-invoice", number: "INV-TEST", totalText: formatMoney(0), reason: "", simulated: true };
   try {
-    const invoice = await createInvoiceFromJob(str(p.jobId), invoicingActor);
+    const invoice = await createInvoiceFromJob(requiredSetting("draftInvoice", "Job id", p.jobId), invoicingActor);
     return { created: true, invoiceId: invoice.id, number: invoice.number, totalText: formatMoney(invoice.totalCents), reason: "", simulated: false };
   } catch (err) {
     if (err instanceof InvoiceError) return { created: false, invoiceId: "", number: "", totalText: "", reason: err.message, simulated: false };
